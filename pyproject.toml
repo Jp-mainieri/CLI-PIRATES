@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "cli-pirates"
+version = "0.3.0"
+description = "Jogo de combate naval em tempo real no terminal"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "João Pedro Panza Mainieri", email = "joaopedro.mainieri@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["game", "cli", "terminal", "naval", "curses"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Simulation",
+]
+
+[project.scripts]
+cli-pirates = "pirates.game:run"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pirates*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
