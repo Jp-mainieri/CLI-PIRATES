@@ -57,8 +57,70 @@ SAIDA_BOMBA_SEG = 2.5
 COOLDOWN_CANHAO = 12.0
 """Tempo base de recarga de um canhão, em segundos."""
 
-CHANCE_DANO_CANHAO = 30.0
-"""Probabilidade (%) de um acerto no casco também danificar um canhão."""
+# ---------------------------------------------------------------------------
+# Moral
+# ---------------------------------------------------------------------------
+
+MORAL_PESO_CASCO = 45.0
+"""Peso do HP do casco no cálculo da moral-alvo (soma com os outros pesos = 100)."""
+
+MORAL_PESO_AGUA = 30.0
+"""Peso do nível de água (invertido) no cálculo da moral-alvo."""
+
+MORAL_PESO_OUTRAS = 25.0
+"""Peso médio das partes não-críticas no cálculo da moral-alvo."""
+
+MORAL_QUEDA_TAXA_SEG = 40.0
+"""Pontos de moral perdidos por segundo quando moral_atual > moral_alvo."""
+
+MORAL_K = 3.5
+"""Expoente da curva de recuperação de moral (espelha REPARO_K)."""
+
+MORAL_RECUP_BASE_SEG = 6.0
+"""Pontos de moral recuperados por segundo na recuperação passiva."""
+
+MORAL_BONUS_ACERTO = 3.0
+"""Pontos de moral ganhos ao registrar um acerto inimigo."""
+
+MORAL_LIMIAR_ALTO = 40.0
+"""Moral ≤ este valor: tripulação está 'Abalada'."""
+
+MORAL_LIMIAR_MEDIO = 25.0
+"""Moral ≤ este valor: tripulação está 'Combalida'."""
+
+MORAL_MULT_NORMAL = 1.0
+"""Multiplicador de acerto / recarga quando moral > MORAL_LIMIAR_ALTO."""
+
+MORAL_MULT_ABALADO = 0.85
+"""Multiplicador quando MORAL_LIMIAR_MEDIO < moral ≤ MORAL_LIMIAR_ALTO."""
+
+MORAL_MULT_COMBALIDO = 0.60
+"""Multiplicador quando moral > 0 e ≤ MORAL_LIMIAR_MEDIO."""
+
+MORAL_MULT_PANICO = 0.30
+"""Multiplicador quando moral ≤ 0 (pânico total)."""
+
+# ---------------------------------------------------------------------------
+# Fuga do inimigo
+# ---------------------------------------------------------------------------
+
+FUGA_ENTRADA_MIN = 0.0
+"""Limiar mínimo de moral para o inimigo entrar em modo fuga."""
+
+FUGA_ENTRADA_MAX = 35.0
+"""Limiar máximo de moral para o inimigo entrar em modo fuga."""
+
+FUGA_SAIDA_MIN = 35.0
+"""Limiar mínimo de moral para o inimigo sair do modo fuga."""
+
+FUGA_SAIDA_MAX = 50.0
+"""Limiar máximo de moral para o inimigo sair do modo fuga."""
+
+ALCANCE_FUGA_ESCAPE = 900.0
+"""Distância (unidades) que o inimigo precisa manter para o timer de fuga avançar."""
+
+TEMPO_FUGA_ESCAPE_SEG = 15.0
+"""Segundos que o inimigo precisa ficar além de ALCANCE_FUGA_ESCAPE para escapar."""
 
 # ---------------------------------------------------------------------------
 # Dinâmica da água
@@ -213,6 +275,14 @@ ARTE_DERROTA = [
     "                 )____)",
     "  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
     "           SEU NAVIO AFUNDOU...",
+]
+
+ARTE_FUGA = [
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "          [ SHIP ]-->-->-->",
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "",
+    "     O INIMIGO FUGIU NO HORIZONTE!",
 ]
 
 COMO_JOGAR_TEXTO = [

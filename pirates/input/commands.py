@@ -113,9 +113,6 @@ def processar_comando(texto: str, estado: Estado) -> None:
         if canhao is None:
             estado.log.append(f"Canhao invalido. Use: {', '.join(estado.canhao_ids)}")
             return
-        if not canhao.operacional():
-            estado.log.append(f"Canhao {canhao.label} esta destruido")
-            return
 
         resto = partes_cmd[2:]
 

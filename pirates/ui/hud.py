@@ -22,6 +22,18 @@ from .colors import (
 )
 
 
+def _label_moral(moral: float) -> str:
+    """Retorna o rótulo de estado de moral conforme os limiares."""
+    from ..constants import MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO
+    if moral > MORAL_LIMIAR_ALTO:
+        return "Normal"
+    if moral > MORAL_LIMIAR_MEDIO:
+        return "Abalada"
+    if moral > 0:
+        return "Combalida"
+    return "PANICO"
+
+
 def build_navio_diagrama(estado) -> list[tuple[str, int]]:
     """Constrói as linhas de status do navio do jogador (coluna esquerda).
 
@@ -52,6 +64,11 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
             cor_valor(estado, j.agua, pior_se_alto=True),
         ),
         (
+            f"MORAL [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%"
+            f" ({_label_moral(j.moral_atual)})",
+            cor_valor(estado, j.moral_atual),
+        ),
+        (
             f"Rumo {j.heading:5.1f}->{j.heading_alvo:5.1f} "
             f"Vel {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f} Vela {j.nivel_vela}/3",
             0,
@@ -68,23 +85,20 @@ def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
     linhas: list[tuple[str, int]] = []
     for lado in ('estibordo', 'bombordo'):
         for c in estado.jogador.canhoes[lado]:
-            if not c.operacional():
-                linhas.append((f"{c.label} [DESTRUIDO]", cor_valor(estado, 0)))
-                continue
-            hp_txt = f"{c.label} hp[{barra(c.hp)}]{c.hp:3.0f}% trip:{c.tripulantes}"
+            cab = f"{c.label} trip:{c.tripulantes}"
             if c.dist_alvo is None:
                 status = "sem mira" if c.tripulantes >= estado.min_crew_canhao else "sem trip."
-                linhas.append((f"{hp_txt} {status}", cor_valor(estado, c.hp)))
+                linhas.append((f"{cab} {status}", 0))
             elif estado.tempo < c.proximo_tiro:
                 restante = c.proximo_tiro - estado.tempo
                 pct_cd = clamp(100 * (1 - restante / COOLDOWN_CANHAO), 0, 100)
-                linhas.append((hp_txt, cor_valor(estado, c.hp)))
+                linhas.append((cab, 0))
                 linhas.append((
                     f"   cd[{barra(pct_cd)}] {restante:4.1f}s mira:{c.dist_alvo:.0f}m",
                     cor_cooldown(estado, pronto=False),
                 ))
             else:
-                linhas.append((hp_txt, cor_valor(estado, c.hp)))
+                linhas.append((cab, 0))
                 linhas.append((
                     f"   cd[{barra(100)}] pronto  mira:{c.dist_alvo:.0f}m",
                     cor_cooldown(estado, pronto=True),

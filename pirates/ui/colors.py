@@ -51,9 +51,9 @@ def cor_log(estado, linha: str) -> int:
         if "acerta Seu Navio" in linha:
             return _curses.color_pair(COR_VERMELHO)
         return _curses.color_pair(COR_VERDE)
-    if linha.startswith("[DANO]") or linha.startswith("[AVARIA]"):
-        return _curses.color_pair(COR_VERMELHO)
     if linha.startswith("Tripulacao realocada"):
+        return _curses.color_pair(COR_AMARELO)
+    if "moral" in linha.lower() and ("perde" in linha.lower() or "fuga" in linha.lower()):
         return _curses.color_pair(COR_AMARELO)
     return 0
 

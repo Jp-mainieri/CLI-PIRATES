@@ -9,7 +9,7 @@ import math
 import random
 
 from ..constants import (
-    COOLDOWN_CANHAO, CHANCE_DANO_CANHAO,
+    COOLDOWN_CANHAO,
     ZOOM_NIVEIS, ZOOM_HISTERESE,
     NAVIO_TIPOS,
 )
@@ -90,36 +90,6 @@ def escolher_parte_atingida() -> str:
     return random.choices(partes, weights=[pesos[p] for p in partes], k=1)[0]
 
 
-def talvez_danificar_canhao(alvo, dano_casco: float, log) -> None:
-    """Aplica dano colateral a um canhão aleatório quando o casco é atingido.
-
-    Há uma chance CHANCE_DANO_CANHAO (%) de um acerto no casco destruir
-    ou avariar um canhão operacional do alvo.
-
-    Args:
-        alvo:       Navio que recebeu o acerto no casco.
-        dano_casco: Pontos de dano aplicados ao casco.
-        log:        Deque de log para registrar o evento.
-    """
-    if not hasattr(alvo, 'canhoes'):
-        return
-    if random.uniform(0, 100) > CHANCE_DANO_CANHAO:
-        return
-    candidatos = [c for lado in alvo.canhoes.values() for c in lado if c.operacional()]
-    if not candidatos:
-        return
-    c = random.choice(candidatos)
-    c.hp = clamp(c.hp - dano_casco * 0.6, 0, 100)
-    if c.hp <= 0:
-        log.append(f"[DANO] Canhao {c.label} de {alvo.nome} foi destruido!")
-        if c.tripulantes > 0:
-            log.append(f"       {c.tripulantes} tripulante(s) liberado(s).")
-        c.tripulantes = 0
-        c.dist_alvo = None
-    else:
-        log.append(f"[AVARIA] Canhao {c.label} de {alvo.nome} avariado ({c.hp:.0f}%)")
-
-
 def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
     """Executa o disparo de um único canhão contra o alvo.
 
@@ -141,7 +111,8 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
 
     erro_estimativa = abs(canhao.dist_alvo - d)
     instabilidade = (100 - atirador.partes['casco']) / 100 * 35
-    chance_acerto = clamp(88 - erro_estimativa * 0.18 - instabilidade - d * 0.03, 4, 92)
+    chance_base = clamp(88 - erro_estimativa * 0.18 - instabilidade - d * 0.03, 4, 92)
+    chance_acerto = chance_base * atirador.multiplicador_moral()
 
     if random.uniform(0, 100) < chance_acerto:
         parte = escolher_parte_atingida()
@@ -150,8 +121,7 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
         log.append(
             f"[ACERTO] Canhao {canhao.label} acerta {alvo.nome} no(a) {parte} (-{dano:.0f}%)"
         )
-        if parte == 'casco':
-            talvez_danificar_canhao(alvo, dano, log)
+        atirador.registrar_acerto_moral()
         return "acerto"
     else:
         log.append(f"[ERRO] Canhao {canhao.label} erra o alvo")
@@ -169,7 +139,9 @@ def disparar_canhoes_navio(estado, atirador, alvo) -> None:
         alvo:     Navio alvo.
     """
     e_jogador = atirador is estado.jogador
-    cooldown_mult = 1.0 if e_jogador else NAVIO_TIPOS[estado.tipo_navio]["cooldown_mult"]
+    cooldown_mult_base = 1.0 if e_jogador else NAVIO_TIPOS[estado.tipo_navio]["cooldown_mult"]
+    mult_moral = max(atirador.multiplicador_moral(), 0.05)
+    cooldown_mult = cooldown_mult_base / mult_moral
 
     for lado in ('bombordo', 'estibordo'):
         for c in atirador.canhoes[lado]:

@@ -7,7 +7,11 @@ e verifica as condições de vitória/derrota a cada tick.
 
 from .combat import disparar_canhoes_navio, escolher_zoom, distancia
 from .state import Estado
-from ..ai.enemy import atualizar_ia_movimento, atualizar_ia_tripulacao, atualizar_ia_mira
+from ..ai.enemy import (
+    atualizar_ia_movimento, atualizar_ia_tripulacao, atualizar_ia_mira,
+    atualizar_estado_fuga,
+)
+from ..constants import ALCANCE_FUGA_ESCAPE, TEMPO_FUGA_ESCAPE_SEG
 
 
 def _atualizar_zoom(estado: Estado) -> None:
@@ -42,6 +46,7 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
     for parte, n in estado.crew_reparo.items():
         jogador.reparar(parte, n, dt)
     jogador.atualizar_agua(estado.crew_bomba, dt)
+    jogador.atualizar_moral(dt)
 
     if not inimigo.afundado:
         atualizar_ia_movimento(estado, dt)
@@ -50,6 +55,8 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
         for parte, n in estado.inimigo_crew_reparo.items():
             inimigo.reparar(parte, n, dt)
         inimigo.atualizar_agua(estado.inimigo_crew_bomba, dt)
+        inimigo.atualizar_moral(dt)
+        atualizar_estado_fuga(estado)
 
     if not inimigo.afundado:
         disparar_canhoes_navio(estado, jogador, inimigo)
@@ -62,6 +69,17 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
     _atualizar_zoom(estado)
 
     estado.tempo += dt
+
+    if estado.inimigo_em_fuga and not inimigo.afundado:
+        d = distancia(jogador, inimigo)
+        if d > ALCANCE_FUGA_ESCAPE:
+            estado.tempo_fuga_longe += dt
+            if estado.tempo_fuga_longe >= TEMPO_FUGA_ESCAPE_SEG and estado.fim is None:
+                estado.log.append("O navio inimigo escapou no horizonte!")
+                estado.fim = "fuga"
+                estado.rodando = False
+        else:
+            estado.tempo_fuga_longe = 0.0
 
     if jogador.afundado and estado.fim is None:
         estado.log.append("Seu navio afundou! Fim de jogo.")

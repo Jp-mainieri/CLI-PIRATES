@@ -22,7 +22,7 @@ def _ciclar_canhao(estado: Estado, lado: str) -> None:
     estado.foco = ("canhao", lado, novo_idx)
     c = lista[novo_idx]
     mira_txt = (f"{c.dist_alvo:.0f}m" if c.dist_alvo is not None
-                else f"(pendente {c.mira_atual:.0f}m)")
+                else f"pendente {c.mira_atual:.0f}m")
     estado.log.append(f"Selecionado canhao {c.label} - trip:{c.tripulantes} mira:{mira_txt}")
 
 
@@ -33,9 +33,6 @@ def _ajustar_mira(estado: Estado, delta: float) -> None:
         return
     _, lado, idx = estado.foco
     c = estado.jogador.canhoes[lado][idx]
-    if not c.operacional():
-        estado.log.append(f"Canhao {c.label} esta destruido")
-        return
     novo = clamp(c.mira_atual + delta, 50, 900)
     c.mira_atual = novo
     if c.dist_alvo is not None:
@@ -99,9 +96,6 @@ def _alternar_foco(estado: Estado) -> None:
     if tipo == "canhao":
         _, lado, idx = estado.foco
         c = estado.jogador.canhoes[lado][idx]
-        if not c.operacional():
-            estado.log.append(f"Canhao {c.label} esta destruido")
-            return
         if c.dist_alvo is not None:
             c.dist_alvo = None
             c.tripulantes = 0
@@ -122,10 +116,8 @@ def _descrever_foco(estado: Estado) -> str:
     if estado.foco[0] == "canhao":
         _, lado, idx = estado.foco
         c = estado.jogador.canhoes[lado][idx]
-        if not c.operacional():
-            return f"{c.label} [DESTRUIDO]"
         mira = (f"{c.dist_alvo:.0f}m" if c.dist_alvo is not None
-                else f"(pendente {c.mira_atual:.0f}m)")
+                else f"pendente {c.mira_atual:.0f}m")
         status = "ATIRANDO" if c.dist_alvo is not None else "parado"
         return f"canhao {c.label} trip:{c.tripulantes} mira:{mira} [{status}]"
     if estado.foco[0] == "reparo":
