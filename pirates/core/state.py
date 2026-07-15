@@ -126,6 +126,7 @@ class Estado:
         self.foco = None
         self.zoom_atual: int | None = None
         self.zoom_mudou_em: float = -999.0
+        self.modo_adm: bool = False
 
         self.log.append(
             f"Bem-vindo ao conves do {params['navio']}, capitao. "

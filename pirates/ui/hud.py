@@ -13,7 +13,7 @@ try:
 except ImportError:
     _curses = None  # type: ignore[assignment]
 
-from ..constants import COOLDOWN_CANHAO
+from ..constants import COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG
 from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
 from ..core.combat import distancia, rumo_para
 from ..core.state import montar_tripulacao
@@ -257,4 +257,97 @@ def build_mapa_linhas(estado) -> list[tuple]:
             from ..constants import COR_AMARELO
             attr_zoom |= _curses.color_pair(COR_AMARELO)
     linhas.append((f"ZOOM: ~{half_range}m | dist real: {d:.0f}m", attr_zoom, []))
+    return linhas
+
+
+def build_adm_linhas(estado) -> list[tuple[str, int]]:
+    """Painel de debug (Modo ADM) com o estado interno completo do inimigo.
+
+    Só deve ser chamado quando estado.modo_adm é True.
+
+    Returns:
+        Lista de (texto, atributo_curses).
+    """
+    from ..core.ship import calcular_entrada_agua
+
+    i = estado.inimigo
+    j = estado.jogador
+    linhas: list[tuple[str, int]] = []
+
+    linhas.append((
+        "=== [ADM] NAVIO INIMIGO ===",
+        (_curses.A_BOLD | _curses.A_REVERSE) if _curses else 0,
+    ))
+
+    d = distancia(j, i)
+    r = rumo_para(j, i)
+    linhas.append((f"pos=({i.x:7.1f},{i.y:7.1f}) heading={i.heading:5.1f}->{i.heading_alvo:5.1f}", 0))
+    linhas.append((
+        f"dist_do_jogador={d:6.1f}m rumo={r:5.1f} "
+        f"vel={i.velocidade:4.1f}/{i.velocidade_maxima():4.1f} vela={i.nivel_vela}/3",
+        0,
+    ))
+    linhas.append((f"afundado={i.afundado}", 0))
+
+    for p in PARTES:
+        linhas.append((f"{p:8s}: {i.partes[p]:5.1f}%", cor_valor(estado, i.partes[p])))
+    entrada_agua = calcular_entrada_agua(i.partes)
+    saida_bomba = estado.inimigo_crew_bomba * SAIDA_BOMBA_SEG * i.multiplicador_moral()
+    linhas.append((
+        f"agua: {i.agua:5.1f}%  (entrada={entrada_agua:5.2f}/s saida={saida_bomba:5.2f}/s)",
+        cor_valor(estado, i.agua, pior_se_alto=True),
+    ))
+
+    linhas.append((
+        f"moral: atual={i.moral_atual:5.1f}% alvo={i.moral_alvo():5.1f}%"
+        f" mult_efic={i.multiplicador_moral():.2f}",
+        0,
+    ))
+    linhas.append((
+        f"fuga: {'SIM' if estado.inimigo_em_fuga else 'nao'}  "
+        f"limiar_entrada<={estado.ia_limiar_fuga_entrada:4.1f}%  "
+        f"limiar_saida>={estado.ia_limiar_fuga_saida:4.1f}%",
+        0,
+    ))
+    if estado.inimigo_em_fuga:
+        linhas.append((
+            f"tempo_fuga_longe: {estado.tempo_fuga_longe:4.1f}s / {TEMPO_FUGA_ESCAPE_SEG:.0f}s",
+            0,
+        ))
+
+    linhas.append((
+        f"personalidade: limiar_agua={estado.ia_limiar_agua:4.1f}%"
+        f" limiar_casco={estado.ia_limiar_casco:4.1f}%",
+        0,
+    ))
+
+    linhas.append((f"tripulacao total: {estado.crew_total}", 0))
+    linhas.append((f"  bomba: {estado.inimigo_crew_bomba}", 0))
+    for p in PARTES:
+        n = estado.inimigo_crew_reparo.get(p, 0)
+        if n > 0:
+            linhas.append((f"  reparo {p}: {n}", 0))
+    total_canhoes = sum(c.tripulantes for lado in i.canhoes.values() for c in lado)
+    linhas.append((f"  canhoes (total trip.): {total_canhoes}", 0))
+
+    for lado in ('estibordo', 'bombordo'):
+        for c in i.canhoes[lado]:
+            if c.dist_alvo is None:
+                status = "sem mira"
+            elif estado.tempo < c.proximo_tiro:
+                status = f"cd {c.proximo_tiro - estado.tempo:4.1f}s"
+            else:
+                status = "PRONTO"
+            linhas.append((
+                f"  {c.label}: trip={c.tripulantes} mira={c.mira_atual:5.0f}m"
+                f" dist_alvo={c.dist_alvo} armado={c.armado()} [{status}]",
+                0,
+            ))
+
+    linhas.append((
+        f"stats: tiros={estado.stats['tiros_inimigo']}"
+        f" acertos={estado.stats['acertos_inimigo']}",
+        0,
+    ))
+
     return linhas

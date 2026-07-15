@@ -6,6 +6,16 @@ e definições de tipos de navio vivem aqui. Alterar valores neste módulo
 afeta o equilíbrio do jogo globalmente.
 """
 
+import os
+
+# ---------------------------------------------------------------------------
+# Flags de ambiente / modo desenvolvedor
+# ---------------------------------------------------------------------------
+
+MODO_ADM_DISPONIVEL = os.environ.get("CLI_PIRATES_DEBUG") == "1"
+"""Só permite ativar o Modo ADM se CLI_PIRATES_DEBUG=1 estiver definida.
+Protege contra ativação acidental em partidas normais."""
+
 # ---------------------------------------------------------------------------
 # Partes do navio
 # ---------------------------------------------------------------------------

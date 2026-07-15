@@ -10,7 +10,7 @@ try:
 except ImportError:
     _curses = None  # type: ignore[assignment]
 
-from ..constants import SIMB_TRIPULANTE, SIMB_CAPITAO
+from ..constants import SIMB_TRIPULANTE, SIMB_CAPITAO, COR_AMARELO
 from ..core.state import montar_tripulacao
 from ..input.hotkeys import _descrever_foco
 from .colors import cor_header, cor_tripulacao_livre, cor_log, cor_tarefa
@@ -20,10 +20,15 @@ from .hud import (
     build_bussola_linhas,
     build_vista_linhas,
     build_mapa_linhas,
+    build_adm_linhas,
 )
 
 RIGHT_X = 36
 """Coluna de início do painel direito (canhões + tripulação)."""
+
+ADM_X = 100
+"""Coluna de início do painel ADM — bem à direita do HUD normal.
+Terminal precisa de ~150+ colunas; caso contrário safe_addstr trunca silenciosamente."""
 
 
 def safe_addstr(stdscr, y: int, x: int, text: str, attr: int = 0) -> None:
@@ -78,6 +83,11 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     numero_livre = f"{estado.crew_livre()}/{estado.crew_total}"
     safe_addstr(stdscr, row, 0, prefixo, cor_header(estado))
     safe_addstr(stdscr, row, len(prefixo), numero_livre, cor_tripulacao_livre(estado))
+    if estado.modo_adm:
+        adm_label = " | [ADM]"
+        adm_col = len(prefixo) + len(numero_livre)
+        attr_adm = (_curses.color_pair(COR_AMARELO) | _curses.A_BOLD) if _curses else 0
+        safe_addstr(stdscr, row, adm_col, adm_label, attr_adm)
     row += 1
     safe_addstr(stdscr, row, 0, "-" * min(max_x - 1, 78))
     row += 1
@@ -117,6 +127,10 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         if i < len(direita):
             texto, attr = direita[i]
             safe_addstr(stdscr, rowi, RIGHT_X, texto, attr)
+
+    if estado.modo_adm:
+        for i, (texto, attr) in enumerate(build_adm_linhas(estado)):
+            safe_addstr(stdscr, topo_colunas + i, ADM_X, texto, attr)
 
     row = topo_colunas + maxlen + 1
     safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)

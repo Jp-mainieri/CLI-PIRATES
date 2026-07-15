@@ -53,6 +53,24 @@ class Canhao:
         return self.tripulantes >= 1 and self.dist_alvo is not None
 
 
+def calcular_entrada_agua(partes: dict) -> float:
+    """Calcula a taxa de entrada de água (unid/s) a partir do dano nas partes críticas.
+
+    Função pura: não aplica dt nem modifica nenhum estado.
+
+    Args:
+        partes: Dict parte→HP (0-100) do navio.
+
+    Returns:
+        Taxa de entrada de água em unidades por segundo.
+    """
+    entrada = 0.0
+    for p in PARTES_CRITICAS:
+        dano_frac = (100 - partes[p]) / 100
+        entrada += AGUA_BASE * (math.exp(AGUA_K * dano_frac) - 1)
+    return entrada
+
+
 def resolver_canhao(id_str: str, jogador: 'Navio') -> 'Canhao | None':
     """Converte um ID de texto ('E1', 'b2', etc.) para o objeto Canhao.
 
@@ -200,10 +218,7 @@ class Navio:
             tripulantes_bomba: Tripulantes alocados às bombas.
             dt:                Delta de tempo em segundos.
         """
-        entrada = 0.0
-        for p in PARTES_CRITICAS:
-            dano_frac = (100 - self.partes[p]) / 100
-            entrada += AGUA_BASE * (math.exp(AGUA_K * dano_frac) - 1)
+        entrada = calcular_entrada_agua(self.partes)
         saida = tripulantes_bomba * SAIDA_BOMBA_SEG * self.multiplicador_moral()
         self.agua = clamp(self.agua + (entrada - saida) * dt, 0, 100)
         if self.agua >= 100:

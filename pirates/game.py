@@ -17,6 +17,7 @@ from .constants import (
     SIM_TICK, POLL_MS,
     COR_VERDE, COR_AMARELO, COR_VERMELHO,
     COR_JOGADOR, COR_INIMIGO, COR_MAR,
+    MODO_ADM_DISPONIVEL,
 )
 from .core.state import Estado
 from .input.commands import processar_comando, obter_candidatos
@@ -96,6 +97,8 @@ def jogo_loop(stdscr, config: dict) -> str:
                         tab_estado["prefixo"]
                         + tab_estado["candidatos"][tab_estado["indice"]]
                     )
+            elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
+                estado.modo_adm = not estado.modo_adm
             elif estado.hotkeys_ativo and buffer_entrada == "" and processar_hotkey(ch, estado):
                 pass
             elif 32 <= ch <= 126:
