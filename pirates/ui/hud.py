@@ -389,7 +389,7 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
     Returns:
         Lista de (texto, atributo_curses).
     """
-    from ..core.porao import TIPOS_CARGA, CAPACIDADE_BARRIL
+    from ..core.porao import TIPOS_CARGA, capacidade_barril
 
     p = navio.porao
     slots = len(p.barris)
@@ -397,15 +397,17 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
     linhas: list[tuple[str, int]] = [(f"PORAO ({slots}/{cap} slots)", 0)]
     for tipo in TIPOS_CARGA:
         barris_tipo = [b for b in p.barris if b.tipo == tipo]
+        n_barris = len(barris_tipo)
         total = sum(b.quantidade for b in barris_tipo)
-        max_tipo = len(barris_tipo) * CAPACIDADE_BARRIL if barris_tipo else CAPACIDADE_BARRIL
-        pct = total / max_tipo if max_tipo > 0 else 0.0
-        n_cheios = int(round(pct * 10))
-        bar = "#" * n_cheios + "-" * (10 - n_cheios)
-        if barris_tipo:
-            linhas.append((f"  {tipo:7s} [{bar}] {total:.0f}/{max_tipo:.0f}", 0))
+        cap_tipo = capacidade_barril(tipo)
+        if n_barris > 0:
+            pct = total / (n_barris * cap_tipo)
+            n_cheios = int(round(pct * 10))
+            bar = "#" * n_cheios + "-" * (10 - n_cheios)
+            max_u = int(n_barris * cap_tipo)
+            linhas.append((f"  {tipo:7s} {n_barris}b [{bar}] {total:.0f}/{max_u}u", 0))
         else:
-            linhas.append((f"  {tipo:7s} [{bar}]  0/--", 0))
+            linhas.append((f"  {tipo:7s} 0b [----------]  0u", 0))
     return linhas
 
 
@@ -532,35 +534,35 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             row = int((1.0 - wy / MUNDO_TAMANHO) * GRID_H) % GRID_H
             return col, row
 
-        # Portos — sempre visíveis
-        for porto in getattr(estado_mundo, 'portos', []):
-            col, row = _world_to_cell(porto.x, porto.y)
-            grid[row][col] = 'P'
-            overlays_por_linha[row].append((col, 'P', 0))
+        # Portos — visíveis fora do combate
+        if not getattr(estado_mundo, 'em_combate', False):
+            for porto in getattr(estado_mundo, 'portos', []):
+                col, row = _world_to_cell(porto.x, porto.y)
+                grid[row][col] = 'P'
+                overlays_por_linha[row].append((col, 'P', 0))
 
-        if getattr(estado, 'modo_adm', False):
-            # Jogador
-            col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
-            grid[row][col] = '@'
-            overlays_por_linha[row].append((col, '@', cor_navio(estado, e_jogador=True)))
+        # Jogador — sempre visível
+        col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
+        grid[row][col] = '@'
+        overlays_por_linha[row].append((col, '@', cor_navio(estado, e_jogador=True)))
 
-            # Inimigos
-            for navio in estado_mundo.inimigos:
-                col, row = _world_to_cell(navio.x, navio.y)
-                if navio.status == "afundado":
-                    glifo, attr = 'x', cor_mar(estado)
-                elif navio.status == "fugindo":
-                    glifo, attr = 'e', cor_navio(estado, e_jogador=False)
-                else:
-                    glifo, attr = 'E', cor_navio(estado, e_jogador=False)
-                grid[row][col] = glifo
-                overlays_por_linha[row].append((col, glifo, attr))
+        # Inimigos — sempre visíveis
+        for navio in estado_mundo.inimigos:
+            col, row = _world_to_cell(navio.x, navio.y)
+            if navio.status == "afundado":
+                glifo, attr = 'x', cor_mar(estado)
+            elif navio.status == "fugindo":
+                glifo, attr = 'e', cor_navio(estado, e_jogador=False)
+            else:
+                glifo, attr = 'E', cor_navio(estado, e_jogador=False)
+            grid[row][col] = glifo
+            overlays_por_linha[row].append((col, glifo, attr))
 
     attr_mar = cor_mar(estado)
-    if getattr(estado, 'modo_adm', False):
-        titulo_mapa = "=== MAPA MUNDO [ADM: @ jogador  E inimigo  e fugindo  x afundado  P porto] ==="
+    if getattr(estado_mundo, 'em_combate', False):
+        titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
     else:
-        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [P porto] ==="
+        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  x afundado  P porto] ==="
     linhas: list[tuple] = [(titulo_mapa, 0, [])]
     linhas.append((" N", 0, []))
     for i, row in enumerate(grid):

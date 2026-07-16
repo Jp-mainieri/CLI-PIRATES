@@ -3,7 +3,7 @@
 import pytest
 
 from pirates.core.porao import (
-    Barril, Porao, CAPACIDADE_BARRIL,
+    Barril, Porao, CAPACIDADE_BARRIL, CAPACIDADE_BARRIL_OURO,
     estoque_inicial_jogador, gerar_porao_inimigo, coletar_loot,
 )
 
@@ -59,7 +59,7 @@ class TestPorao:
 
     def test_adicionar_retorna_excedente_quando_sem_slots(self):
         p = Porao(1)
-        p.barris.append(Barril("ouro", CAPACIDADE_BARRIL))  # slots cheios
+        p.barris.append(Barril("ouro", CAPACIDADE_BARRIL_OURO))  # slot cheio (cap=50)
         excedente = p.adicionar("ouro", 5.0)
         assert excedente == pytest.approx(5.0)
 
@@ -98,24 +98,37 @@ class TestPorao:
 class TestEstoqueInicialJogador:
     def test_chalupa_capacidade_6(self):
         p = estoque_inicial_jogador(6)
+        assert len(p.barris) == 3          # 3 usados, 3 vazios
+        assert p.total("polvora") == pytest.approx(1 * CAPACIDADE_BARRIL)
+        assert p.total("bolas") == pytest.approx(1 * CAPACIDADE_BARRIL)
+        assert p.total("tabuas") == pytest.approx(1 * CAPACIDADE_BARRIL)
+        assert p.total("ouro") == pytest.approx(0.0)
+
+    def test_bergantim_capacidade_9(self):
+        p = estoque_inicial_jogador(9)
+        assert len(p.barris) == 6          # 6 usados, 3 vazios
         assert p.total("polvora") == pytest.approx(2 * CAPACIDADE_BARRIL)
         assert p.total("bolas") == pytest.approx(2 * CAPACIDADE_BARRIL)
         assert p.total("tabuas") == pytest.approx(2 * CAPACIDADE_BARRIL)
         assert p.total("ouro") == pytest.approx(0.0)
 
-    def test_bergantim_capacidade_9(self):
-        p = estoque_inicial_jogador(9)
-        assert len(p.barris) == 9
-        assert p.total("ouro") == pytest.approx(0.0)
-
     def test_galeao_capacidade_14(self):
         p = estoque_inicial_jogador(14)
-        assert len(p.barris) == 14
+        assert len(p.barris) == 9          # 9 usados, 5 vazios
+        assert p.total("polvora") == pytest.approx(3 * CAPACIDADE_BARRIL)
+        assert p.total("bolas") == pytest.approx(3 * CAPACIDADE_BARRIL)
+        assert p.total("tabuas") == pytest.approx(3 * CAPACIDADE_BARRIL)
+        assert p.total("ouro") == pytest.approx(0.0)
+
+    def test_deixa_slots_vazios(self):
+        for cap in (6, 9, 14):
+            p = estoque_inicial_jogador(cap)
+            assert p.slots_livres() > 0, f"cap={cap} não deveria estar cheio"
 
     def test_nao_excede_capacidade(self):
-        cap = 6
-        p = estoque_inicial_jogador(cap)
-        assert len(p.barris) <= cap
+        for cap in (6, 9, 14):
+            p = estoque_inicial_jogador(cap)
+            assert len(p.barris) <= cap
 
 
 class TestGerarPorao:
@@ -124,11 +137,12 @@ class TestGerarPorao:
             p = gerar_porao_inimigo(6)
             assert p.total("ouro") > 0
 
-    def test_sempre_tem_pelo_menos_1_polvora_e_1_bola(self):
+    def test_sempre_tem_pelo_menos_1_polvora_bola_e_tabua(self):
         for _ in range(20):
             p = gerar_porao_inimigo(6)
             assert p.total("polvora") > 0
             assert p.total("bolas") > 0
+            assert p.total("tabuas") > 0
 
     def test_barris_nao_excedem_capacidade(self):
         cap = 9
@@ -150,12 +164,12 @@ class TestColetarLoot:
 
     def test_retorna_resto_quando_porcao_cheio(self):
         jogador = Porao(1)
-        jogador.barris.append(Barril("ouro", CAPACIDADE_BARRIL))
+        jogador.barris.append(Barril("ouro", CAPACIDADE_BARRIL_OURO))  # slot cheio (cap=50)
         loot = Porao(2)
         loot.barris.append(Barril("ouro", 10.0))
         loot.barris.append(Barril("tabuas", 15.0))
         resto = coletar_loot(jogador, loot)
-        # O porão do jogador está cheio — nada coube, tudo vai pro resto
+        # Slot ocupado por ouro cheio; ouro e tabuas nao couberam
         assert len(resto.barris) > 0
         total_resto = sum(b.quantidade for b in resto.barris)
         assert total_resto == pytest.approx(25.0)

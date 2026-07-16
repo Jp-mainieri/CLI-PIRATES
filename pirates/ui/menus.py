@@ -26,8 +26,8 @@ def tela_menu(stdscr) -> str:
         Uma das strings: 'jogar', 'como_jogar', 'navio', 'ajustes', 'sair'.
     """
     opcoes = [
-        ("Jogar", "jogar"),
         ("Mundo Aberto", "mundo"),
+        ("Arena", "jogar"),
         ("Como jogar", "como_jogar"),
         ("Escolher navio", "navio"),
         ("Ajustes", "ajustes"),
@@ -103,7 +103,8 @@ def tela_navio(stdscr, config: dict) -> None:
         safe_addstr(stdscr, 10, 2, f"   Velocidade base ...... {p['velocidade_max_base']:.0f}")
         safe_addstr(stdscr, 11, 2,
                     f"   Taxa de giro ......... {p['giro_graus_seg']:.0f} graus/s")
-        safe_addstr(stdscr, 13, 2, "SETA ESQUERDA/DIREITA muda | ENTER confirma e volta")
+        safe_addstr(stdscr, 12, 2, f"   Capacidade do porao .. {p['porao_capacidade']} slots")
+        safe_addstr(stdscr, 14, 2, "SETA ESQUERDA/DIREITA muda | ENTER confirma e volta")
         stdscr.refresh()
 
         ch = stdscr.getch()

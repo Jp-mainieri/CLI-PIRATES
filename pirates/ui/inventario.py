@@ -7,21 +7,24 @@ try:
 except ImportError:
     _curses = None  # type: ignore[assignment]
 
-from ..core.porao import TIPOS_CARGA, CAPACIDADE_BARRIL, Porao
+from ..core.porao import TIPOS_CARGA, capacidade_barril, Porao
 from .renderer import safe_addstr
 
-_ICONE = {"polvora": "[P]", "bolas": "[O]", "tabuas": "[T]", "ouro": "[$]"}
-_BARRIL_W = 7  # largura por barril no display
+
+def _barra(quantidade: float, capacidade: float, largura: int = 10) -> str:
+    pct = quantidade / capacidade if capacidade > 0 else 0.0
+    n = int(round(pct * largura))
+    return "#" * n + "-" * (largura - n)
 
 
 def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
-    """Sub-loop de inventário: mostra barris, permite reorganizar e descartar.
+    """Sub-loop de inventário: mostra barris com barras, permite reorganizar e descartar.
 
-    Auto-aloca loot_pendente nos slots vazios ao abrir; o que sobrar é
-    perdido quando o jogador fecha (ESC/Enter).
+    Se loot_pendente for fornecido, tenta auto-alocar nos slots livres ao abrir.
+    O que sobrar fica visível como "LOOT NAO COUBE" e é descartado ao fechar.
 
     Controles:
-        ESQ/DIR  — move cursor entre slots
+        CIMA/BAIXO (ou ESQ/DIR) — move cursor entre slots
         ESPACO   — pega/solta barril (swap)
         X        — descarta barril sob o cursor
         ESC/ENTER — fecha
@@ -29,16 +32,16 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
     if _curses is None:
         return
 
-    # Auto-aloca loot pendente
+    # Auto-aloca loot pendente nos slots livres
     loot_info: list[str] = []
     if loot_pendente is not None and loot_pendente.barris:
         resto_barris = list(loot_pendente.barris)
         novos_barris: list = []
         for b in resto_barris:
             exc = navio.porao.adicionar(b.tipo, b.quantidade)
-            if exc < b.quantidade - 1e-9:
-                coletado = b.quantidade - exc
-                loot_info.append(f"{coletado:.1f} {b.tipo}")
+            coletado = b.quantidade - exc
+            if coletado > 1e-9:
+                loot_info.append(f"{coletado:.0f}u {b.tipo}")
             if exc > 1e-9:
                 import copy
                 nb = copy.copy(b)
@@ -48,10 +51,10 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
 
     p = navio.porao
     cursor = 0
-    selecionado: int | None = None  # índice do barril "pego"
+    selecionado: int | None = None
     msg = ""
     if loot_info:
-        msg = f"Loot coletado: {', '.join(loot_info)}"
+        msg = f"Coletado: {', '.join(loot_info)}"
 
     stdscr.nodelay(False)
     while True:
@@ -59,111 +62,86 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
         max_y, max_x = stdscr.getmaxyx()
         row = 0
 
-        # Título
-        titulo = f"INVENTARIO: {navio.tipo_nome.upper()} | {navio.nome}"
-        safe_addstr(stdscr, row, 0, titulo, _curses.A_BOLD | _curses.A_UNDERLINE)
+        titulo = f"INVENTARIO  {navio.tipo_nome.upper()} | {navio.nome}  [{len(p.barris)}/{p.capacidade} slots]"
+        safe_addstr(stdscr, row, 0, titulo, _curses.A_BOLD)
         row += 2
 
-        cap = p.capacidade
-        total_slots = cap
-        safe_addstr(stdscr, row, 2, f"{len(p.barris)}/{cap} slots usados")
+        # Cabeçalho da tabela
+        safe_addstr(stdscr, row, 0, "  #   Tipo      Qtd / Max    [Barra      ]")
         row += 1
 
-        # Renderiza até 7 barris por fileira
-        COLS_POR_FILEIRA = 7
-        for fileira in range((total_slots + COLS_POR_FILEIRA - 1) // COLS_POR_FILEIRA):
-            ini = fileira * COLS_POR_FILEIRA
-            fim = min(ini + COLS_POR_FILEIRA, total_slots)
+        cap = p.capacidade
+        for i in range(cap):
+            if row >= max_y - 6:
+                safe_addstr(stdscr, row, 2, f"... ({cap - i} slots mais, rola para baixo)")
+                row += 1
+                break
 
-            # Linha de quantidade
-            qtd_linha = ""
-            for i in range(ini, fim):
-                if i < len(p.barris):
-                    b = p.barris[i]
-                    qtd_str = f"{b.quantidade:4.0f}/25"
-                else:
-                    qtd_str = "  --   "
-                qtd_linha += qtd_str.center(_BARRIL_W)
-            safe_addstr(stdscr, row, 2, qtd_linha)
+            if i == cursor and i == selecionado:
+                prefixo = "[*]"
+                attr = _curses.A_REVERSE | _curses.A_BOLD
+            elif i == cursor:
+                prefixo = " > "
+                attr = _curses.A_REVERSE
+            elif i == selecionado:
+                prefixo = " * "
+                attr = _curses.A_BOLD
+            else:
+                prefixo = "   "
+                attr = 0
+
+            if i < len(p.barris):
+                b = p.barris[i]
+                cap_b = capacidade_barril(b.tipo)
+                barra_str = _barra(b.quantidade, cap_b)
+                linha = (
+                    f"{prefixo}{i+1:2d}.  {b.tipo:7s}  "
+                    f"{b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]"
+                )
+            else:
+                linha = f"{prefixo}{i+1:2d}.  [slot vazio]"
+
+            safe_addstr(stdscr, row, 0, linha, attr)
             row += 1
 
-            # Barril art (5 linhas)
-            barrel_lines = [".-.  ", "|#|  ", "|#|  ", "| |  ", "'-'  "]
-            empty_lines  = [".-.  ", "| |  ", "| |  ", "| |  ", "'-'  "]
-            for li in range(5):
-                linha = ""
-                for i in range(ini, fim):
-                    if i < len(p.barris):
-                        b = p.barris[i]
-                        fill = b.quantidade / CAPACIDADE_BARRIL
-                        filled_rows = int(round(fill * 3))  # 0-3 linhas cheias (linhas 1-3)
-                        if li == 0 or li == 4:
-                            linha += barrel_lines[li]
-                        elif (3 - li + 1) <= filled_rows:  # linhas de baixo p/ cima
-                            linha += barrel_lines[li]
-                        else:
-                            linha += empty_lines[li]
-                    else:
-                        linha += empty_lines[li]
-                safe_addstr(stdscr, row, 2, linha)
+        row += 1
+
+        # Loot que não coube
+        if loot_pendente and loot_pendente.barris:
+            safe_addstr(stdscr, row, 0, "LOOT NAO COUBE (sera descartado ao fechar):", _curses.A_BOLD)
+            row += 1
+            for b in loot_pendente.barris:
+                cap_b = capacidade_barril(b.tipo)
+                barra_str = _barra(b.quantidade, cap_b)
+                safe_addstr(
+                    stdscr, row, 2,
+                    f"{b.tipo:7s}  {b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]",
+                )
                 row += 1
 
-            # Ícone do tipo
-            icone_linha = ""
-            for i in range(ini, fim):
-                if i < len(p.barris):
-                    b = p.barris[i]
-                    icone_linha += _ICONE.get(b.tipo, "[ ]").center(_BARRIL_W)
-                else:
-                    icone_linha += "[ ]".center(_BARRIL_W)
-            safe_addstr(stdscr, row, 2, icone_linha)
-            row += 1
-
-            # Cursor
-            cursor_linha = ""
-            for i in range(ini, fim):
-                if i == cursor:
-                    cursor_linha += " ^ ".center(_BARRIL_W)
-                elif i == selecionado:
-                    cursor_linha += " * ".center(_BARRIL_W)
-                else:
-                    cursor_linha += "   ".center(_BARRIL_W)
-            safe_addstr(stdscr, row, 2, cursor_linha)
-            row += 1
-            row += 1  # espaço entre fileiras
-
-        # Loot pendente restante
-        if loot_pendente and loot_pendente.barris:
-            safe_addstr(stdscr, row, 0, "LOOT PENDENTE (nao coube):", _curses.A_BOLD)
-            row += 1
-            resumo = " | ".join(
-                f"{b.tipo} {b.quantidade:.1f}" for b in loot_pendente.barris
-            )
-            safe_addstr(stdscr, row, 2, resumo)
-            row += 1
-
-        # Mensagem e rodapé
         if msg:
-            safe_addstr(stdscr, max_y - 4, 0, msg)
+            safe_addstr(stdscr, max_y - 4, 0, msg[: max_x - 1])
         safe_addstr(stdscr, max_y - 3, 0, "-" * min(max_x - 1, 78))
-        safe_addstr(stdscr, max_y - 2, 0,
-                    "ESQ/DIR: selecionar  ESPACO: pegar/soltar  X: descartar  ESC/ENTER: fechar")
+        safe_addstr(
+            stdscr, max_y - 2, 0,
+            "CIMA/BAIXO: selecionar  ESPACO: pegar/soltar  X: descartar  ESC/ENTER: fechar",
+        )
 
         stdscr.refresh()
         ch = stdscr.getch()
 
         if ch in (27, _curses.KEY_ENTER, 10, 13):
             break
-        elif ch == _curses.KEY_LEFT:
+        elif ch in (_curses.KEY_UP, _curses.KEY_LEFT):
             cursor = max(0, cursor - 1)
             msg = ""
-        elif ch == _curses.KEY_RIGHT:
-            cursor = min(total_slots - 1, cursor + 1)
+        elif ch in (_curses.KEY_DOWN, _curses.KEY_RIGHT):
+            cursor = min(cap - 1, cursor + 1)
             msg = ""
         elif ch in (ord('x'), ord('X')):
             if cursor < len(p.barris):
                 b = p.barris.pop(cursor)
-                msg = f"Barril de {b.tipo} jogado ao mar."
+                msg = f"Barril de {b.tipo} ({b.quantidade:.0f}u) jogado ao mar."
                 if selecionado == cursor:
                     selecionado = None
                 elif selecionado is not None and selecionado > cursor:
@@ -175,7 +153,7 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
             if selecionado is None:
                 if cursor < len(p.barris):
                     selecionado = cursor
-                    msg = f"Barril {cursor + 1} pego."
+                    msg = f"Barril {cursor + 1} pego ({p.barris[cursor].tipo})."
                 else:
                     msg = "Slot vazio — nada para pegar."
             else:
@@ -183,24 +161,16 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
                     selecionado = None
                     msg = "Barril solto."
                 else:
-                    # Swap
-                    while len(p.barris) <= cursor < cap:
-                        # cursor em slot vazio → mover barril selecionado até aqui
-                        break
                     if cursor < len(p.barris):
                         p.barris[selecionado], p.barris[cursor] = (
                             p.barris[cursor], p.barris[selecionado]
                         )
                         msg = "Barris trocados."
                     else:
-                        # Move para slot vazio
                         b = p.barris.pop(selecionado)
-                        p.barris.insert(cursor if cursor <= len(p.barris) else len(p.barris), b)
+                        insert_at = min(cursor, len(p.barris))
+                        p.barris.insert(insert_at, b)
                         msg = "Barril movido."
                     selecionado = None
-
-    # Loot pendente restante é perdido
-    if loot_pendente and loot_pendente.barris:
-        pass  # o caller vai limpar loot_pendente com base no que sobrou
 
     stdscr.nodelay(True)

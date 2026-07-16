@@ -11,6 +11,12 @@ if TYPE_CHECKING:
 
 TIPOS_CARGA = ("polvora", "bolas", "tabuas", "ouro")
 CAPACIDADE_BARRIL = 25.0
+CAPACIDADE_BARRIL_OURO = 50.0  # barril de ouro é maior
+
+
+def capacidade_barril(tipo: str) -> float:
+    """Retorna a capacidade máxima de um barril conforme o tipo de carga."""
+    return CAPACIDADE_BARRIL_OURO if tipo == "ouro" else CAPACIDADE_BARRIL
 
 
 @dataclass
@@ -19,14 +25,18 @@ class Barril:
 
     Attributes:
         tipo:       Um de TIPOS_CARGA.
-        quantidade: 0 a CAPACIDADE_BARRIL.
+        quantidade: 0 a capacidade (25 para recursos, 50 para ouro).
     """
     tipo: str
     quantidade: float
 
     @property
+    def capacidade(self) -> float:
+        return CAPACIDADE_BARRIL_OURO if self.tipo == "ouro" else CAPACIDADE_BARRIL
+
+    @property
     def cheio(self) -> bool:
-        return self.quantidade >= CAPACIDADE_BARRIL
+        return self.quantidade >= self.capacidade
 
     @property
     def vazio(self) -> bool:
@@ -79,20 +89,21 @@ class Porao:
         Returns:
             Excedente que não coube (0 se coube tudo).
         """
+        cap = capacidade_barril(tipo)
         restante = quantidade
         existentes = sorted(
             (b for b in self.barris if b.tipo == tipo and not b.cheio),
             key=lambda b: b.quantidade,
         )
         for b in existentes:
-            espaco = CAPACIDADE_BARRIL - b.quantidade
+            espaco = b.capacidade - b.quantidade
             usado = min(espaco, restante)
             b.quantidade += usado
             restante -= usado
             if restante <= 1e-9:
                 return 0.0
         while restante > 1e-9 and self.slots_livres() > 0:
-            usado = min(CAPACIDADE_BARRIL, restante)
+            usado = min(cap, restante)
             self.barris.append(Barril(tipo=tipo, quantidade=usado))
             restante -= usado
         return max(0.0, restante)
@@ -105,17 +116,18 @@ class Porao:
 
 
 def estoque_inicial_jogador(capacidade: int) -> Porao:
-    """Porão inicial do jogador: ~40% pólvora / 40% bolas / 20% tábuas, 0% ouro."""
+    """Porão inicial do jogador: 1 barril de cada recurso por nível de navio, sem ouro.
+
+    Deixa slots vazios para o jogador comprar no porto.
+    Chalupa (6): 1/1/1 → 3 slots usados, 3 vazios.
+    Bergantim (9): 2/2/2 → 6 usados, 3 vazios.
+    Galeão (14): 3/3/3 → 9 usados, 5 vazios.
+    """
     p = Porao(capacidade)
-    n_polvora = max(1, round(capacidade * 0.4))
-    n_bolas = max(1, round(capacidade * 0.4))
-    n_tabuas = max(0, capacidade - n_polvora - n_bolas)
-    for _ in range(n_polvora):
-        p.barris.append(Barril("polvora", CAPACIDADE_BARRIL))
-    for _ in range(n_bolas):
-        p.barris.append(Barril("bolas", CAPACIDADE_BARRIL))
-    for _ in range(n_tabuas):
-        p.barris.append(Barril("tabuas", CAPACIDADE_BARRIL))
+    n_por_tipo = max(1, round(capacidade / 5))
+    for tipo in ("polvora", "bolas", "tabuas"):
+        for _ in range(n_por_tipo):
+            p.barris.append(Barril(tipo=tipo, quantidade=CAPACIDADE_BARRIL))
     return p
 
 
@@ -123,19 +135,21 @@ def gerar_porao_inimigo(capacidade: int) -> Porao:
     """Porão aleatório de um inimigo recém-spawnado: 1 barril de ouro
     garantido, mínimo 1 pólvora + 1 bolas garantidos, resto aleatório."""
     p = Porao(capacidade)
-    p.barris.append(Barril("ouro", random.uniform(5, 25)))
+    p.barris.append(Barril("ouro", random.uniform(5, CAPACIDADE_BARRIL_OURO)))
 
     slots_restantes = capacidade - 1
-    for tipo in ("polvora", "bolas"):
+    for tipo in ("polvora", "bolas", "tabuas"):
         if slots_restantes <= 0:
             break
         p.barris.append(Barril(tipo, random.uniform(5, 25)))
         slots_restantes -= 1
 
     while slots_restantes > 0:
+        slots_restantes -= 1
+        if random.random() < 0.3:  # 30% de chance de slot vazio
+            continue
         tipo = random.choice(["polvora", "bolas", "tabuas"])
         p.barris.append(Barril(tipo, random.uniform(5, 25)))
-        slots_restantes -= 1
 
     return p
 

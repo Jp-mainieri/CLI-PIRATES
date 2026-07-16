@@ -38,6 +38,8 @@ class EstadoMundo:
         self.portos: list[Porto] = []
         self.mapa_mundo_visivel: bool = False
         self.loot_pendente: Porao | None = None
+        self.em_combate: bool = False
+        self.inimigo_engajado = None  # NavioMundo | None durante combate
         self._sortear_portos()
         self.sortear_novo_lote()
 
