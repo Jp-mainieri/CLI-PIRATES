@@ -373,6 +373,36 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
 
 
 # ---------------------------------------------------------------------------
+# Painel de porão
+# ---------------------------------------------------------------------------
+
+def build_porao_linhas(navio) -> list[tuple[str, int]]:
+    """Constrói as linhas do painel de porão agrupadas por tipo.
+
+    Returns:
+        Lista de (texto, atributo_curses).
+    """
+    from ..core.porao import TIPOS_CARGA, CAPACIDADE_BARRIL
+
+    p = navio.porao
+    slots = len(p.barris)
+    cap = p.capacidade
+    linhas: list[tuple[str, int]] = [(f"PORAO ({slots}/{cap} slots)", 0)]
+    for tipo in TIPOS_CARGA:
+        barris_tipo = [b for b in p.barris if b.tipo == tipo]
+        total = sum(b.quantidade for b in barris_tipo)
+        max_tipo = len(barris_tipo) * CAPACIDADE_BARRIL if barris_tipo else CAPACIDADE_BARRIL
+        pct = total / max_tipo if max_tipo > 0 else 0.0
+        n_cheios = int(round(pct * 10))
+        bar = "#" * n_cheios + "-" * (10 - n_cheios)
+        if barris_tipo:
+            linhas.append((f"  {tipo:7s} [{bar}] {total:.0f}/{max_tipo:.0f}", 0))
+        else:
+            linhas.append((f"  {tipo:7s} [{bar}]  0/--", 0))
+    return linhas
+
+
+# ---------------------------------------------------------------------------
 # HUD de mundo aberto
 # ---------------------------------------------------------------------------
 

@@ -150,6 +150,7 @@ class Navio:
         self.moral_atual: float = 100.0
         self.porao: Porao = Porao(porao_capacidade)
         self.upgrades: dict[str, float] = {}
+        self.upgrade_niveis: dict[str, int] = {}
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""

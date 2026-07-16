@@ -15,6 +15,7 @@ from ..constants import (
 )
 from .ship import Navio, Canhao
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
+from .frota import Frota
 
 
 class Estado:
@@ -133,6 +134,7 @@ class Estado:
         self.zoom_atual: int | None = None
         self.zoom_mudou_em: float = -999.0
         self.modo_adm: bool = False
+        self.frota: Frota = Frota()
 
         self.log.append(
             f"Bem-vindo ao conves do {params['navio']}, capitao. "

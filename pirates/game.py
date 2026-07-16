@@ -20,7 +20,7 @@ from .constants import (
     COR_JOGADOR, COR_INIMIGO, COR_MAR,
     MODO_ADM_DISPONIVEL,
     PARTES, NAVIO_TIPOS,
-    MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT,
+    MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT, MUNDO_RAIO_ATRACACAO,
 )
 from .core.state import Estado
 from .core.ship import Canhao
@@ -35,6 +35,7 @@ from .world.simulation import (
     atualizar_ia_mundo, atualizar_jogador_mundo,
     mundo_para_arena, arena_para_mundo,
 )
+from .port.scene import porto_loop
 
 
 def jogo_loop(stdscr, config: dict, estado: 'Estado | None' = None) -> str:
@@ -190,10 +191,10 @@ def mundo_loop(stdscr, config: dict) -> str:
             elif ch in (_curses.KEY_ENTER, 10, 13):
                 cmd = buffer_entrada.strip()
                 if cmd:
-                    _processar_cmd_mundo(cmd, estado, estado_mundo)
+                    _processar_cmd_mundo(cmd, estado, estado_mundo, stdscr)
                     estado.ultimo_comando = cmd
                 elif estado.ultimo_comando:
-                    _processar_cmd_mundo(estado.ultimo_comando, estado, estado_mundo)
+                    _processar_cmd_mundo(estado.ultimo_comando, estado, estado_mundo, stdscr)
                 buffer_entrada = ""
                 tab_estado["ativo"] = False
             elif ch in (_curses.KEY_BACKSPACE, 127, 8):
@@ -394,10 +395,15 @@ def mundo_loop(stdscr, config: dict) -> str:
         desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
 
 
-def _processar_cmd_mundo(texto: str, estado: 'Estado', estado_mundo: 'EstadoMundo') -> None:
+def _processar_cmd_mundo(
+    texto: str,
+    estado: 'Estado',
+    estado_mundo: 'EstadoMundo',
+    stdscr=None,
+) -> None:
     """Processa comando no modo navegação.
 
-    Intercepta 'mapa' e 'radar' (comportamento específico do mundo).
+    Intercepta 'mapa', 'radar', 'atracar' e 'inventario'.
     Demais comandos são delegados a processar_comando normalmente.
     """
     partes = texto.strip().lower().split()
@@ -423,6 +429,47 @@ def _processar_cmd_mundo(texto: str, estado: 'Estado', estado_mundo: 'EstadoMund
             estado.log.append(f"RADAR: inimigo mais proximo a {min_d:.0f}m")
         else:
             estado.log.append("RADAR: nenhum inimigo detectado")
+    elif cmd == "atracar":
+        if stdscr is None:
+            estado.log.append("Erro interno: stdscr nao disponivel para 'atracar'.")
+            return
+        porto_proximo = None
+        porto_idx = -1
+        for i, porto in enumerate(estado_mundo.portos):
+            d = estado_mundo._distancia_toroidal(
+                estado_mundo.jogador_x, estado_mundo.jogador_y,
+                porto.x, porto.y,
+            )
+            if d < MUNDO_RAIO_ATRACACAO:
+                porto_proximo = porto
+                porto_idx = i
+                break
+        if porto_proximo is None:
+            estado.log.append("Nenhum porto por perto (precisa estar a menos de 150m).")
+        else:
+            estado.log.append(f"Atracando em {porto_proximo.nome}...")
+            porto_loop(stdscr, estado, estado_mundo, porto_idx)
+            # Após zarpar: limpa loot_pendente se foi consumido
+            if estado_mundo.loot_pendente is not None and not estado_mundo.loot_pendente.barris:
+                estado_mundo.loot_pendente = None
+            estado.log.append(f"Zarpou de {porto_proximo.nome}.")
+    elif cmd == "inventario":
+        if stdscr is None:
+            estado.log.append("Erro interno: stdscr nao disponivel para 'inventario'.")
+            return
+        from .ui.inventario import abrir_inventario
+        abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+        if estado_mundo.loot_pendente is not None:
+            if not estado_mundo.loot_pendente.barris:
+                estado_mundo.loot_pendente = None
+            else:
+                tipos_perdidos = {}
+                for b in estado_mundo.loot_pendente.barris:
+                    tipos_perdidos[b.tipo] = tipos_perdidos.get(b.tipo, 0) + b.quantidade
+                for tipo, qtd in tipos_perdidos.items():
+                    estado.log.append(f"{qtd:.1f} unidades de {tipo} se perderam nos destrocos.")
+                estado_mundo.loot_pendente = None
+        estado.log.append("Inventario fechado.")
     else:
         processar_comando(texto, estado)
 

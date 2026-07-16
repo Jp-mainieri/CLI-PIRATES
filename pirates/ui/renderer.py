@@ -23,6 +23,7 @@ from .hud import (
     build_adm_linhas,
     build_mapa_navegacao_linhas,
     build_mapa_mundo_linhas,
+    build_porao_linhas,
 )
 
 RIGHT_X = 36
@@ -261,6 +262,11 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
         safe_addstr(stdscr, row, 0, texto, attr)
         for col, segmento, attr_seg in overlays:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
+        row += 1
+    row += 1
+
+    for texto, attr in build_porao_linhas(estado.jogador):
+        safe_addstr(stdscr, row, 0, texto, attr)
         row += 1
 
     if estado_mundo.mapa_mundo_visivel:
