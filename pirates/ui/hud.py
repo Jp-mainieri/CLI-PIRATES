@@ -6,6 +6,7 @@ de renderização (renderer.py). O formato é:
     (texto: str, atributo_base: int, overlays: list[tuple[col, segmento, attr]])
 """
 
+import math
 import random
 
 try:
@@ -13,7 +14,10 @@ try:
 except ImportError:
     _curses = None  # type: ignore[assignment]
 
-from ..constants import COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG
+from ..constants import (
+    COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
+    MUNDO_TAMANHO, MUNDO_ZOOM_NAV_FIXO,
+)
 from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
 from ..core.combat import distancia, rumo_para
 from ..core.state import montar_tripulacao
@@ -156,14 +160,26 @@ def build_vista_linhas(estado) -> list[tuple]:
     """
     jogador, inimigo = estado.jogador, estado.inimigo
     largura = 50
+    attr_mar = cor_mar(estado)
+
+    regua = [' '] * largura
+    marcos = {-180: 'POPA', -90: 'BOMB', 0: 'PROA', 90: 'ESTIB', 180: 'POPA'}
+    for graus, label in marcos.items():
+        p = clamp(int(round((graus + 180) / 360 * (largura - 1))), 0, largura - 1)
+        ini = clamp(p - len(label) // 2, 0, largura - len(label))
+        for i, c in enumerate(label):
+            regua[ini + i] = c
+    ruler = ''.join(regua)
+
+    agua = [("~" * largura, attr_mar, []), (ruler, 0, [])]
+
     if inimigo.afundado:
-        return [("Nenhum navio inimigo a vista.", 0, [])]
+        return agua
 
     d_real = distancia(jogador, inimigo)
     alcance_visual = 900
-    attr_mar = cor_mar(estado)
     if d_real > alcance_visual:
-        return [("~" * largura, attr_mar, []), ("O horizonte esta vazio.", 0, [])]
+        return agua
 
     rel = (rumo_para(jogador, inimigo) - jogador.heading + 540) % 360 - 180
     pos = clamp(int(round((rel + 180) / 360 * (largura - 1))), 0, largura - 1)
@@ -180,15 +196,6 @@ def build_vista_linhas(estado) -> list[tuple]:
         linha[inicio + i] = ch
     horizonte = ''.join(linha)
     overlay_navio = [(inicio, icone, cor_navio(estado, e_jogador=False))]
-
-    regua = [' '] * largura
-    marcos = {-180: 'POPA', -90: 'BOMB', 0: 'PROA', 90: 'ESTIB', 180: 'POPA'}
-    for graus, label in marcos.items():
-        p = clamp(int(round((graus + 180) / 360 * (largura - 1))), 0, largura - 1)
-        ini = clamp(p - len(label) // 2, 0, largura - len(label))
-        for i, c in enumerate(label):
-            regua[ini + i] = c
-    ruler = ''.join(regua)
 
     erro_vigia = random.uniform(-0.1, 0.1) * d_real
     vigia = f'Vigia: "a {d_real + erro_vigia:.0f}m!"'
@@ -350,4 +357,128 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
         0,
     ))
 
+    return linhas
+
+
+# ---------------------------------------------------------------------------
+# HUD de mundo aberto
+# ---------------------------------------------------------------------------
+
+def _to_cell_mundo(nx: float, ny: float, cx: float, cy: float, half_range: float,
+                   grid_w: int, grid_h: int) -> tuple[int, int]:
+    """Converte coordenadas do mundo para célula da grade, considerando wrap toroidal."""
+    dx = nx - cx
+    dy = ny - cy
+    if abs(dx) > MUNDO_TAMANHO / 2:
+        dx -= math.copysign(MUNDO_TAMANHO, dx)
+    if abs(dy) > MUNDO_TAMANHO / 2:
+        dy -= math.copysign(MUNDO_TAMANHO, dy)
+    gx = dx / (2 * half_range) * (grid_w - 1) + (grid_w - 1) / 2
+    gy = dy / (2 * half_range) * (grid_h - 1) + (grid_h - 1) / 2
+    col = clamp(int(round(gx)), 0, grid_w - 1)
+    row = clamp(int(round((grid_h - 1) - gy)), 0, grid_h - 1)
+    return col, row
+
+
+def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
+    """Mapa de navegação centrado no jogador, zoom fixo MUNDO_ZOOM_NAV_FIXO.
+
+    Mostra NavioMundo dentro do raio do zoom. Jogador no centro.
+    Inimigos ativos com ícone [seta], afundados com [XX].
+
+    Returns:
+        Lista de (texto, atributo_base, overlays).
+    """
+    GRID_W, GRID_H = 20, 8
+    half_range = MUNDO_ZOOM_NAV_FIXO
+    cx = estado_mundo.jogador_x
+    cy = estado_mundo.jogador_y
+    unicode_on = getattr(estado, 'graficos_unicode', False)
+    largura_celula = 3
+    filler = '~' * largura_celula
+
+    grid = [[filler for _ in range(GRID_W)] for _ in range(GRID_H)]
+    overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
+
+    # Jogador sempre no centro
+    glifo_j = (seta_unicode_para_heading(estado_mundo.jogador_heading) if unicode_on
+               else seta_ascii_para_heading(estado_mundo.jogador_heading))
+    celula_j = '{' + glifo_j + '}'
+    cr, rr = GRID_W // 2, GRID_H // 2
+    grid[rr][cr] = celula_j
+    overlays_por_linha[rr].append((cr * largura_celula, celula_j, cor_navio(estado, e_jogador=True)))
+
+    # Inimigos dentro do zoom
+    for navio in estado_mundo.inimigos:
+        dx = navio.x - cx
+        dy = navio.y - cy
+        if abs(dx) > MUNDO_TAMANHO / 2:
+            dx -= math.copysign(MUNDO_TAMANHO, dx)
+        if abs(dy) > MUNDO_TAMANHO / 2:
+            dy -= math.copysign(MUNDO_TAMANHO, dy)
+        if abs(dx) > half_range * 1.1 or abs(dy) > half_range * 1.1:
+            continue
+        if navio.status == "afundado":
+            celula_e = '[XX]'[:largura_celula]
+        else:
+            glifo_e = (seta_unicode_para_heading(navio.heading) if unicode_on
+                       else seta_ascii_para_heading(navio.heading))
+            celula_e = ('[' + glifo_e + ']')[:largura_celula]
+        c_e, r_e = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
+        grid[r_e][c_e] = celula_e
+        overlays_por_linha[r_e].append(
+            (c_e * largura_celula, celula_e, cor_navio(estado, e_jogador=False))
+        )
+
+    attr_mar = cor_mar(estado)
+    linhas: list[tuple] = [("  N", 0, [])]
+    for i, row in enumerate(grid):
+        linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
+    linhas.append(("  S", 0, []))
+    linhas.append((
+        f"NAV zoom={half_range}m | pos=({cx:.0f},{cy:.0f})",
+        0, [],
+    ))
+    return linhas
+
+
+def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
+    """Grade fixa cobrindo os 8000×8000 inteiros, sem o jogador.
+
+    Inimigos ativos com ícone [seta], afundados com [XX].
+
+    Returns:
+        Lista de (texto, atributo_base, overlays).
+    """
+    GRID_W, GRID_H = 24, 10
+    half_range = MUNDO_TAMANHO / 2
+    cx, cy = half_range, half_range
+    unicode_on = getattr(estado, 'graficos_unicode', False)
+    largura_celula = 3
+    filler = '~' * largura_celula
+
+    grid = [[filler for _ in range(GRID_W)] for _ in range(GRID_H)]
+    overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
+
+    for navio in estado_mundo.inimigos:
+        if navio.status == "afundado":
+            celula = '[XX]'[:largura_celula]
+        else:
+            glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
+                     else seta_ascii_para_heading(navio.heading))
+            celula = ('[' + glifo + ']')[:largura_celula]
+        c_n, r_n = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
+        grid[r_n][c_n] = celula
+        overlays_por_linha[r_n].append(
+            (c_n * largura_celula, celula, cor_navio(estado, e_jogador=False))
+        )
+
+    attr_mar = cor_mar(estado)
+    linhas: list[tuple] = [("=== MAPA MUNDO (8km) ===", 0, [])]
+    linhas.append(("  N", 0, []))
+    for i, row in enumerate(grid):
+        linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
+    linhas.append(("  S", 0, []))
+    ativos = sum(1 for n in estado_mundo.inimigos if n.status != "afundado")
+    linhas.append((f"Inimigos: {ativos} ativos | [M] fecha", 0, []))
     return linhas

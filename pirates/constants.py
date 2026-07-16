@@ -133,6 +133,34 @@ TEMPO_FUGA_ESCAPE_SEG = 15.0
 """Segundos que o inimigo precisa ficar além de ALCANCE_FUGA_ESCAPE para escapar."""
 
 # ---------------------------------------------------------------------------
+# Mundo aberto (esqueleto mínimo)
+# ---------------------------------------------------------------------------
+
+MUNDO_TAMANHO = 8000.0
+"""Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
+
+MUNDO_NUM_INIMIGOS = 3
+"""Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
+
+MUNDO_ESPACAMENTO_MIN = 1000.0
+"""Distância mínima entre navios inimigos entre si e do jogador ao sortear
+novas posições de spawn."""
+
+MUNDO_GATILHO_COMBATE = 750.0
+"""Distância que aciona a transição automática pro loop de combate."""
+
+MUNDO_ZOOM_NAV_FIXO = 800
+"""Zoom fixo do MAPA DE NAVEGAÇÃO quando não há combate ativo (deve ser
+um dos valores em ZOOM_NIVEIS)."""
+
+MUNDO_ALCANCE_VISAO_FUGA = 900.0
+"""Distância dentro da qual um navio em modo fuga no mundo foge ativamente
+do jogador."""
+
+MUNDO_TICK = 0.5
+"""Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
+
+# ---------------------------------------------------------------------------
 # Dinâmica da água
 # ---------------------------------------------------------------------------
 

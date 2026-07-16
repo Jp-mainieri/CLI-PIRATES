@@ -27,6 +27,7 @@ def tela_menu(stdscr) -> str:
     """
     opcoes = [
         ("Jogar", "jogar"),
+        ("Mundo Aberto", "mundo"),
         ("Como jogar", "como_jogar"),
         ("Escolher navio", "navio"),
         ("Ajustes", "ajustes"),
