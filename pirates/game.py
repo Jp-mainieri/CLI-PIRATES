@@ -219,6 +219,8 @@ def mundo_loop(stdscr, config: dict) -> str:
                         for b in estado_mundo.loot_pendente.barris:
                             estado.log.append(f"{b.quantidade:.1f} de {b.tipo} se perdeu nos destrocos.")
                         estado_mundo.loot_pendente = None
+            elif ch in (ord('N'), ord('n')) and buffer_entrada == "":
+                _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr)
             elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
                 estado.modo_adm = not estado.modo_adm
             elif ch in (_curses.KEY_ENTER, 10, 13):
@@ -420,17 +422,26 @@ def mundo_loop(stdscr, config: dict) -> str:
                 if not estado.log:
                     estado.log.append("Batalha encerrada. Navegando novamente.")
 
-        # Notifica destroços lootáveis próximos (coleta manual via "atracar")
-        for navio_loot in estado_mundo.inimigos:
-            if navio_loot.status == "afundado" and navio_loot.loot is not None:
-                d_loot = estado_mundo._distancia_toroidal(
-                    estado_mundo.jogador_x, estado_mundo.jogador_y,
-                    navio_loot.x, navio_loot.y,
-                )
-                if d_loot < MUNDO_RAIO_COLETA_LOOT:
-                    if not any("atracar" in m for m in estado.log[-3:]):
-                        estado.log.append("Destrocos proximos! Use 'atracar' para coletar.")
+        # Notifica proximidade de porto ou destroço lootável
+        if not estado_mundo.em_combate:
+            jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+            for porto in estado_mundo.portos:
+                d = estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y)
+                if d < MUNDO_RAIO_ATRACACAO:
+                    if not any(porto.nome in m for m in estado.log[-5:]):
+                        estado.log.append(
+                            f"Possivel atracar em {porto.nome} ({d:.0f}m). [N]"
+                        )
                     break
+            for navio_loot in estado_mundo.inimigos:
+                if navio_loot.status == "afundado" and navio_loot.loot is not None:
+                    d = estado_mundo._distancia_toroidal(jx, jy, navio_loot.x, navio_loot.y)
+                    if d < MUNDO_RAIO_COLETA_LOOT:
+                        if not any("destroco" in m.lower() for m in estado.log[-5:]):
+                            estado.log.append(
+                                f"Destroco com loot proximo ({d:.0f}m). [N] para coletar."
+                            )
+                        break
 
         desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
 
