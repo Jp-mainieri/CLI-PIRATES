@@ -139,7 +139,7 @@ TEMPO_FUGA_ESCAPE_SEG = 15.0
 MUNDO_TAMANHO = 8000.0
 """Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
 
-MUNDO_NUM_INIMIGOS = 3
+MUNDO_NUM_INIMIGOS = 6
 """Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
 
 MUNDO_ESPACAMENTO_MIN = 1000.0
