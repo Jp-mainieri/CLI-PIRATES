@@ -186,6 +186,16 @@ def mundo_loop(stdscr, config: dict) -> str:
                 return "menu"
             elif ch in (ord('M'), ord('m')):
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
+            elif ch in (ord('V'), ord('v')) and buffer_entrada == "":
+                from .ui.inventario import abrir_inventario
+                abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+                if estado_mundo.loot_pendente is not None:
+                    if not estado_mundo.loot_pendente.barris:
+                        estado_mundo.loot_pendente = None
+                    else:
+                        for b in estado_mundo.loot_pendente.barris:
+                            estado.log.append(f"{b.quantidade:.1f} de {b.tipo} se perdeu nos destrocos.")
+                        estado_mundo.loot_pendente = None
             elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
                 estado.modo_adm = not estado.modo_adm
             elif ch in (_curses.KEY_ENTER, 10, 13):

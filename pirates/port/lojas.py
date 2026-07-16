@@ -8,32 +8,13 @@ UI em scene.py chama estas funções e exibe o retorno.
 from __future__ import annotations
 
 from ..constants import (
-    PRECO_BARRIL_NOVO, PRECO_REABASTECER_POR_UNIDADE,
-    PRECO_VENDA_BARRIL_CHEIO, PRECO_REPARO_POR_PONTO_DANO,
-    PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
+    PRECO_BARRIL_NOVO, PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
     NAVIO_TIPOS, PARTES,
 )
-from ..core.porao import Barril, Porao, CAPACIDADE_BARRIL
-
-
-# ---------------------------------------------------------------------------
-# Funções de preço (exportadas para UI e testes)
-# ---------------------------------------------------------------------------
-
-def preco_reabastecer(unidades: float) -> float:
-    """Custo em ouro para reabastecer *unidades* de qualquer recurso."""
-    return unidades * PRECO_REABASTECER_POR_UNIDADE
-
-
-def preco_venda(barril: Barril) -> float:
-    """Valor de venda de um barril proporcional ao conteúdo."""
-    return (barril.quantidade / CAPACIDADE_BARRIL) * PRECO_VENDA_BARRIL_CHEIO
-
-
-def preco_reparo(navio) -> float:
-    """Custo total de reparo instantâneo do navio (soma de dano de todas as partes)."""
-    dano_total = sum(100.0 - navio.partes[p] for p in PARTES)
-    return dano_total * PRECO_REPARO_POR_PONTO_DANO
+from ..core.porao import (
+    Barril, Porao, CAPACIDADE_BARRIL,
+    preco_reabastecer, preco_venda, preco_reparo,  # re-exportadas do core
+)
 
 
 def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:

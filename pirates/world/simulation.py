@@ -88,7 +88,8 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
         )
         d = (dx ** 2 + dy ** 2) ** 0.5
 
-        if navio.status == "fugindo" and d < MUNDO_ALCANCE_VISAO_FUGA:
+        if navio.status == "fugindo":
+            # Sempre foge na direção oposta ao jogador, sem limite de distância
             rumo_pro_jogador = math.degrees(math.atan2(dx, dy)) % 360
             navio.heading_alvo = (rumo_pro_jogador + 180) % 360
             velocidade_max = vmax_fuga

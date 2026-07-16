@@ -163,6 +163,10 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
         row += 1
 
+    for texto, attr in build_porao_linhas(estado.jogador):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        row += 1
+
     log_lines = list(estado.log)[-4:]
     base = max_y - (2 + len(log_lines) + 2)
     safe_addstr(stdscr, base, 0, "LOG", _curses.A_UNDERLINE)

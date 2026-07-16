@@ -3,32 +3,15 @@
 import pytest
 
 from pirates.constants import (
-    PRECO_BARRIL_NOVO, PRECO_REABASTECER_POR_UNIDADE, PRECO_VENDA_BARRIL_CHEIO,
-    PRECO_REPARO_POR_PONTO_DANO, NAVIO_TIPOS,
+    PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PRECO_REPARO_POR_PONTO_DANO, NAVIO_TIPOS,
 )
 from pirates.core.porao import (
     Barril, Porao, CAPACIDADE_BARRIL,
     estoque_inicial_jogador, gerar_porao_inimigo,
+    preco_reabastecer, preco_venda, preco_reparo,
 )
 from pirates.core.ship import Navio, Canhao
 from pirates.core.state import Estado
-
-
-# ---------------------------------------------------------------------------
-# Funções de preço
-# ---------------------------------------------------------------------------
-
-def preco_reabastecer(unidades: float) -> float:
-    return unidades * PRECO_REABASTECER_POR_UNIDADE
-
-
-def preco_venda(barril: Barril) -> float:
-    return (barril.quantidade / CAPACIDADE_BARRIL) * PRECO_VENDA_BARRIL_CHEIO
-
-
-def preco_reparo(navio: Navio) -> float:
-    dano_total = sum(100 - navio.partes[p] for p in navio.partes)
-    return dano_total * PRECO_REPARO_POR_PONTO_DANO
 
 
 class TestPrecos:

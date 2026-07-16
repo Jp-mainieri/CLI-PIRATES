@@ -1,7 +1,13 @@
 """porao.py – Sistema de carga física (pólvora, bolas, tábuas, ouro)."""
 
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ship import Navio
 
 TIPOS_CARGA = ("polvora", "bolas", "tabuas", "ouro")
 CAPACIDADE_BARRIL = 25.0
@@ -132,6 +138,29 @@ def gerar_porao_inimigo(capacidade: int) -> Porao:
         slots_restantes -= 1
 
     return p
+
+
+# ---------------------------------------------------------------------------
+# Funções de preço (puras) — exportadas para Tier 3b e testes
+# ---------------------------------------------------------------------------
+
+def preco_reabastecer(unidades: float) -> float:
+    """Custo em ouro para reabastecer `unidades` de qualquer recurso."""
+    from ..constants import PRECO_REABASTECER_POR_UNIDADE
+    return unidades * PRECO_REABASTECER_POR_UNIDADE
+
+
+def preco_venda(barril: Barril) -> float:
+    """Valor de venda de um barril proporcional ao conteúdo."""
+    from ..constants import PRECO_VENDA_BARRIL_CHEIO
+    return (barril.quantidade / CAPACIDADE_BARRIL) * PRECO_VENDA_BARRIL_CHEIO
+
+
+def preco_reparo(navio: Navio) -> float:
+    """Custo total de reparo instantâneo do navio (soma de dano de todas as partes)."""
+    from ..constants import PRECO_REPARO_POR_PONTO_DANO, PARTES
+    dano_total = sum(100.0 - navio.partes[p] for p in PARTES)
+    return dano_total * PRECO_REPARO_POR_PONTO_DANO
 
 
 def coletar_loot(porao_jogador: Porao, loot: Porao) -> Porao:

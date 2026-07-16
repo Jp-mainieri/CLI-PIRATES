@@ -5,8 +5,9 @@ import pytest
 from pirates.core.ship import Navio
 from pirates.core.porao import Barril, Porao, CAPACIDADE_BARRIL
 from pirates.core.frota import Frota
+from pirates.core.porao import preco_reabastecer, preco_venda, preco_reparo
 from pirates.port.lojas import (
-    preco_reabastecer, preco_venda, preco_reparo, preco_upgrade_nivel,
+    preco_upgrade_nivel,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade,
     nivel_atual_upgrade, nivel_max_upgrade,
