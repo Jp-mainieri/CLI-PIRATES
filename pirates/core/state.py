@@ -61,6 +61,8 @@ class Estado:
         hotkeys: bool = False,
         cores: bool = False,
         graficos_unicode: bool = False,
+        textura_mar: bool = True,
+        rastro_ativo: bool = True,
     ) -> None:
         self.tipo_navio = tipo_navio if tipo_navio in NAVIO_TIPOS else "normal"
         params = NAVIO_TIPOS[self.tipo_navio]
@@ -130,6 +132,8 @@ class Estado:
         self.hotkeys_ativo: bool = hotkeys
         self.cores_ativo: bool = cores
         self.graficos_unicode: bool = graficos_unicode
+        self.textura_mar: bool = textura_mar
+        self.rastro_ativo: bool = rastro_ativo
         self.foco = None
         self.zoom_atual: int | None = None
         self.zoom_mudou_em: float = -999.0

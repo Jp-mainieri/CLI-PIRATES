@@ -41,7 +41,7 @@ class EstadoMundo:
         self.loot_pendente: Porao | None = None
         self.em_combate: bool = False
         self.inimigo_engajado = None  # NavioMundo | None durante combate
-        self.rastro_jogador: deque[tuple[float, float]] = deque(maxlen=16)
+        self.rastro_jogador: deque[tuple[float, float]] = deque(maxlen=128)
         self._sortear_portos()
         self.sortear_novo_lote()
 

@@ -72,6 +72,8 @@ def jogo_loop(
             hotkeys=config["hotkeys"],
             cores=cores,
             graficos_unicode=config["unicode"],
+            textura_mar=config.get("textura_mar", True),
+            rastro_ativo=config.get("rastro", True),
         )
     buffer_entrada = ""
     last_tick = time.time()
@@ -182,6 +184,8 @@ def mundo_loop(stdscr, config: dict) -> str:
         hotkeys=config["hotkeys"],
         cores=cores,
         graficos_unicode=config["unicode"],
+        textura_mar=config.get("textura_mar", True),
+        rastro_ativo=config.get("rastro", True),
     )
     # Sem inimigo em cena durante a navegação; visão do capitão mostra apenas água.
     estado.inimigo.afundado = True
@@ -579,7 +583,8 @@ def main(stdscr) -> None:
         _curses.init_pair(COR_INIMIGO,  _curses.COLOR_MAGENTA, fundo)
         _curses.init_pair(COR_MAR,      _curses.COLOR_BLUE,    fundo)
 
-    config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True}
+    config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True,
+              "textura_mar": True, "rastro": True}
     tela_atual = "menu"
 
     while tela_atual != "sair":
