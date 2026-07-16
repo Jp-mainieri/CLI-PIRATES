@@ -64,7 +64,7 @@ def dentro_do_arco(atirador, alvo, lado: str) -> tuple[bool, float]:
         Tupla (dentro_do_arco: bool, distancia: float).
     """
     d = distancia(atirador, alvo)
-    if d > atirador.alcance_canhao:
+    if d > atirador.alcance_canhao_efetivo():
         return False, d
     r = rumo_para(atirador, alvo)
     rel = (r - atirador.heading) % 360
@@ -108,6 +108,17 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
     ok, d = dentro_do_arco(atirador, alvo, canhao.lado)
     if not ok:
         return False
+
+    if atirador.porao.capacidade > 0:
+        tem_polvora = atirador.porao.total("polvora") >= 1
+        tem_bolas = atirador.porao.total("bolas") >= 1
+        if not tem_polvora or not tem_bolas:
+            if not canhao.aviso_sem_municao:
+                log.append(f"Canhao {canhao.label} sem municao, nao pode atirar")
+                canhao.aviso_sem_municao = True
+            return False
+        atirador.porao.consumir("polvora", 1)
+        atirador.porao.consumir("bolas", 1)
 
     erro_estimativa = abs(canhao.dist_alvo - d)
     instabilidade = (100 - atirador.partes['casco']) / 100 * 35

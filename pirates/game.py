@@ -20,10 +20,11 @@ from .constants import (
     COR_JOGADOR, COR_INIMIGO, COR_MAR,
     MODO_ADM_DISPONIVEL,
     PARTES, NAVIO_TIPOS,
-    MUNDO_TICK, MUNDO_GATILHO_COMBATE,
+    MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT,
 )
 from .core.state import Estado
 from .core.ship import Canhao
+from .core.porao import gerar_porao_inimigo, coletar_loot
 from .input.commands import processar_comando, obter_candidatos
 from .input.hotkeys import processar_hotkey
 from .core.simulation import atualizar_simulacao
@@ -294,11 +295,20 @@ def mundo_loop(stdscr, config: dict) -> str:
                         estado.inimigo.partes[p] = 100.0
                     estado.inimigo.agua = 0.0
                     estado.inimigo.moral_atual = 100.0
+
+                cap = params["porao_capacidade"]
+                if inimigo_engajado.porao is not None:
+                    estado.inimigo.porao = inimigo_engajado.porao
+                else:
+                    estado.inimigo.porao = gerar_porao_inimigo(cap)
+                    inimigo_engajado.porao = estado.inimigo.porao
+
                 for lado in ('bombordo', 'estibordo'):
                     for c in estado.inimigo.canhoes[lado]:
                         c.tripulantes = 0
                         c.dist_alvo = None
                         c.proximo_tiro = 0.0
+                        c.aviso_sem_municao = False
 
                 # Reset do estado de combate
                 estado.rodando = True
@@ -334,6 +344,8 @@ def mundo_loop(stdscr, config: dict) -> str:
                     inimigo_engajado.x, inimigo_engajado.y = arena_para_mundo(
                         ox, oy, estado.inimigo.x, estado.inimigo.y,
                     )
+                    inimigo_engajado.loot = estado.inimigo.porao
+                    inimigo_engajado.porao = None
 
                 elif estado.fim == "fuga":
                     inimigo_engajado.status = "fugindo"
@@ -343,6 +355,12 @@ def mundo_loop(stdscr, config: dict) -> str:
                     inimigo_engajado.moral_atual = estado.inimigo.moral_atual
                     inimigo_engajado.partes = dict(estado.inimigo.partes)
                     inimigo_engajado.agua = estado.inimigo.agua
+                    inimigo_engajado.porao = estado.inimigo.porao
+
+                # Reset do aviso de munição dos canhões do jogador
+                for lado in ('bombordo', 'estibordo'):
+                    for c in estado.jogador.canhoes[lado]:
+                        c.aviso_sem_municao = False
 
                 # Reabastece lote (mantém afundados + fugindo, adiciona novos)
                 estado_mundo.sortear_novo_lote()
@@ -354,6 +372,24 @@ def mundo_loop(stdscr, config: dict) -> str:
                 estado.tempo = 0.0
                 estado.log.clear()
                 estado.log.append("Batalha encerrada. Navegando novamente.")
+
+        # Coleta automática de loot de destroços próximos
+        for navio_loot in estado_mundo.inimigos:
+            if navio_loot.status == "afundado" and navio_loot.loot is not None:
+                d_loot = estado_mundo._distancia_toroidal(
+                    estado_mundo.jogador_x, estado_mundo.jogador_y,
+                    navio_loot.x, navio_loot.y,
+                )
+                if d_loot < MUNDO_RAIO_COLETA_LOOT:
+                    resto = coletar_loot(estado.jogador.porao, navio_loot.loot)
+                    if not resto.barris:
+                        navio_loot.loot = None
+                        estado.log.append("Voce coletou os destrocos!")
+                    else:
+                        estado_mundo.loot_pendente = resto
+                        navio_loot.loot = None
+                        estado.log.append("Porcao coletada! Porcao restante no inventario pendente.")
+                    break
 
         desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
 

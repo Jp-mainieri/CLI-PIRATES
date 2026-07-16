@@ -1,6 +1,25 @@
 """entities.py – Entidades leves do mundo aberto (navios inimigos fora de combate)."""
 
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..core.porao import Porao
+
+
+@dataclass
+class Porto:
+    """Um porto no mundo aberto.
+
+    Attributes:
+        x, y: Posição toroidal no mundo.
+        nome: Nome exibido no HUD.
+    """
+    x: float
+    y: float
+    nome: str = "Porto Franco"
 
 
 @dataclass
@@ -18,6 +37,8 @@ class NavioMundo:
         partes:       Dict parte->HP preservado se já esteve em combate.
                       None se nunca combateu.
         agua:         Água preservada se já esteve em combate. 0.0 se nunca.
+        porao:        Porão preservado entre batalhas (None se nunca combateu).
+        loot:         Porão-loot deixado ao afundar (None se já coletado).
     """
     x: float
     y: float
@@ -28,3 +49,5 @@ class NavioMundo:
     moral_atual: float | None = None
     partes: dict[str, float] | None = None
     agua: float = 0.0
+    porao: Porao | None = None
+    loot: Porao | None = None

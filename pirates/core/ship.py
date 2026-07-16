@@ -10,7 +10,7 @@ import math
 from ..constants import (
     PARTES, PARTES_CRITICAS,
     MAPA_TAMANHO, GIRO_GRAUS_SEG_PADRAO,
-    ACEL_VEL_SEG, TAXA_REPARO_SEG, REPARO_K,
+    ACEL_VEL_SEG, TAXA_REPARO_SEG, REPARO_K, FATOR_TABUAS_POR_HP,
     AGUA_BASE, AGUA_K, SAIDA_BOMBA_SEG,
     MORAL_PESO_CASCO, MORAL_PESO_AGUA, MORAL_PESO_OUTRAS,
     MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
@@ -18,6 +18,7 @@ from ..constants import (
     MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
 )
 from .utils import clamp
+from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
 
 
 class Canhao:
@@ -42,6 +43,7 @@ class Canhao:
         self.dist_alvo: float | None = None
         self.mira_atual: float = 300.0
         self.proximo_tiro: float = 0.0
+        self.aviso_sem_municao: bool = False
 
     @property
     def label(self) -> str:
@@ -126,6 +128,7 @@ class Navio:
         velocidade_max_base: float = 11.0,
         giro_graus_seg: float = GIRO_GRAUS_SEG_PADRAO,
         reparo_mult: float = 1.0,
+        porao_capacidade: int = 0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -145,6 +148,8 @@ class Navio:
         self.tipo_nome: str = ""
         self.num_velas: int = 1
         self.moral_atual: float = 100.0
+        self.porao: Porao = Porao(porao_capacidade)
+        self.upgrades: dict[str, float] = {}
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -155,10 +160,16 @@ class Navio:
         return self.giro_graus_seg * max(0.0, self.partes['roda'] / 100)
 
     def velocidade_maxima(self) -> float:
-        """Velocidade máxima alcançável com o nível de vela e dano atuais."""
+        """Velocidade máxima alcançável com o nível de vela e dano atuais.
+        Aplica bônus de upgrade 'velocidade_giro' (fração multiplicativa)."""
         fator_vela = self.nivel_vela / 3
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
-        return self.velocidade_max_base * fator_vela * fator_dano
+        base = self.velocidade_max_base * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
+        return base * fator_vela * fator_dano
+
+    def alcance_canhao_efetivo(self) -> float:
+        """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
+        return self.alcance_canhao + self.upgrades.get('alcance_canhao', 0.0)
 
     def atualizar_movimento(self, dt: float) -> None:
         """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
@@ -193,6 +204,8 @@ class Navio:
         """Avança o reparo contínuo de uma parte do navio.
 
         A eficiência cai exponencialmente com o dano acumulado (fator REPARO_K).
+        Se o porão tiver capacidade > 0, consome tábuas proporcionalmente ao HP
+        restaurado; sem tábuas suficientes, o reparo é proporcionalmente reduzido.
 
         Args:
             parte:       Nome da parte a reparar.
@@ -206,6 +219,19 @@ class Navio:
         fator_recuperacao = math.exp(-REPARO_K * dano_frac)
         taxa = (tripulantes * TAXA_REPARO_SEG * eficiencia
                 * fator_recuperacao * self.reparo_mult * self.multiplicador_moral() * dt)
+
+        if self.porao.capacidade > 0 and taxa > 1e-9:
+            saude_potencial = min(taxa, 100.0 - self.partes[parte])
+            tabuas_necessarias = saude_potencial * FATOR_TABUAS_POR_HP
+            if tabuas_necessarias > 1e-9:
+                disponivel = self.porao.total("tabuas")
+                if disponivel < tabuas_necessarias:
+                    fracao = disponivel / tabuas_necessarias if tabuas_necessarias > 0 else 0.0
+                    taxa *= fracao
+                    self.porao.consumir("tabuas", disponivel)
+                else:
+                    self.porao.consumir("tabuas", tabuas_necessarias)
+
         self.partes[parte] = clamp(self.partes[parte] + taxa, 0, 100)
 
     def atualizar_agua(self, tripulantes_bomba: int, dt: float) -> None:

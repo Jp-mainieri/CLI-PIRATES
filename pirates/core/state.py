@@ -14,6 +14,7 @@ from ..constants import (
     FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
 )
 from .ship import Navio, Canhao
+from .porao import estoque_inicial_jogador, gerar_porao_inimigo
 
 
 class Estado:
@@ -72,11 +73,13 @@ class Estado:
             f"{l}{i}" for l in ("E", "B") for i in range(1, self.canhoes_lado + 1)
         ]
 
+        cap = params["porao_capacidade"]
         self.jogador = Navio(
             "Seu Navio", x=0, y=0, heading=0,
             velocidade_max_base=params["velocidade_max_base"],
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
+            porao_capacidade=cap,
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
@@ -84,6 +87,7 @@ class Estado:
             'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
             'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
         }
+        self.jogador.porao = estoque_inicial_jogador(cap)
 
         # O inimigo usa o mesmo perfil do jogador (simetria total).
         self.inimigo = Navio(
@@ -91,6 +95,7 @@ class Estado:
             velocidade_max_base=params["velocidade_max_base"],
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
+            porao_capacidade=cap,
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas
@@ -98,6 +103,7 @@ class Estado:
             'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
             'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
         }
+        self.inimigo.porao = gerar_porao_inimigo(cap)
         self.inimigo_crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.inimigo_crew_bomba: int = 0
 

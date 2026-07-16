@@ -57,6 +57,10 @@ ACEL_VEL_SEG = 3.0
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
+FATOR_TABUAS_POR_HP = 0.15
+"""Tábuas consumidas por ponto de HP reparado. Valor baixo para não esgotar
+o estoque rapidamente (ajustável)."""
+
 REPARO_K = 3.5
 """Fator exponencial: quanto maior, mais a eficiência de reparo cai
 conforme o dano aumenta (previne recuperação trivial com casco destruído)."""
@@ -160,6 +164,15 @@ do jogador."""
 MUNDO_TICK = 0.5
 """Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
 
+MUNDO_NUM_PORTOS = 1
+"""Número de portos fixos espalhados pelo mundo."""
+
+MUNDO_RAIO_ATRACACAO = 150.0
+"""Distância máxima para poder usar o comando 'atracar'."""
+
+MUNDO_RAIO_COLETA_LOOT = 100.0
+"""Distância máxima para coletar automaticamente destroços de um navio afundado."""
+
 # ---------------------------------------------------------------------------
 # Dinâmica da água
 # ---------------------------------------------------------------------------
@@ -253,6 +266,7 @@ NAVIO_TIPOS = {
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,
+        "porao_capacidade": 6,
     },
     "normal": {
         "navio": "Bergantim",
@@ -265,6 +279,7 @@ NAVIO_TIPOS = {
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,
+        "porao_capacidade": 9,
     },
     "dificil": {
         "navio": "Galeao",
@@ -277,11 +292,45 @@ NAVIO_TIPOS = {
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
         "reparo_mult": 1.0,
+        "porao_capacidade": 14,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador
 (simetria total), então a dificuldade vem do gerenciamento de recursos, não de
 atributos assimétricos."""
+
+# ---------------------------------------------------------------------------
+# Economia / Loja
+# ---------------------------------------------------------------------------
+
+PRECO_BARRIL_NOVO = 5.0
+"""Ouro por barril cheio (25 unidades) comprado na loja."""
+
+PRECO_REABASTECER_POR_UNIDADE = 0.4
+"""0.4/unidade: ponto de virada em 12.5 unidades (= 5.0 ouro = preço de um
+barril novo cheio). Reabastecer mais que isso fica mais caro que comprar novo."""
+
+PRECO_VENDA_BARRIL_CHEIO = 2.0
+"""Preço de venda de um barril cheio; venda proporcional ao conteúdo restante."""
+
+PRECO_REPARO_POR_PONTO_DANO = 0.5
+"""Ouro por ponto percentual de dano reparado no porto."""
+
+PRECO_NAVIO_NOVO = {"facil": 50, "normal": 100, "dificil": 200}
+"""Preço de compra de um navio novo, por tipo."""
+
+PRECO_RENOMEAR = 20.0
+"""Ouro para renomear um navio."""
+
+PRECO_UPGRADE = {
+    "casco_max":        40.0,   # +10 HP máx. casco
+    "cooldown":         60.0,   # -10% cooldown canhão
+    "porao_slot":       50.0,   # +1 slot de porão
+    "tripulante_extra": 80.0,   # +1 tripulante acima do máximo do tipo
+    "velocidade_giro":  70.0,   # +10% velocidade/giro
+    "alcance_canhao":   50.0,   # +50m alcance
+}
+"""Preços dos upgrades permanentes por navio."""
 
 # ---------------------------------------------------------------------------
 # Arte ASCII
