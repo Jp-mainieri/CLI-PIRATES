@@ -7,7 +7,6 @@ de renderização (renderer.py). O formato é:
 """
 
 import math
-import random
 
 try:
     import curses as _curses
@@ -243,10 +242,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
     horizonte = ''.join(linha)
     overlay_navio = [(inicio, icone, cor_navio(estado, e_jogador=False))]
 
-    erro_vigia = random.uniform(-0.1, 0.1) * d_real
-    vigia = f'Vigia: "a {d_real + erro_vigia:.0f}m!"'
-
-    return [(horizonte, attr_mar, overlay_navio), (ruler, 0, ruler_overlays), (vigia, 0, [])]
+    return [(horizonte, attr_mar, overlay_navio), (ruler, 0, ruler_overlays)]
 
 
 def build_mapa_linhas(estado) -> list[tuple]:
@@ -257,7 +253,7 @@ def build_mapa_linhas(estado) -> list[tuple]:
     """
     jogador, inimigo = estado.jogador, estado.inimigo
     unicode_on = estado.graficos_unicode
-    GRID_W, GRID_H = 20, 8
+    GRID_W, GRID_H = 13, 20
 
     cx = (jogador.x + inimigo.x) / 2
     cy = (jogador.y + inimigo.y) / 2
@@ -295,7 +291,6 @@ def build_mapa_linhas(estado) -> list[tuple]:
             (c * largura_celula, texto_celula, cor_navio(estado, e_jogador=True))
         )
 
-    d = distancia(jogador, inimigo)
     attr_mar = cor_mar(estado)
     linhas: list[tuple] = [("  N", 0, [])]
     for i, row in enumerate(grid):
@@ -307,10 +302,37 @@ def build_mapa_linhas(estado) -> list[tuple]:
     if _curses is not None:
         attr_zoom = _curses.A_BOLD | _curses.A_REVERSE if zoom_recente else 0
         if zoom_recente and estado.cores_ativo:
-            from ..constants import COR_AMARELO
             attr_zoom |= _curses.color_pair(COR_AMARELO)
-    linhas.append((f"ZOOM: ~{half_range}m | dist real: {d:.0f}m", attr_zoom, []))
+    linhas.append((f"ZOOM: ~{half_range}m", attr_zoom, []))
     return linhas
+
+
+def build_vigia_linhas(estado) -> list[tuple]:
+    """Estimativa de distância ao inimigo (modo combate). Snap a 25m para evitar oscilação."""
+    inimigo = estado.inimigo
+    if inimigo.afundado:
+        return []
+    d = distancia(estado.jogador, inimigo)
+    if d > 1800:
+        return []
+    estimativa = round(d / 25) * 25
+    return [(f'Vigia: "a {estimativa:.0f}m!"', 0, [])]
+
+
+def build_vigia_mundo_linhas(estado_mundo) -> list[tuple]:
+    """Estimativa de distância ao inimigo mais próximo (modo mundo). Snap a 25m."""
+    jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+    melhor_d = float('inf')
+    for navio in estado_mundo.inimigos:
+        if navio.status == "afundado":
+            continue
+        d = estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y)
+        if d < melhor_d:
+            melhor_d = d
+    if melhor_d <= 1800:
+        estimativa = round(melhor_d / 25) * 25
+        return [(f'Vigia: "a {estimativa:.0f}m!"', 0, [])]
+    return []
 
 
 def build_adm_linhas(estado) -> list[tuple[str, int]]:

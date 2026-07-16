@@ -24,6 +24,8 @@ from .hud import (
     build_adm_linhas,
     build_mapa_navegacao_linhas,
     build_mapa_mundo_linhas,
+    build_vigia_linhas,
+    build_vigia_mundo_linhas,
 )
 
 RIGHT_X = 36
@@ -96,15 +98,6 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     safe_addstr(stdscr, row, 0, "-" * min(max_x - 1, 78))
     row += 1
 
-    if estado.hotkeys_ativo:
-        safe_addstr(
-            stdscr, row, 0,
-            "HOTKEYS: a/d leme  w/s vela  j/l canhao  i/k mira  espaco atirar/parar  "
-            "u/h bomba  e/r reparo (e circula, r remove, espaco add) | foco: "
-            + _descrever_foco(estado),
-        )
-        row += 1
-
     safe_addstr(stdscr, row, 0, "SEU NAVIO",
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
@@ -159,6 +152,9 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         for col, segmento, attr_seg in overlays:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
         row += 1
+    for texto, attr, overlays in build_vigia_linhas(estado):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        row += 1
 
     log_lines = list(estado.log)[-4:]
     base = max_y - (2 + len(log_lines) + 2)
@@ -166,6 +162,8 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     for i, linha in enumerate(log_lines):
         safe_addstr(stdscr, base + 1 + i, 0, linha, cor_log(estado, linha))
     safe_addstr(stdscr, max_y - 2, 0, "-" * min(max_x - 1, 78))
+    if estado.hotkeys_ativo:
+        safe_addstr(stdscr, max_y - 2, 0, f"FOCO: {_descrever_foco(estado)}")
     safe_addstr(stdscr, max_y - 1, 0, f"> {buffer_entrada}", _curses.A_REVERSE)
 
     stdscr.refresh()
@@ -254,11 +252,23 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
         row += 1
     row += 1
 
+    em_combate = getattr(estado_mundo, 'em_combate', False)
     if estado_mundo.mapa_mundo_visivel:
         for texto, attr, overlays in build_mapa_mundo_linhas(estado_mundo, estado):
             safe_addstr(stdscr, row, 0, texto, attr)
             for col, segmento, attr_seg in overlays:
                 safe_addstr(stdscr, row, col, segmento, attr_seg)
+            row += 1
+    elif em_combate:
+        safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)
+        row += 1
+        for texto, attr, overlays in build_mapa_linhas(estado):
+            safe_addstr(stdscr, row, 0, texto, attr)
+            for col, segmento, attr_seg in overlays:
+                safe_addstr(stdscr, row, col, segmento, attr_seg)
+            row += 1
+        for texto, attr, overlays in build_vigia_linhas(estado):
+            safe_addstr(stdscr, row, 0, texto, attr)
             row += 1
     else:
         safe_addstr(stdscr, row, 0, "== MAPA DE NAVEGACAO ==", _curses.A_UNDERLINE)
@@ -267,6 +277,9 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
             safe_addstr(stdscr, row, 0, texto, attr)
             for col, segmento, attr_seg in overlays:
                 safe_addstr(stdscr, row, col, segmento, attr_seg)
+            row += 1
+        for texto, attr, overlays in build_vigia_mundo_linhas(estado_mundo):
+            safe_addstr(stdscr, row, 0, texto, attr)
             row += 1
 
     log_lines = list(estado.log)[-4:]
