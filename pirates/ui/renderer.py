@@ -19,6 +19,7 @@ from .hud import (
     build_canhoes_linhas,
     build_bussola_linhas,
     build_vista_linhas,
+    build_vista_mundo_linhas,
     build_mapa_linhas,
     build_adm_linhas,
     build_mapa_navegacao_linhas,
@@ -238,13 +239,21 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
             safe_addstr(stdscr, rowi, RIGHT_X, texto, attr)
 
     row = topo_colunas + maxlen + 1
-    safe_addstr(stdscr, row, 0, "== MAPA DE NAVEGACAO ==", _curses.A_UNDERLINE)
-    row += 1
-    for texto, attr, overlays in build_mapa_navegacao_linhas(estado_mundo, estado):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        for col, segmento, attr_seg in overlays:
-            safe_addstr(stdscr, row, col, segmento, attr_seg)
+
+    if estado_mundo.mapa_mundo_visivel:
+        for texto, attr, overlays in build_mapa_mundo_linhas(estado_mundo, estado):
+            safe_addstr(stdscr, row, 0, texto, attr)
+            for col, segmento, attr_seg in overlays:
+                safe_addstr(stdscr, row, col, segmento, attr_seg)
+            row += 1
+    else:
+        safe_addstr(stdscr, row, 0, "== MAPA DE NAVEGACAO ==", _curses.A_UNDERLINE)
         row += 1
+        for texto, attr, overlays in build_mapa_navegacao_linhas(estado_mundo, estado):
+            safe_addstr(stdscr, row, 0, texto, attr)
+            for col, segmento, attr_seg in overlays:
+                safe_addstr(stdscr, row, col, segmento, attr_seg)
+            row += 1
     row += 1
 
     safe_addstr(stdscr, row, 0, "BUSSOLA", _curses.A_UNDERLINE)
@@ -258,7 +267,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
 
     safe_addstr(stdscr, row, 0, f"VISAO DO CAPITAO {SIMB_CAPITAO}", _curses.A_UNDERLINE)
     row += 1
-    for texto, attr, overlays in build_vista_linhas(estado):
+    for texto, attr, overlays in build_vista_mundo_linhas(estado_mundo, estado):
         safe_addstr(stdscr, row, 0, texto, attr)
         for col, segmento, attr_seg in overlays:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
@@ -268,14 +277,6 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     for texto, attr in build_porao_linhas(estado.jogador):
         safe_addstr(stdscr, row, 0, texto, attr)
         row += 1
-
-    if estado_mundo.mapa_mundo_visivel:
-        row += 1
-        for texto, attr, overlays in build_mapa_mundo_linhas(estado_mundo, estado):
-            safe_addstr(stdscr, row, 0, texto, attr)
-            for col, segmento, attr_seg in overlays:
-                safe_addstr(stdscr, row, col, segmento, attr_seg)
-            row += 1
 
     log_lines = list(estado.log)[-4:]
     base = max_y - (2 + len(log_lines) + 2)

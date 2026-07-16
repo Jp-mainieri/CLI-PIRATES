@@ -152,13 +152,20 @@ def build_bussola_linhas(estado, largura: int = 50) -> list[tuple]:
     ]
 
 
-def build_vista_linhas(estado) -> list[tuple]:
+def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[tuple]:
     """Constrói a visão horizontal do capitão mostrando o inimigo no horizonte.
+
+    Args:
+        inimigo_vista: Objeto com .afundado, .x, .y, .tipo_nome (opcional).
+                       Se None, usa estado.inimigo (modo combate).
+        jogador_vista: Objeto com .x, .y, .heading (opcional).
+                       Se None, usa estado.jogador (modo combate).
 
     Returns:
         Lista de (texto, atributo_base, overlays).
     """
-    jogador, inimigo = estado.jogador, estado.inimigo
+    jogador = jogador_vista if jogador_vista is not None else estado.jogador
+    inimigo = inimigo_vista if inimigo_vista is not None else estado.inimigo
     largura = 50
     attr_mar = cor_mar(estado)
 
@@ -452,8 +459,63 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     return linhas
 
 
-def build_mapa_mundo_linhas(_estado_mundo, estado) -> list[tuple]:
-    """Grade fixa cobrindo os 8000×8000 inteiros (apenas oceano por enquanto).
+def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
+    """Visão do capitão durante navegação livre: procura o inimigo mais próximo.
+
+    Reutiliza build_vista_linhas com overrides de posição para evitar depender
+    de estado.inimigo (que fica afundado=True durante a navegação).
+
+    Returns:
+        Lista de (texto, atributo_base, overlays).
+    """
+    from types import SimpleNamespace
+    from ..constants import NAVIO_TIPOS
+
+    ALCANCE_VISUAL = 1800.0
+    jx = estado_mundo.jogador_x
+    jy = estado_mundo.jogador_y
+
+    jogador_vista = SimpleNamespace(
+        x=jx,
+        y=jy,
+        heading=estado_mundo.jogador_heading,
+    )
+
+    melhor_navio = None
+    melhor_d = float('inf')
+    for navio in estado_mundo.inimigos:
+        if navio.status == "afundado":
+            continue
+        d = estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y)
+        if d < melhor_d:
+            melhor_d = d
+            melhor_navio = navio
+
+    if melhor_navio is None or melhor_d > ALCANCE_VISUAL:
+        inimigo_vista = SimpleNamespace(afundado=True, x=0.0, y=0.0, tipo_nome="")
+    else:
+        # Ajuste toroidal: posiciona o inimigo relativo ao jogador
+        dx = melhor_navio.x - jx
+        dy = melhor_navio.y - jy
+        if abs(dx) > MUNDO_TAMANHO / 2:
+            dx -= math.copysign(MUNDO_TAMANHO, dx)
+        if abs(dy) > MUNDO_TAMANHO / 2:
+            dy -= math.copysign(MUNDO_TAMANHO, dy)
+        tipo_nome = NAVIO_TIPOS.get(estado_mundo.tipo_navio, {}).get('navio', 'Chalupa')
+        inimigo_vista = SimpleNamespace(
+            afundado=False,
+            x=jx + dx,
+            y=jy + dy,
+            tipo_nome=tipo_nome,
+        )
+
+    return build_vista_linhas(estado, inimigo_vista=inimigo_vista, jogador_vista=jogador_vista)
+
+
+def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
+    """Grade fixa cobrindo os 8000×8000 inteiros.
+
+    Em modo ADM mostra o jogador (@) e inimigos (E/e) sobre o oceano.
 
     Returns:
         Lista de (texto, atributo_base, overlays).
@@ -464,8 +526,42 @@ def build_mapa_mundo_linhas(_estado_mundo, estado) -> list[tuple]:
     grid = [['~'] * GRID_W for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
+    if estado_mundo is not None:
+        def _world_to_cell(wx: float, wy: float) -> tuple[int, int]:
+            col = int(wx / MUNDO_TAMANHO * GRID_W) % GRID_W
+            row = int((1.0 - wy / MUNDO_TAMANHO) * GRID_H) % GRID_H
+            return col, row
+
+        # Portos — sempre visíveis
+        for porto in getattr(estado_mundo, 'portos', []):
+            col, row = _world_to_cell(porto.x, porto.y)
+            grid[row][col] = 'P'
+            overlays_por_linha[row].append((col, 'P', 0))
+
+        if getattr(estado, 'modo_adm', False):
+            # Jogador
+            col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
+            grid[row][col] = '@'
+            overlays_por_linha[row].append((col, '@', cor_navio(estado, e_jogador=True)))
+
+            # Inimigos
+            for navio in estado_mundo.inimigos:
+                col, row = _world_to_cell(navio.x, navio.y)
+                if navio.status == "afundado":
+                    glifo, attr = 'x', cor_mar(estado)
+                elif navio.status == "fugindo":
+                    glifo, attr = 'e', cor_navio(estado, e_jogador=False)
+                else:
+                    glifo, attr = 'E', cor_navio(estado, e_jogador=False)
+                grid[row][col] = glifo
+                overlays_por_linha[row].append((col, glifo, attr))
+
     attr_mar = cor_mar(estado)
-    linhas: list[tuple] = [("=== MAPA MUNDO (8km×8km) ===", 0, [])]
+    if getattr(estado, 'modo_adm', False):
+        titulo_mapa = "=== MAPA MUNDO [ADM: @ jogador  E inimigo  e fugindo  x afundado  P porto] ==="
+    else:
+        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [P porto] ==="
+    linhas: list[tuple] = [(titulo_mapa, 0, [])]
     linhas.append((" N", 0, []))
     for i, row in enumerate(grid):
         linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
