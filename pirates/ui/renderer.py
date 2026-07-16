@@ -13,7 +13,7 @@ except ImportError:
 from ..constants import SIMB_TRIPULANTE, SIMB_CAPITAO, COR_AMARELO
 from ..core.state import montar_tripulacao
 from ..input.hotkeys import _descrever_foco
-from .colors import cor_header, cor_tripulacao_livre, cor_log, cor_tarefa
+from .colors import cor_header, cor_tipo_navio, cor_tripulacao_livre, cor_log, cor_tarefa
 from .hud import (
     build_navio_diagrama,
     build_canhoes_linhas,
@@ -24,7 +24,6 @@ from .hud import (
     build_adm_linhas,
     build_mapa_navegacao_linhas,
     build_mapa_mundo_linhas,
-    build_porao_linhas,
 )
 
 RIGHT_X = 36
@@ -80,18 +79,19 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     max_y, max_x = stdscr.getmaxyx()
 
     row = 0
-    prefixo = (
-        f"CLI PIRATES | {estado.jogador.tipo_nome.upper()} | "
-        f"tempo: {estado.tempo:5.1f}s | tripulacao livre: "
-    )
-    numero_livre = f"{estado.crew_livre()}/{estado.crew_total}"
-    safe_addstr(stdscr, row, 0, prefixo, cor_header(estado))
-    safe_addstr(stdscr, row, len(prefixo), numero_livre, cor_tripulacao_livre(estado))
+    col = 0
+    parte1 = "CLI PIRATES | "
+    safe_addstr(stdscr, row, col, parte1, cor_header(estado))
+    col += len(parte1)
+    tipo_nome = estado.jogador.tipo_nome.upper()
+    safe_addstr(stdscr, row, col, tipo_nome, cor_tipo_navio(estado))
+    col += len(tipo_nome)
+    parte2 = f" | tempo: {estado.tempo:5.1f}s"
+    safe_addstr(stdscr, row, col, parte2, cor_header(estado))
+    col += len(parte2)
     if estado.modo_adm:
-        adm_label = " | [ADM]"
-        adm_col = len(prefixo) + len(numero_livre)
         attr_adm = (_curses.color_pair(COR_AMARELO) | _curses.A_BOLD) if _curses else 0
-        safe_addstr(stdscr, row, adm_col, adm_label, attr_adm)
+        safe_addstr(stdscr, row, col, " | [ADM]", attr_adm)
     row += 1
     safe_addstr(stdscr, row, 0, "-" * min(max_x - 1, 78))
     row += 1
@@ -105,7 +105,7 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         )
         row += 1
 
-    safe_addstr(stdscr, row, 0, f"SEU NAVIO ({estado.jogador.tipo_nome.upper()})",
+    safe_addstr(stdscr, row, 0, "SEU NAVIO",
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
     row += 1
@@ -116,7 +116,7 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     roster = montar_tripulacao(estado)
     direita = canhoes_linhas + [("", 0), ("TRIPULACAO:", 0)] + [
         (
-            f"{SIMB_TRIPULANTE} {tid:4s} {tarefa:8s} {detalhe}",
+            f"{SIMB_TRIPULANTE} {tid:4s} {(tarefa + ': ' + detalhe) if detalhe else tarefa}",
             cor_tarefa(estado, tarefa),
         )
         for tid, tarefa, detalhe in roster
@@ -137,23 +137,6 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
             safe_addstr(stdscr, topo_colunas + i, ADM_X, texto, attr)
 
     row = topo_colunas + maxlen + 1
-    safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)
-    row += 1
-    for texto, attr, overlays in build_mapa_linhas(estado):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        for col, segmento, attr_seg in overlays:
-            safe_addstr(stdscr, row, col, segmento, attr_seg)
-        row += 1
-    row += 1
-
-    safe_addstr(stdscr, row, 0, "BUSSOLA", _curses.A_UNDERLINE)
-    row += 1
-    for texto, attr, overlays in build_bussola_linhas(estado):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        for col, segmento, attr_seg in overlays:
-            safe_addstr(stdscr, row, col, segmento, attr_seg)
-        row += 1
-    row += 1
 
     safe_addstr(stdscr, row, 0, f"VISAO DO CAPITAO {SIMB_CAPITAO}", _curses.A_UNDERLINE)
     row += 1
@@ -162,9 +145,19 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         for col, segmento, attr_seg in overlays:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
         row += 1
-
-    for texto, attr in build_porao_linhas(estado.jogador):
+    for texto, attr, overlays in build_bussola_linhas(estado):
         safe_addstr(stdscr, row, 0, texto, attr)
+        for col, segmento, attr_seg in overlays:
+            safe_addstr(stdscr, row, col, segmento, attr_seg)
+        row += 1
+    row += 1
+
+    safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)
+    row += 1
+    for texto, attr, overlays in build_mapa_linhas(estado):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        for col, segmento, attr_seg in overlays:
+            safe_addstr(stdscr, row, col, segmento, attr_seg)
         row += 1
 
     log_lines = list(estado.log)[-4:]
@@ -201,22 +194,25 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     max_y, max_x = stdscr.getmaxyx()
 
     row = 0
-    prefixo = (
-        f"CLI PIRATES | {estado.jogador.tipo_nome.upper()} | NAVEGACAO | "
-        f"tempo: {estado.tempo:5.1f}s | tripulacao livre: "
-    )
-    numero_livre = f"{estado.crew_livre()}/{estado.crew_total}"
-    safe_addstr(stdscr, row, 0, prefixo, cor_header(estado))
-    safe_addstr(stdscr, row, len(prefixo), numero_livre, cor_tripulacao_livre(estado))
+    col = 0
+    parte1 = "CLI PIRATES | "
+    safe_addstr(stdscr, row, col, parte1, cor_header(estado))
+    col += len(parte1)
+    tipo_nome = estado.jogador.tipo_nome.upper()
+    safe_addstr(stdscr, row, col, tipo_nome, cor_tipo_navio(estado))
+    col += len(tipo_nome)
+    modo_label = " | COMBATE" if getattr(estado_mundo, 'em_combate', False) else " | NAVEGACAO"
+    parte2 = f"{modo_label} | tempo: {estado.tempo:5.1f}s"
+    safe_addstr(stdscr, row, col, parte2, cor_header(estado))
+    col += len(parte2)
     if estado.modo_adm:
-        adm_label = " | [ADM]"
         attr_adm = (_curses.color_pair(COR_AMARELO) | _curses.A_BOLD) if _curses else 0
-        safe_addstr(stdscr, row, len(prefixo) + len(numero_livre), adm_label, attr_adm)
+        safe_addstr(stdscr, row, col, " | [ADM]", attr_adm)
     row += 1
     safe_addstr(stdscr, row, 0, "-" * min(max_x - 1, 78))
     row += 1
 
-    safe_addstr(stdscr, row, 0, f"SEU NAVIO ({estado.jogador.tipo_nome.upper()})",
+    safe_addstr(stdscr, row, 0, "SEU NAVIO",
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
     row += 1
@@ -227,7 +223,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     roster = montar_tripulacao(estado)
     direita = canhoes_linhas + [("", 0), ("TRIPULACAO:", 0)] + [
         (
-            f"{SIMB_TRIPULANTE} {tid:4s} {tarefa:8s} {detalhe}",
+            f"{SIMB_TRIPULANTE} {tid:4s} {(tarefa + ': ' + detalhe) if detalhe else tarefa}",
             cor_tarefa(estado, tarefa),
         )
         for tid, tarefa, detalhe in roster
@@ -244,6 +240,20 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
 
     row = topo_colunas + maxlen + 1
 
+    safe_addstr(stdscr, row, 0, f"VISAO DO CAPITAO {SIMB_CAPITAO}", _curses.A_UNDERLINE)
+    row += 1
+    for texto, attr, overlays in build_vista_mundo_linhas(estado_mundo, estado):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        for col, segmento, attr_seg in overlays:
+            safe_addstr(stdscr, row, col, segmento, attr_seg)
+        row += 1
+    for texto, attr, overlays in build_bussola_linhas(estado):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        for col, segmento, attr_seg in overlays:
+            safe_addstr(stdscr, row, col, segmento, attr_seg)
+        row += 1
+    row += 1
+
     if estado_mundo.mapa_mundo_visivel:
         for texto, attr, overlays in build_mapa_mundo_linhas(estado_mundo, estado):
             safe_addstr(stdscr, row, 0, texto, attr)
@@ -258,29 +268,6 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
             for col, segmento, attr_seg in overlays:
                 safe_addstr(stdscr, row, col, segmento, attr_seg)
             row += 1
-    row += 1
-
-    safe_addstr(stdscr, row, 0, "BUSSOLA", _curses.A_UNDERLINE)
-    row += 1
-    for texto, attr, overlays in build_bussola_linhas(estado):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        for col, segmento, attr_seg in overlays:
-            safe_addstr(stdscr, row, col, segmento, attr_seg)
-        row += 1
-    row += 1
-
-    safe_addstr(stdscr, row, 0, f"VISAO DO CAPITAO {SIMB_CAPITAO}", _curses.A_UNDERLINE)
-    row += 1
-    for texto, attr, overlays in build_vista_mundo_linhas(estado_mundo, estado):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        for col, segmento, attr_seg in overlays:
-            safe_addstr(stdscr, row, col, segmento, attr_seg)
-        row += 1
-    row += 1
-
-    for texto, attr in build_porao_linhas(estado.jogador):
-        safe_addstr(stdscr, row, 0, texto, attr)
-        row += 1
 
     log_lines = list(estado.log)[-4:]
     base = max_y - (2 + len(log_lines) + 2)

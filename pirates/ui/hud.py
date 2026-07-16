@@ -16,7 +16,7 @@ except ImportError:
 
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
-    MUNDO_TAMANHO,
+    MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO,
 )
 from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
 from ..core.combat import distancia, rumo_para
@@ -25,17 +25,6 @@ from .colors import (
     cor_valor, cor_cooldown, cor_mar, cor_navio, cor_norte, cor_tarefa,
 )
 
-
-def _label_moral(moral: float) -> str:
-    """Retorna o rótulo de estado de moral conforme os limiares."""
-    from ..constants import MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO
-    if moral > MORAL_LIMIAR_ALTO:
-        return "Normal"
-    if moral > MORAL_LIMIAR_MEDIO:
-        return "Abalada"
-    if moral > 0:
-        return "Combalida"
-    return "PANICO"
 
 
 def build_navio_diagrama(estado) -> list[tuple[str, int]]:
@@ -55,8 +44,7 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
             cor_valor(estado, j.partes['mastro']),
         ),
         (
-            f"VELA  [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%  "
-            f"({j.num_velas} velas)",
+            f"VELA  [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%",
             cor_valor(estado, j.partes['vela']),
         ),
         (
@@ -68,15 +56,11 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
             cor_valor(estado, j.agua, pior_se_alto=True),
         ),
         (
-            f"MORAL [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%"
-            f" ({_label_moral(j.moral_atual)})",
+            f"MORAL [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%",
             cor_valor(estado, j.moral_atual),
         ),
-        (
-            f"Rumo {j.heading:5.1f}->{j.heading_alvo:5.1f} "
-            f"Vel {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f} Vela {j.nivel_vela}/3",
-            0,
-        ),
+        (f"RUMO {j.heading:5.1f} -> {j.heading_alvo:5.1f}", 0),
+        (f"VEL  {j.velocidade:4.1f} / {j.velocidade_maxima():4.1f}", 0),
     ]
 
 
@@ -89,24 +73,28 @@ def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
     linhas: list[tuple[str, int]] = []
     for lado in ('estibordo', 'bombordo'):
         for c in estado.jogador.canhoes[lado]:
-            cab = f"{c.label} trip:{c.tripulantes}"
-            if c.dist_alvo is None:
-                status = "sem mira" if c.tripulantes >= estado.min_crew_canhao else "sem trip."
-                linhas.append((f"{cab} {status}", 0))
-            elif estado.tempo < c.proximo_tiro:
+            if estado.tempo < c.proximo_tiro:
                 restante = c.proximo_tiro - estado.tempo
                 pct_cd = clamp(100 * (1 - restante / COOLDOWN_CANHAO), 0, 100)
-                linhas.append((cab, 0))
-                linhas.append((
-                    f"   cd[{barra(pct_cd)}] {restante:4.1f}s mira:{c.dist_alvo:.0f}m",
-                    cor_cooldown(estado, pronto=False),
-                ))
+                pronto = False
             else:
-                linhas.append((cab, 0))
-                linhas.append((
-                    f"   cd[{barra(100)}] pronto  mira:{c.dist_alvo:.0f}m",
-                    cor_cooldown(estado, pronto=True),
-                ))
+                restante = 0.0
+                pct_cd = 100.0
+                pronto = True
+
+            bar_str = f"[{barra(pct_cd)}]"
+
+            if c.dist_alvo is None:
+                info = "sem mira"
+                attr = 0
+            elif pronto:
+                info = f"mira:{c.dist_alvo:.0f}m PRONTO"
+                attr = cor_cooldown(estado, pronto=True)
+            else:
+                info = f"mira:{c.dist_alvo:.0f}m {restante:.1f}s"
+                attr = cor_cooldown(estado, pronto=False)
+
+            linhas.append((f"{c.label} {bar_str} {info}", attr))
     return linhas
 
 
@@ -134,21 +122,38 @@ def build_bussola_linhas(estado, largura: int = 50) -> list[tuple]:
         if label == 'N':
             overlays.append((ini, label, cor_norte(estado)))
 
-    ponteiro = [' '] * largura
-    ponteiro[largura // 2] = '|'
-
     diff = (jogador.heading_alvo - jogador.heading + 540) % 360 - 180
-    if abs(diff) < 0.5:
-        sentido = "(parado)"
-    elif diff > 0:
-        sentido = ">>> virando p/ bombordo"
-    else:
-        sentido = "<<< virando p/ estibordo"
+    ponteiro = [' '] * largura
+
+    if abs(diff) >= 0.5:
+        if abs(diff) < 10:
+            n_arrows = 1
+        elif abs(diff) < 30:
+            n_arrows = 2
+        elif abs(diff) < 60:
+            n_arrows = 3
+        elif abs(diff) < 90:
+            n_arrows = 4
+        else:
+            n_arrows = 5
+        pos_alvo = clamp(int(round((diff + 180) / 360 * (largura - 1))), 0, largura - 1)
+        ponteiro[pos_alvo] = '|'
+        if diff > 0:
+            arrow_char = '>'
+            for i in range(1, n_arrows + 1):
+                p = pos_alvo - i
+                if 0 <= p < largura:
+                    ponteiro[p] = arrow_char
+        else:
+            arrow_char = '<'
+            for i in range(1, n_arrows + 1):
+                p = pos_alvo + i
+                if 0 <= p < largura:
+                    ponteiro[p] = arrow_char
 
     return [
         (''.join(linha), 0, overlays),
         (''.join(ponteiro), 0, []),
-        (f"Rumo atual: {jogador.heading:.0f} graus {sentido}", 0, []),
     ]
 
 
@@ -169,16 +174,36 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
     largura = 50
     attr_mar = cor_mar(estado)
 
+    modo_combate = inimigo_vista is None
+
+    # Régua com overlays de cor por setor
     regua = [' '] * largura
-    marcos = {-180: 'POPA', -90: 'BOMB', 0: 'PROA', 90: 'ESTIB', 180: 'POPA'}
-    for graus, label in marcos.items():
+    marcos_ruler = {-180: 'POPA', -90: 'BOMB', 0: 'PROA', 90: 'ESTIB', 180: 'POPA'}
+    ruler_overlays: list[tuple] = []
+    for graus, label in marcos_ruler.items():
         p = clamp(int(round((graus + 180) / 360 * (largura - 1))), 0, largura - 1)
         ini = clamp(p - len(label) // 2, 0, largura - len(label))
         for i, c in enumerate(label):
             regua[ini + i] = c
+        if estado.cores_ativo and _curses is not None:
+            if label == 'BOMB':
+                ruler_overlays.append((ini, label, _curses.color_pair(COR_VERMELHO)))
+            elif label == 'ESTIB':
+                ruler_overlays.append((ini, label, _curses.color_pair(COR_VERDE)))
+            elif label == 'POPA':
+                ruler_overlays.append((ini, label, _curses.color_pair(COR_AMARELO)))
     ruler = ''.join(regua)
 
-    agua = [("~" * largura, attr_mar, []), (ruler, 0, [])]
+    # Horizonte base: marcadores | nos limites do arco dos canhões (só combate)
+    # Estibordo: rel +20° a +160°; Bombordo: rel -160° a -20°
+    horiz_base = list('~' * largura)
+    if modo_combate:
+        for deg in (-160, -20, 20, 160):
+            p = clamp(int(round((deg + 180) / 360 * (largura - 1))), 0, largura - 1)
+            horiz_base[p] = '|'
+    horiz_str = ''.join(horiz_base)
+
+    agua = [(horiz_str, attr_mar, []), (ruler, 0, ruler_overlays)]
 
     if inimigo.afundado:
         return agua
@@ -196,7 +221,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
         icones = ("<[-(|||]>", "<[|||]>", "<|||>", "ooo", "...")
     elif 'bergantim' in tipo:
         icones = ("<[-(||]>", "<[||]>", "<||>", "oo", "..")
-    else:  # chalupa ou desconhecido
+    else:
         icones = ("<[-(|]>", "<[|]>", "<|>", "o", ".")
 
     if d_real < 150:
@@ -209,7 +234,9 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
         icone = icones[3]
     else:
         icone = icones[4]
-    linha = list('~' * largura)
+
+    # Inimigo sobrepõe os marcadores | (layer na frente)
+    linha = list(horiz_str)
     inicio = clamp(pos - len(icone) // 2, 0, largura - len(icone))
     for i, ch in enumerate(icone):
         linha[inicio + i] = ch
@@ -219,7 +246,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
     erro_vigia = random.uniform(-0.1, 0.1) * d_real
     vigia = f'Vigia: "a {d_real + erro_vigia:.0f}m!"'
 
-    return [(horizonte, attr_mar, overlay_navio), (ruler, 0, []), (vigia, 0, [])]
+    return [(horizonte, attr_mar, overlay_navio), (ruler, 0, ruler_overlays), (vigia, 0, [])]
 
 
 def build_mapa_linhas(estado) -> list[tuple]:

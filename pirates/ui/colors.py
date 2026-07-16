@@ -93,6 +93,17 @@ def cor_tripulacao_livre(estado) -> int:
     return _curses.A_BOLD
 
 
+def cor_tipo_navio(estado) -> int:
+    """Cor do nome do navio no cabeçalho: verde (Chalupa), amarelo (Bergantim), vermelho (Galeão)."""
+    if _curses is None:
+        return 0
+    if estado.cores_ativo:
+        mapa = {'facil': COR_VERDE, 'normal': COR_AMARELO, 'dificil': COR_VERMELHO}
+        cor = mapa.get(estado.tipo_navio, COR_JOGADOR)
+        return _curses.color_pair(cor) | _curses.A_BOLD
+    return _curses.A_BOLD
+
+
 def cor_header(estado) -> int:
     """Atributo curses para o cabeçalho principal.
 
