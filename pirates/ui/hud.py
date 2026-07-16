@@ -21,7 +21,7 @@ from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_par
 from ..core.combat import distancia, rumo_para
 from ..core.state import montar_tripulacao
 from .colors import (
-    cor_valor, cor_cooldown, cor_mar, cor_navio, cor_norte, cor_tarefa,
+    cor_valor, cor_cooldown, cor_mar, cor_navio, cor_norte, cor_tarefa, cor_recurso,
 )
 
 
@@ -456,6 +456,31 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
             linhas.append((f"  {tipo:7s} {n_barris}b [{bar}] {total:.0f}/{max_u}u", 0))
         else:
             linhas.append((f"  {tipo:7s} 0b [----------]  0u", 0))
+    return linhas
+
+
+def build_porao_inventario_linhas(navio, cores: bool = True) -> list[tuple[str, int]]:
+    """Porão com listagem individual de barris (mesmo formato do inventário)."""
+    from ..core.porao import capacidade_barril
+    p = navio.porao
+    cap = p.capacidade
+    linhas: list[tuple[str, int]] = [
+        (f"PORAO  {navio.tipo_nome.upper()} | {navio.nome}  [{len(p.barris)}/{cap} slots]", 0),
+        ("  #   Tipo      Qtd / Max    [Barra      ]", 0),
+    ]
+    for i in range(cap):
+        if i < len(p.barris):
+            b = p.barris[i]
+            cap_b = capacidade_barril(b.tipo)
+            pct = b.quantidade / cap_b if cap_b > 0 else 0.0
+            n_h = int(round(pct * 10))
+            barra_str = "#" * n_h + "-" * (10 - n_h)
+            texto = f"  {i+1:2d}.  {b.tipo:7s}  {b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]"
+            attr = cor_recurso(cores, b.tipo)
+        else:
+            texto = f"  {i+1:2d}.  [slot vazio]"
+            attr = 0
+        linhas.append((texto, attr))
     return linhas
 
 

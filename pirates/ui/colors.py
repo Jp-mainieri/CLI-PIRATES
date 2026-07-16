@@ -69,7 +69,7 @@ def cor_navio(estado, e_jogador: bool) -> int:
     """Atributo curses para o ícone de navio no mapa (ciano=jogador, magenta=inimigo)."""
     if not estado.cores_ativo or _curses is None:
         return 0
-    return _curses.color_pair(COR_JOGADOR if e_jogador else COR_INIMIGO)
+    return _curses.color_pair(COR_AMARELO if e_jogador else COR_INIMIGO)
 
 
 def cor_norte(estado) -> int:
@@ -133,3 +133,27 @@ def cor_tarefa(estado, tarefa: str) -> int:
     if tarefa in mapa:
         return _curses.color_pair(mapa[tarefa])
     return 0
+
+
+# Mapeamento de tipo de recurso → par de cor (None = sem cor, só bold)
+_RECURSO_COR: dict[str, int | None] = {
+    "polvora": COR_VERMELHO,
+    "bolas":   None,
+    "tabuas":  COR_VERDE,
+    "ouro":    COR_AMARELO,
+}
+
+
+def cor_recurso(cores_ativo: bool, tipo: str) -> int:
+    """Atributo curses para um tipo de recurso/carga.
+
+    polvora=vermelho, tabuas=verde, ouro=amarelo, bolas=bold.
+    """
+    if _curses is None:
+        return 0
+    par = _RECURSO_COR.get(tipo, None)
+    if par is None:
+        return _curses.A_BOLD if cores_ativo else 0
+    if not cores_ativo:
+        return 0
+    return _curses.color_pair(par)

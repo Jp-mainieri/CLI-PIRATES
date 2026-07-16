@@ -8,7 +8,7 @@ except ImportError:
     _curses = None  # type: ignore[assignment]
 
 from ..ui.renderer import safe_addstr
-from ..ui.hud import build_porao_linhas
+from ..ui.hud import build_porao_inventario_linhas, build_navio_diagrama
 from .lojas import (
     preco_reparo, preco_reabastecer, preco_venda,
     preco_upgrade_nivel, nivel_atual_upgrade, nivel_max_upgrade,
@@ -19,6 +19,7 @@ from .lojas import (
 from ..constants import (
     PRECO_NAVIO_NOVO, PRECO_BARRIL_NOVO, PRECO_RENOMEAR,
     NAVIO_TIPOS, SIMB_CAPITAO,
+    COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR,
 )
 
 # ---------------------------------------------------------------------------
@@ -63,29 +64,30 @@ def _proxima_doca(cap_col: int, cap_row: int) -> bool:
 
 _GRID_BG: list[str] = [
     "                              ",  # 0
-    "                              ",  # 1
-    "   [P]           [O]          ",  # 2
-    "     |           |            ",  # 3  ← entradas em col 9 e 19
-    "     |           |            ",  # 4
-    "     |           |            ",  # 5
-    "     |    ^x^    |            ",  # 6  (capitão inicial aqui — placeholder)
-    "     |           |            ",  # 7
-    "     |           |            ",  # 8
-    "   [T]           [N]          ",  # 9
-    "     |           |            ",  # 10 ← entradas em col 9 e 19
-    "     |           |            ",  # 11
-    "     |    <>.    |            ",  # 12 ← doca em col 14
-    "     |    ___    |            ",  # 13
-    "          DOCA                ",  # 14
+    "        [P]       [O]         ",  # 1  lojas top  (col 9 e 19)
+    "         |         |          ",  # 2
+    "         *         *          ",  # 3  ← entradas polvora(9) e bolas(19)
+    "         |         |          ",  # 4
+    "         |         |          ",  # 5
+    "         |         |          ",  # 6
+    "         |         |          ",  # 7
+    "         |         |          ",  # 8
+    "         |         |          ",  # 9
+    "         *         *          ",  # 10 ← entradas tabuas(9) e navios(19)
+    "         |         |          ",  # 11
+    "        [T]  ___  [N]         ",  # 12 lojas bottom + doca (col 14)
+    "              |               ",  # 13
+    "             DOCA             ",  # 14
 ]
 
 
 def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
-                    navio_nome: str, msg: str, estado) -> None:
+                    navio_nome: str, msg: str, estado, vista: str = "hud") -> None:
     if _curses is None:
         return
     stdscr.erase()
     max_y, max_x = stdscr.getmaxyx()
+    cores = estado.cores_ativo and _curses is not None
 
     # Título
     titulo = f"CLI PIRATES -- PORTO DE {porto_nome.upper()}"
@@ -100,17 +102,47 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
     for r, linha in enumerate(_GRID_BG):
         safe_addstr(stdscr, base_row + r, 4, linha)
 
-    # Sobrepõe o capitão
-    safe_addstr(stdscr, base_row + cap_row, 4 + cap_col, SIMB_CAPITAO,
-                _curses.A_BOLD if _curses else 0)
+    # Cores das lojas sobre o grid (col de string → visual col = 4 + col_string)
+    # [P] polvora: string col 8-10, row 1  →  visual col 12, row base_row+1
+    # [O] bolas:   string col 18-20, row 1 →  visual col 22, row base_row+1
+    # [T] tabuas:  string col 8-10, row 12 →  visual col 12, row base_row+12
+    # [N] navios:  string col 18-20, row 12→  visual col 22, row base_row+12
+    _lojas_info = [
+        ("[P]", base_row + 1,  12, COR_VERMELHO),
+        ("[O]", base_row + 1,  22, None),          # bolas: só bold
+        ("[T]", base_row + 12, 12, COR_VERDE),
+        ("[N]", base_row + 12, 22, COR_JOGADOR),
+    ]
+    for texto, row, col, par in _lojas_info:
+        if cores and par is not None:
+            attr = _curses.color_pair(par) | _curses.A_BOLD
+        else:
+            attr = _curses.A_BOLD
+        safe_addstr(stdscr, row, col, texto, attr)
 
-    # Painel de porão
-    porao_row = base_row + GRID_H + 1
-    safe_addstr(stdscr, porao_row, 0, "-" * min(max_x - 1, 78))
-    porao_row += 1
-    for texto, attr in build_porao_linhas(estado.jogador):
-        safe_addstr(stdscr, porao_row, 0, texto, attr)
-        porao_row += 1
+    # Capitão (amarelo+bold)
+    if cores:
+        cap_attr = _curses.color_pair(COR_AMARELO) | _curses.A_BOLD
+    else:
+        cap_attr = _curses.A_BOLD
+    safe_addstr(stdscr, base_row + cap_row, 4 + cap_col, SIMB_CAPITAO, cap_attr)
+
+    # Painel inferior: HUD ou porão
+    sep_row = base_row + GRID_H + 1
+    label = "HUD" if vista == "hud" else "PORAO"
+    safe_addstr(stdscr, sep_row, 0, f"[{label}]" + "-" * max(0, min(max_x - 1, 78) - 6 - len(label)))
+    painel_row = sep_row + 1
+
+    if vista == "hud":
+        linhas = build_navio_diagrama(estado)[:6]   # casco/mastro/vela/roda/agua/moral
+    else:
+        linhas = build_porao_inventario_linhas(estado.jogador, cores=cores)
+
+    for texto, attr in linhas:
+        if painel_row >= max_y - 4:
+            break
+        safe_addstr(stdscr, painel_row, 0, texto, attr)
+        painel_row += 1
 
     # Mensagem + rodapé
     log_row = max_y - 4
@@ -119,7 +151,7 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
         safe_addstr(stdscr, log_row + 1, 2, msg)
     safe_addstr(stdscr, max_y - 2, 0, "-" * min(max_x - 1, 78))
     safe_addstr(stdscr, max_y - 1, 0,
-                "WASD: mover   pisar no navio (DOCA) para zarpar   ESC: zarpar")
+                "WASD: mover   DOCA: zarpar   TAB: alternar vista   ESC: zarpar")
     stdscr.refresh()
 
 
@@ -177,7 +209,10 @@ def _menu_simples(stdscr, titulo: str, opcoes: list[str],
         pr = max_y - 10
         safe_addstr(stdscr, pr, 0, "-" * min(max_x - 1, 78))
         pr += 1
-        for texto, attr in build_porao_linhas(estado.jogador):
+        cores = estado.cores_ativo and _curses is not None
+        for texto, attr in build_porao_inventario_linhas(estado.jogador, cores=cores):
+            if pr >= max_y - 5:
+                break
             safe_addstr(stdscr, pr, 0, texto, attr)
             pr += 1
 
@@ -466,16 +501,20 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
     cap_col = _CAP_INICIO_COL
     cap_row = _CAP_INICIO_ROW
     msg = f"Voce atracou em {porto_nome}. Ande ate uma loja ou ate o navio na doca pra zarpar."
+    vista = "hud"
 
     stdscr.nodelay(False)
     while True:
         navio_nome = frota.ativo().nome if frota.ativo() else estado.jogador.nome
-        _desenhar_porto(stdscr, cap_col, cap_row, porto_nome, navio_nome, msg, estado)
+        _desenhar_porto(stdscr, cap_col, cap_row, porto_nome, navio_nome, msg, estado, vista)
         msg = ""
 
         ch = stdscr.getch()
         if ch == 27:  # ESC → zarpar
             break
+        elif ch == ord('\t'):  # TAB → alternar vista
+            vista = "porao" if vista == "hud" else "hud"
+            continue
 
         nova_col, nova_row = cap_col, cap_row
         if ch in (ord('w'), ord('W')):

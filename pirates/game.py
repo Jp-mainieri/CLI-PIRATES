@@ -215,7 +215,7 @@ def mundo_loop(stdscr, config: dict) -> str:
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
             elif ch in (ord('V'), ord('v')) and buffer_entrada == "":
                 from .ui.inventario import abrir_inventario
-                abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+                abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
                 if estado_mundo.loot_pendente is not None:
                     if not estado_mundo.loot_pendente.barris:
                         estado_mundo.loot_pendente = None
@@ -528,7 +528,7 @@ def _processar_cmd_mundo(
         if navio_destroco is not None:
             estado.log.append("Coletando destrocos do navio afundado...")
             from .ui.inventario import abrir_inventario
-            abrir_inventario(stdscr, estado.jogador, navio_destroco.loot)
+            abrir_inventario(stdscr, estado.jogador, navio_destroco.loot, cores=estado.cores_ativo)
             navio_destroco.loot = None  # loot coletado ou descartado
             estado.log.append("Destrocos processados.")
         else:
@@ -538,7 +538,7 @@ def _processar_cmd_mundo(
             estado.log.append("Erro interno: stdscr nao disponivel para 'inventario'.")
             return
         from .ui.inventario import abrir_inventario
-        abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+        abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
         if estado_mundo.loot_pendente is not None:
             if not estado_mundo.loot_pendente.barris:
                 estado_mundo.loot_pendente = None
