@@ -32,19 +32,19 @@ from ..constants import (
 # Jogador: cols 1..8, rows 1..10
 # ---------------------------------------------------------------------------
 
-GRID_W = 10   # células lógicas
+GRID_W = 5   # células lógicas
 GRID_H = 12   # linhas
 
 # Posições lógicas dos elementos fixos
-_DOCA_COL, _DOCA_ROW     = 4, 8
-_CAP_INICIO_COL, _CAP_INICIO_ROW = 4, 3
+_DOCA_COL, _DOCA_ROW     = 2,9 
+_CAP_INICIO_COL, _CAP_INICIO_ROW = 2, 8
 
 # Entradas das lojas: posição lógica exata onde o capitão aciona a loja
 _ENTRADAS: dict[str, tuple[int, int]] = {
-    "polvora": (1, 1),   # à direita de [P] (célula 0, linha 1)
-    "bolas":   (8, 1),   # à esquerda de [O] (célula 9, linha 1)
-    "tabuas":  (1, 4),   # à direita de [T] (célula 0, linha 4)
-    "navios":  (8, 4),   # à esquerda de [N] (célula 9, linha 4)
+    "polvora": (1, 3),   # à direita de [P] (célula 0, linha 1)
+    "bolas":   (3, 3),   # à esquerda de [O] (célula 9, linha 1)
+    "tabuas":  (1, 7),   # à direita de [T] (célula 0, linha 4)
+    "navios":  (3, 7),   # à esquerda de [N] (célula 9, linha 4)
 }
 
 # ---------------------------------------------------------------------------
@@ -59,18 +59,18 @@ _ENTRADAS: dict[str, tuple[int, int]] = {
 #    |   – caminho até a doca (célula 4, linhas 9-10)
 #
 _GRID_BG: list[str] = [
-    "                              ",  # 0  topo (padding)
-    "[P] *                    * [O]",  # 1  lojas top + entradas (* em cell 1 e 8)
-    "| |                        | |",  # 2  paredes
-    "| |                        | |",  # 3  praça (capitão começa aqui)
-    "[T] *                    * [N]",  # 4  lojas bottom + entradas (mais para cima)
-    "| |                        | |",  # 5  paredes
-    "| |                        | |",  # 6  praça
-    "| |                        | |",  # 7  praça
-    "| |         ___            | |",  # 8  doca – navio na célula 4
-    "| |          |             | |",  # 9  caminho doca
-    "| |         DOCA           | |",  # 10 rótulo doca
-    "                              ",  # 11 fundo (padding)
+    "               ",  # 12 fundo (padding)
+    "|=============|",  # 0  topo (padding)
+    "| |         | |",  # 0  topo (padding)
+    "[P] *     * [O]",  # 1  lojas top + entradas (* em cell 1 e 8)
+    "| |         | |",  # 2  paredes
+    "| |         | |",  # 3  praça (capitão começa aqui)
+    "[T] *     * [N]",  # 4  lojas bottom + entradas (mais para cima)
+    "| |         | |",  # 5  paredes
+    "| |         | |",  # 6  praça
+    "| |    *    | |",  # 9  caminho doca
+    "|=====[Z]=====|",  # 10 rótulo doca
+    "~~~~~~/^\\~~~~~~",  # 11 fundo (mar)
 ]
 
 
@@ -122,9 +122,9 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
     # [O] e [N] em célula 9 → visual col base_col + 27 = 31
     _lojas_info = [
         ("[P]", base_row + 1,  base_col + 0,  COR_VERMELHO),
-        ("[O]", base_row + 1,  base_col + 27, None),           # bolas: só bold
+        ("[O]", base_row + 1,  base_col + 12, None),           # bolas: só bold
         ("[T]", base_row + 4,  base_col + 0,  COR_VERDE),
-        ("[N]", base_row + 4,  base_col + 27, COR_JOGADOR),
+        ("[N]", base_row + 4,  base_col + 12, COR_JOGADOR),
     ]
     for texto, row, col, par in _lojas_info:
         if cores and par is not None:
@@ -161,7 +161,7 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
         safe_addstr(stdscr, log_row + 1, 2, msg)
     safe_addstr(stdscr, max_y - 2, 0, "-" * min(max_x - 1, 78))
     safe_addstr(stdscr, max_y - 1, 0,
-                "WASD: mover   DOCA: zarpar   TAB: alternar vista   ESC: zarpar")
+                "WASD: mover   TAB: alternar vista   ESC|[Z]: zarpar")
     stdscr.refresh()
 
 
