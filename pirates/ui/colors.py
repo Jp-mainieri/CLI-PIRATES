@@ -51,9 +51,9 @@ def cor_log(estado, linha: str) -> int:
         if "acerta Seu Navio" in linha:
             return _curses.color_pair(COR_VERMELHO)
         return _curses.color_pair(COR_VERDE)
-    if linha.startswith("[DANO]") or linha.startswith("[AVARIA]"):
-        return _curses.color_pair(COR_VERMELHO)
     if linha.startswith("Tripulacao realocada"):
+        return _curses.color_pair(COR_AMARELO)
+    if "moral" in linha.lower() and ("perde" in linha.lower() or "fuga" in linha.lower()):
         return _curses.color_pair(COR_AMARELO)
     return 0
 
@@ -90,6 +90,17 @@ def cor_tripulacao_livre(estado) -> int:
         return _curses.A_BOLD
     if estado.crew_livre() <= 0:
         return _curses.color_pair(COR_VERMELHO) | _curses.A_BOLD
+    return _curses.A_BOLD
+
+
+def cor_tipo_navio(estado) -> int:
+    """Cor do nome do navio no cabeçalho: verde (Chalupa), amarelo (Bergantim), vermelho (Galeão)."""
+    if _curses is None:
+        return 0
+    if estado.cores_ativo:
+        mapa = {'facil': COR_VERDE, 'normal': COR_AMARELO, 'dificil': COR_VERMELHO}
+        cor = mapa.get(estado.tipo_navio, COR_JOGADOR)
+        return _curses.color_pair(cor) | _curses.A_BOLD
     return _curses.A_BOLD
 
 

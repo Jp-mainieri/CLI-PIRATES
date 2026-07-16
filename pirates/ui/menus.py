@@ -11,9 +11,9 @@ except ImportError:
     _curses = None  # type: ignore[assignment]
 
 from ..constants import (
-    TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, COMO_JOGAR_TEXTO,
+    TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, COMO_JOGAR_TEXTO,
     DIFICULDADES, NAVIO_TIPOS, PARTES,
-    COR_VERDE, COR_VERMELHO,
+    COR_VERDE, COR_VERMELHO, COR_AMARELO,
 )
 from ..core.utils import barra
 from .renderer import safe_addstr
@@ -26,7 +26,8 @@ def tela_menu(stdscr) -> str:
         Uma das strings: 'jogar', 'como_jogar', 'navio', 'ajustes', 'sair'.
     """
     opcoes = [
-        ("Jogar", "jogar"),
+        ("Mundo Aberto", "mundo"),
+        ("Arena", "jogar"),
         ("Como jogar", "como_jogar"),
         ("Escolher navio", "navio"),
         ("Ajustes", "ajustes"),
@@ -102,7 +103,8 @@ def tela_navio(stdscr, config: dict) -> None:
         safe_addstr(stdscr, 10, 2, f"   Velocidade base ...... {p['velocidade_max_base']:.0f}")
         safe_addstr(stdscr, 11, 2,
                     f"   Taxa de giro ......... {p['giro_graus_seg']:.0f} graus/s")
-        safe_addstr(stdscr, 13, 2, "SETA ESQUERDA/DIREITA muda | ENTER confirma e volta")
+        safe_addstr(stdscr, 12, 2, f"   Capacidade do porao .. {p['porao_capacidade']} slots")
+        safe_addstr(stdscr, 14, 2, "SETA ESQUERDA/DIREITA muda | ENTER confirma e volta")
         stdscr.refresh()
 
         ch = stdscr.getch()
@@ -192,12 +194,15 @@ def tela_fim(stdscr, estado) -> str:
     idx = 0
     while True:
         stdscr.erase()
-        arte = list(ARTE_VITORIA if estado.fim == "vitoria" else ARTE_DERROTA)
-        attr_arte = 0
-        if estado.cores_ativo and _curses:
-            attr_arte = _curses.color_pair(
-                COR_VERDE if estado.fim == "vitoria" else COR_VERMELHO
-            )
+        if estado.fim == "vitoria":
+            arte = list(ARTE_VITORIA)
+            attr_arte = _curses.color_pair(COR_VERDE) if (estado.cores_ativo and _curses) else 0
+        elif estado.fim == "fuga":
+            arte = list(ARTE_FUGA)
+            attr_arte = _curses.color_pair(COR_AMARELO) if (estado.cores_ativo and _curses) else 0
+        else:
+            arte = list(ARTE_DERROTA)
+            attr_arte = _curses.color_pair(COR_VERMELHO) if (estado.cores_ativo and _curses) else 0
 
         linhas = [""]
         linhas.append(
@@ -212,11 +217,6 @@ def tela_fim(stdscr, estado) -> str:
             f"Tiros recebidos:  {estado.stats['tiros_inimigo']}  "
             f"Acertos do inimigo: {estado.stats['acertos_inimigo']}"
         )
-        canhoes_perdidos = sum(
-            1 for lado in estado.jogador.canhoes.values()
-            for c in lado if not c.operacional()
-        )
-        linhas.append(f"Canhoes perdidos: {canhoes_perdidos}/{estado.canhoes_lado * 2}")
         linhas.append("")
         linhas.append("Estado final do seu navio:")
         for p in PARTES:
@@ -224,6 +224,10 @@ def tela_fim(stdscr, estado) -> str:
                 f"  {p:8s}[{barra(estado.jogador.partes[p], 10)}] "
                 f"{estado.jogador.partes[p]:5.1f}%"
             )
+        linhas.append(
+            f"  moral   [{barra(estado.jogador.moral_atual, 10)}] "
+            f"{estado.jogador.moral_atual:5.1f}%"
+        )
         linhas.append("")
 
         for i, l in enumerate(arte):

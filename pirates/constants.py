@@ -6,6 +6,16 @@ e definições de tipos de navio vivem aqui. Alterar valores neste módulo
 afeta o equilíbrio do jogo globalmente.
 """
 
+import os
+
+# ---------------------------------------------------------------------------
+# Flags de ambiente / modo desenvolvedor
+# ---------------------------------------------------------------------------
+
+MODO_ADM_DISPONIVEL = os.environ.get("CLI_PIRATES_DEBUG") == "1"
+"""Só permite ativar o Modo ADM se CLI_PIRATES_DEBUG=1 estiver definida.
+Protege contra ativação acidental em partidas normais."""
+
 # ---------------------------------------------------------------------------
 # Partes do navio
 # ---------------------------------------------------------------------------
@@ -47,6 +57,10 @@ ACEL_VEL_SEG = 3.0
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
+FATOR_TABUAS_POR_HP = 0.15
+"""Tábuas consumidas por ponto de HP reparado. Valor baixo para não esgotar
+o estoque rapidamente (ajustável)."""
+
 REPARO_K = 3.5
 """Fator exponencial: quanto maior, mais a eficiência de reparo cai
 conforme o dano aumenta (previne recuperação trivial com casco destruído)."""
@@ -57,8 +71,107 @@ SAIDA_BOMBA_SEG = 2.5
 COOLDOWN_CANHAO = 12.0
 """Tempo base de recarga de um canhão, em segundos."""
 
-CHANCE_DANO_CANHAO = 30.0
-"""Probabilidade (%) de um acerto no casco também danificar um canhão."""
+# ---------------------------------------------------------------------------
+# Moral
+# ---------------------------------------------------------------------------
+
+MORAL_PESO_CASCO = 45.0
+"""Peso do HP do casco no cálculo da moral-alvo (soma com os outros pesos = 100)."""
+
+MORAL_PESO_AGUA = 30.0
+"""Peso do nível de água (invertido) no cálculo da moral-alvo."""
+
+MORAL_PESO_OUTRAS = 25.0
+"""Peso médio das partes não-críticas no cálculo da moral-alvo."""
+
+MORAL_QUEDA_TAXA_SEG = 40.0
+"""Pontos de moral perdidos por segundo quando moral_atual > moral_alvo."""
+
+MORAL_K = 3.5
+"""Expoente da curva de recuperação de moral (espelha REPARO_K)."""
+
+MORAL_RECUP_BASE_SEG = 6.0
+"""Pontos de moral recuperados por segundo na recuperação passiva."""
+
+MORAL_BONUS_ACERTO = 3.0
+"""Pontos de moral ganhos ao registrar um acerto inimigo."""
+
+MORAL_LIMIAR_ALTO = 40.0
+"""Moral ≤ este valor: tripulação está 'Abalada'."""
+
+MORAL_LIMIAR_MEDIO = 25.0
+"""Moral ≤ este valor: tripulação está 'Combalida'."""
+
+MORAL_MULT_NORMAL = 1.0
+"""Multiplicador de acerto / recarga quando moral > MORAL_LIMIAR_ALTO."""
+
+MORAL_MULT_ABALADO = 0.85
+"""Multiplicador quando MORAL_LIMIAR_MEDIO < moral ≤ MORAL_LIMIAR_ALTO."""
+
+MORAL_MULT_COMBALIDO = 0.60
+"""Multiplicador quando moral > 0 e ≤ MORAL_LIMIAR_MEDIO."""
+
+MORAL_MULT_PANICO = 0.30
+"""Multiplicador quando moral ≤ 0 (pânico total)."""
+
+# ---------------------------------------------------------------------------
+# Fuga do inimigo
+# ---------------------------------------------------------------------------
+
+FUGA_ENTRADA_MIN = 0.0
+"""Limiar mínimo de moral para o inimigo entrar em modo fuga."""
+
+FUGA_ENTRADA_MAX = 35.0
+"""Limiar máximo de moral para o inimigo entrar em modo fuga."""
+
+FUGA_SAIDA_MIN = 35.0
+"""Limiar mínimo de moral para o inimigo sair do modo fuga."""
+
+FUGA_SAIDA_MAX = 50.0
+"""Limiar máximo de moral para o inimigo sair do modo fuga."""
+
+ALCANCE_FUGA_ESCAPE = 900.0
+"""Distância (unidades) que o inimigo precisa manter para o timer de fuga avançar."""
+
+TEMPO_FUGA_ESCAPE_SEG = 15.0
+"""Segundos que o inimigo precisa ficar além de ALCANCE_FUGA_ESCAPE para escapar."""
+
+# ---------------------------------------------------------------------------
+# Mundo aberto (esqueleto mínimo)
+# ---------------------------------------------------------------------------
+
+MUNDO_TAMANHO = 8000.0
+"""Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
+
+MUNDO_NUM_INIMIGOS = 6
+"""Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
+
+MUNDO_ESPACAMENTO_MIN = 1000.0
+"""Distância mínima entre navios inimigos entre si e do jogador ao sortear
+novas posições de spawn."""
+
+MUNDO_GATILHO_COMBATE = 750.0
+"""Distância que aciona a transição automática pro loop de combate."""
+
+MUNDO_ZOOM_NAV_FIXO = 800
+"""Zoom fixo do MAPA DE NAVEGAÇÃO quando não há combate ativo (deve ser
+um dos valores em ZOOM_NIVEIS)."""
+
+MUNDO_ALCANCE_VISAO_FUGA = 900.0
+"""Distância dentro da qual um navio em modo fuga no mundo foge ativamente
+do jogador."""
+
+MUNDO_TICK = 0.5
+"""Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
+
+MUNDO_NUM_PORTOS = 1
+"""Número de portos fixos espalhados pelo mundo."""
+
+MUNDO_RAIO_ATRACACAO = 250.0
+"""Distância máxima para poder usar o comando 'atracar'."""
+
+MUNDO_RAIO_COLETA_LOOT = 250.0
+"""Distância máxima para coletar automaticamente destroços de um navio afundado."""
 
 # ---------------------------------------------------------------------------
 # Dinâmica da água
@@ -153,6 +266,7 @@ NAVIO_TIPOS = {
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,
+        "porao_capacidade": 6,
     },
     "normal": {
         "navio": "Bergantim",
@@ -165,6 +279,7 @@ NAVIO_TIPOS = {
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,
+        "porao_capacidade": 9,
     },
     "dificil": {
         "navio": "Galeao",
@@ -177,11 +292,45 @@ NAVIO_TIPOS = {
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
         "reparo_mult": 1.0,
+        "porao_capacidade": 14,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador
 (simetria total), então a dificuldade vem do gerenciamento de recursos, não de
 atributos assimétricos."""
+
+# ---------------------------------------------------------------------------
+# Economia / Loja
+# ---------------------------------------------------------------------------
+
+PRECO_BARRIL_NOVO = 5.0
+"""Ouro por barril cheio (25 unidades) comprado na loja."""
+
+PRECO_REABASTECER_POR_UNIDADE = 0.4
+"""0.4/unidade: ponto de virada em 12.5 unidades (= 5.0 ouro = preço de um
+barril novo cheio). Reabastecer mais que isso fica mais caro que comprar novo."""
+
+PRECO_VENDA_BARRIL_CHEIO = 2.0
+"""Preço de venda de um barril cheio; venda proporcional ao conteúdo restante."""
+
+PRECO_REPARO_POR_PONTO_DANO = 0.5
+"""Ouro por ponto percentual de dano reparado no porto."""
+
+PRECO_NAVIO_NOVO = {"facil": 50, "normal": 100, "dificil": 200}
+"""Preço de compra de um navio novo, por tipo."""
+
+PRECO_RENOMEAR = 20.0
+"""Ouro para renomear um navio."""
+
+PRECO_UPGRADE = {
+    "casco_max":        40.0,   # +10 HP máx. casco
+    "cooldown":         60.0,   # -10% cooldown canhão
+    "porao_slot":       50.0,   # +1 slot de porão
+    "tripulante_extra": 80.0,   # +1 tripulante acima do máximo do tipo
+    "velocidade_giro":  70.0,   # +10% velocidade/giro
+    "alcance_canhao":   50.0,   # +50m alcance
+}
+"""Preços dos upgrades permanentes por navio."""
 
 # ---------------------------------------------------------------------------
 # Arte ASCII
@@ -215,57 +364,66 @@ ARTE_DERROTA = [
     "           SEU NAVIO AFUNDOU...",
 ]
 
+ARTE_FUGA = [
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "          [ SHIP ]-->-->-->",
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "",
+    "     O INIMIGO FUGIU NO HORIZONTE!",
+]
+
 COMO_JOGAR_TEXTO = [
     "COMO JOGAR",
     "",
-    "O jogo roda em tempo real. O navio se move, a agua sobe e os",
-    "canhoes atiram sozinhos - voce da ordens a qualquer momento.",
+    "CLI PIRATES e um jogo naval em tempo real. Voce navega um mundo",
+    "aberto de 8km x 8km, enfrenta inimigos, coleta loot e administra",
+    "recursos (polvora, bolas, tabuas, ouro) no porao do seu navio.",
     "",
-    "No menu, escolha seu navio: CHALUPA (facil, 2 tripulantes, 1 canhao",
-    "por lado, 1 vela), BERGANTIM (medio, 3 tripulantes, 2 canhoes por",
-    "lado, 3 velas) ou GALEAO (dificil, 7 tripulantes, 3 canhoes por",
-    "lado, 7 velas). Chalupa e Bergantim precisam de so 1 tripulante",
-    "por canhao; o Galeao exige 2 por canhao.",
+    "NAVIOS   Chalupa (facil): 2 trip, 1 canhao/lado, 6 slots porao",
+    "         Bergantim (medio): 3 trip, 2 canhoes/lado, 9 slots",
+    "         Galeao (dificil): 7 trip, 3 canhoes/lado, 14 slots",
     "",
-    "COMANDOS (ENTER confirma; ESC sai do jogo; TAB circula opcoes)",
-    "  leme <graus>  (ou 'l')                define o rumo (0-360)",
-    "  vela <0-3>    (ou 'v')                define o nivel de vela",
-    "  reparar <parte> <trip>  (ou 'r')      conserta continuamente",
-    "                                        (parte: casco,mastro,vela,roda)",
-    "  bomba <trip>  (ou 'b')                aloca gente nas bombas",
-    "  canhao <id> <trip> <distancia>  (ou 'c')  aloca e mira num comando",
-    "  canhao <id> <distancia>               aloca a tripulacao minima do",
-    "                                        canhao (1 ou 2, conforme o navio)",
-    "  canhao <id> trip <n>                  so realoca tripulacao",
-    "  canhao <id> mirar <distancia>         so muda a mira",
-    "  canhao <id> parar                     para de atirar e libera a",
-    "                                        tripulacao (fica ociosa)",
-    "  radar                                 leitura exata de distancia/rumo",
-    "  ajuda                                 mostra os comandos no log",
-    "  ENTER vazio                           repete o ultimo comando",
+    "MUNDO ABERTO",
+    "  M              alterna mapa de navegacao / mapa mundo (8km)",
+    "  V              abre o inventario do porao",
+    "  ESC            volta ao menu",
+    "  mapa / radar   mesmo que M / leitura do inimigo mais proximo",
+    "  atracar        ancora no porto (precisa estar a menos de 150m do P)",
     "",
-    "  <id> do canhao: E1,E2,... (estibordo) ou B1,B2,... (bombordo),",
-    "  a quantidade varia conforme o navio escolhido.",
+    "  Inimigo a menos de 750m = combate automatico (mesmo mapa).",
+    "  Porto desaparece do mapa durante a batalha.",
+    "  Vitoria: volta a navegar preservando todo o estado.",
+    "  Navio afundado: tela de derrota.",
     "",
-    "REALOCACAO AUTOMATICA: se voce pede tripulantes e nao tem gente",
-    "livre, o jogo puxa de outras tarefas por prioridade: primeiro de",
-    "canhoes (libera o canhao inteiro), depois de reparo (parcial).",
-    "A tripulacao da BOMBA nunca e tocada automaticamente. Se ainda",
-    "assim faltar gente, o comando completa com o que der e avisa.",
+    "PORTO (comando 'atracar')",
+    "  WASD           move o capitao pela cena",
+    "  Loja polvora/bolas/tabuas: comprar barril, reabastecer, vender",
+    "  Loja de navios: comprar novo navio, trocar ativo, renomear",
+    "  Upgrades: casco, cooldown, porao, tripulacao, velocidade, alcance",
+    "  Doca: zarpar de volta ao mundo",
     "",
-    "HOTKEYS (ligar em Ajustes) - so funcionam com o prompt vazio,",
-    "funcionam com ou sem SHIFT:",
-    "  a / d      leme 15 graus p/ direita(estibordo) / esquerda(bombordo)",
-    "  w / s      vela ++ / vela --",
-    "  j / l      seleciona proximo canhao de bombordo / estibordo",
-    "  i / k      ajusta a mira do canhao selecionado (+/- 25m)",
-    "  espaco     canhao: alterna atirar/parar | reparo: reparo ++",
-    "  u / h      bombear ++ / bombear --",
-    "  e / r      e: entra/circula pelas partes p/ reparo | r: reparo --",
+    "COMBATE (comandos durante a batalha)",
+    "  leme <graus>             define o rumo (0-360)  alias: l",
+    "  vela <0-3>               nivel de vela          alias: v",
+    "  reparar <parte> <trip>   reparo continuo        alias: r",
+    "  bomba <trip>             tripulantes nas bombas alias: b",
+    "  canhao <id> <dist>       aloca e mira           alias: c",
+    "  canhao <id> parar        para e libera crew",
+    "  radar                    distancia/rumo exatos do inimigo",
+    "  ENTER vazio              repete o ultimo comando",
     "",
-    "A agua entra de forma EXPONENCIAL conforme o casco se danifica.",
-    "Dano leve: as bombas seguram. Dano severo: nem toda a tripulacao",
-    "nas bombas vai impedir o naufragio - conserte o casco a tempo!",
+    "  Canhao consome 1 polvora + 1 bola por tiro.",
+    "  Reparo consome tabuas (0.15/HP). Sem tabuas = reparo reduzido.",
+    "  Ouro e fisico — fica no porao, sem banco.",
+    "",
+    "HOTKEYS (prompt vazio, com ou sem SHIFT)",
+    "  a / d   leme estibordo / bombordo (+15 graus)",
+    "  w / s   vela ++ / vela --",
+    "  j / l   seleciona canhao bombordo / estibordo",
+    "  i / k   mira +25m / -25m",
+    "  espaco  atirar/parar | reparo ++",
+    "  u / h   bombas ++ / --",
+    "  e / r   circula partes de reparo / reparo --",
     "",
     "Pressione qualquer tecla para voltar ao menu.",
 ]

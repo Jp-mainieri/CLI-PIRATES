@@ -13,13 +13,34 @@ from ..core.utils import clamp
 from ..core.combat import distancia, rumo_para, dentro_do_arco
 
 
+def atualizar_estado_fuga(estado) -> None:
+    """Atualiza o flag de fuga do inimigo com base em histerese de moral.
+
+    Entrada: moral cai abaixo de ia_limiar_fuga_entrada.
+    Saída:   moral sobe acima de ia_limiar_fuga_saida.
+
+    Args:
+        estado: Estado atual do jogo.
+    """
+    inimigo = estado.inimigo
+    if not estado.inimigo_em_fuga and inimigo.moral_atual <= estado.ia_limiar_fuga_entrada:
+        estado.inimigo_em_fuga = True
+        estado.log.append("O navio inimigo perde a moral e tenta fugir!")
+    elif estado.inimigo_em_fuga and inimigo.moral_atual >= estado.ia_limiar_fuga_saida:
+        estado.inimigo_em_fuga = False
+        estado.tempo_fuga_longe = 0.0
+        estado.log.append("O navio inimigo recupera a moral e volta a lutar!")
+
+
 def atualizar_ia_movimento(estado, dt: float) -> None:
     """Atualiza o heading alvo e o nível de vela do navio inimigo.
 
-    Comportamento:
+    Comportamento normal:
     - Longe (>380m): aproxima em velocidade máxima.
     - Perto (<250m): afasta para manter distância de combate.
     - Faixa ideal (250-380m): circula lateralmente.
+
+    Comportamento em fuga: foge na direção oposta ao jogador a todo vapor.
 
     Args:
         estado: Estado atual do jogo.
@@ -32,6 +53,11 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     d = distancia(inimigo, jogador)
     r = rumo_para(inimigo, jogador)
 
+    if estado.inimigo_em_fuga:
+        inimigo.heading_alvo = (r + 180) % 360
+        inimigo.nivel_vela = 3
+        return
+
     if d > 380:
         inimigo.heading_alvo = r
         inimigo.nivel_vela = 3
@@ -43,13 +69,45 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
         inimigo.nivel_vela = 2
 
 
+def _crewar_canhoes(estado, inimigo, restante: int) -> None:
+    """Distribui *restante* tripulantes pelos canhões do inimigo."""
+    jogador = estado.jogador
+    min_c = estado.min_crew_canhao
+    lados_no_arco = [
+        lado for lado in ('estibordo', 'bombordo')
+        if dentro_do_arco(inimigo, jogador, lado)[0]
+    ]
+
+    def prioridade(c):
+        if c.lado in lados_no_arco:
+            return 0
+        if c.dist_alvo is not None:
+            return 1
+        return 2
+
+    canhoes = sorted(
+        [c for lado in ('estibordo', 'bombordo') for c in inimigo.canhoes[lado]],
+        key=prioridade,
+    )
+    for c in canhoes:
+        if restante >= min_c:
+            c.tripulantes = min_c
+            restante -= min_c
+        else:
+            c.tripulantes = 0
+            c.dist_alvo = None
+
+
 def atualizar_ia_tripulacao(estado) -> None:
     """Aloca a tripulação finita do inimigo por prioridade.
 
-    Prioridades (alta → baixa):
+    Em modo normal:
     1. Bombas — se água passar de ia_limiar_agua.
     2. Reparo do casco — se HP estiver abaixo de ia_limiar_casco.
     3. Canhões — preferindo o lado com o jogador no arco agora.
+
+    Em modo fuga: toda tripulação disponível vai para bombas/reparo;
+    canhões recebem no máximo um tripulante cada.
 
     Args:
         estado: Estado atual do jogo.
@@ -74,33 +132,13 @@ def atualizar_ia_tripulacao(estado) -> None:
     for p in PARTES:
         estado.inimigo_crew_reparo[p] = reparo_alvo if p == 'casco' else 0
 
-    jogador = estado.jogador
-    lados_no_arco = [
-        lado for lado in ('estibordo', 'bombordo')
-        if dentro_do_arco(inimigo, jogador, lado)[0]
-    ]
-
-    def prioridade(c):
-        if c.lado in lados_no_arco:
-            return 0
-        if c.dist_alvo is not None:
-            return 1
-        return 2
-
-    canhoes = [
-        c for lado in ('estibordo', 'bombordo')
-        for c in inimigo.canhoes[lado]
-        if c.operacional()
-    ]
-    canhoes.sort(key=prioridade)
-
-    for c in canhoes:
-        if restante >= min_c:
-            c.tripulantes = min_c
-            restante -= min_c
-        else:
+    if estado.inimigo_em_fuga:
+        for c in (c for lado in ('estibordo', 'bombordo') for c in inimigo.canhoes[lado]):
             c.tripulantes = 0
             c.dist_alvo = None
+        return
+
+    _crewar_canhoes(estado, inimigo, restante)
 
 
 def atualizar_ia_mira(estado) -> None:
@@ -119,7 +157,7 @@ def atualizar_ia_mira(estado) -> None:
 
     for lado in ('bombordo', 'estibordo'):
         for c in inimigo.canhoes[lado]:
-            if not c.operacional() or c.tripulantes < estado.min_crew_canhao:
+            if c.tripulantes < estado.min_crew_canhao:
                 continue
             if c.dist_alvo is None or estado.tempo >= c.proximo_tiro:
                 novo = d_real + random.uniform(-erro, erro)

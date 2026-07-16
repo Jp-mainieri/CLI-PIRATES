@@ -1,10 +1,11 @@
 """Testes para pirates/core/combat.py (geometria e zoom)."""
 
 import math
+import random
 import pytest
-from pirates.core.ship import Navio
-from pirates.core.combat import distancia, rumo_para, dentro_do_arco, escolher_zoom
-from pirates.constants import ZOOM_NIVEIS
+from pirates.core.ship import Navio, Canhao
+from pirates.core.combat import distancia, rumo_para, dentro_do_arco, escolher_zoom, disparar_canhao_unico
+from pirates.constants import ZOOM_NIVEIS, MORAL_MULT_PANICO
 
 
 def _navio(x=0.0, y=0.0, heading=0.0):
@@ -128,3 +129,47 @@ class TestEscolherZoom:
         z_atual = ZOOM_NIVEIS[0]
         z_novo = escolher_zoom(10000, z_atual)
         assert z_novo >= z_atual
+
+
+class TestMoralNoCombate:
+    def _par_navios(self, dist=200.0):
+        """Atirador a oeste, alvo a leste (arco estibordo do atirador apontando N)."""
+        atirador = Navio("A", x=0, y=0, heading=0)
+        atirador.alcance_canhao = 550.0
+        alvo = Navio("B", x=dist, y=0, heading=0)
+        alvo.alcance_canhao = 550.0
+        canhao = Canhao('estibordo', 1)
+        canhao.tripulantes = 1
+        canhao.dist_alvo = dist
+        return atirador, alvo, canhao
+
+    def test_panico_reduz_chance(self):
+        # Com moral em pânico, a chance de acerto é multiplicada por MORAL_MULT_PANICO.
+        # Fazemos N=500 tiros e verificamos que a taxa é visivelmente menor que sem pânico.
+        random.seed(42)
+        N = 500
+        log_n = []
+        atirador_n, alvo_n, canhao_n = self._par_navios()
+        atirador_n.moral_atual = 0.0
+        acertos_panico = sum(
+            1 for _ in range(N)
+            if disparar_canhao_unico(atirador_n, alvo_n, canhao_n, log_n) == "acerto"
+        )
+
+        log_ok = []
+        atirador_ok, alvo_ok, canhao_ok = self._par_navios()
+        atirador_ok.moral_atual = 100.0
+        random.seed(42)
+        acertos_normal = sum(
+            1 for _ in range(N)
+            if disparar_canhao_unico(atirador_ok, alvo_ok, canhao_ok, log_ok) == "acerto"
+        )
+
+        assert acertos_panico < acertos_normal, (
+            f"Esperado acertos_panico < acertos_normal, got {acertos_panico} vs {acertos_normal}"
+        )
+
+    def test_multiplicador_moral_panico_eh_correto(self):
+        n = Navio("T", x=0, y=0, heading=0)
+        n.moral_atual = 0.0
+        assert n.multiplicador_moral() == MORAL_MULT_PANICO

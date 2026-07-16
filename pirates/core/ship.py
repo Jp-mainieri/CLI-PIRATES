@@ -10,10 +10,15 @@ import math
 from ..constants import (
     PARTES, PARTES_CRITICAS,
     MAPA_TAMANHO, GIRO_GRAUS_SEG_PADRAO,
-    ACEL_VEL_SEG, TAXA_REPARO_SEG, REPARO_K,
+    ACEL_VEL_SEG, TAXA_REPARO_SEG, REPARO_K, FATOR_TABUAS_POR_HP,
     AGUA_BASE, AGUA_K, SAIDA_BOMBA_SEG,
+    MORAL_PESO_CASCO, MORAL_PESO_AGUA, MORAL_PESO_OUTRAS,
+    MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
+    MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO,
+    MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
 )
 from .utils import clamp
+from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
 
 
 class Canhao:
@@ -22,7 +27,6 @@ class Canhao:
     Attributes:
         lado:        'estibordo' ou 'bombordo'.
         indice:      Posição 1-based na fileira do lado (E1, E2, …).
-        hp:          Pontos de durabilidade (0-100). Zero = destruído.
         tripulantes: Quantos tripulantes estão operando este canhão.
         dist_alvo:   Distância estimada do alvo em metros, ou None se
                      o canhão não está mirando.
@@ -35,24 +39,38 @@ class Canhao:
     def __init__(self, lado: str, indice: int) -> None:
         self.lado = lado
         self.indice = indice
-        self.hp: float = 100.0
         self.tripulantes: int = 0
         self.dist_alvo: float | None = None
         self.mira_atual: float = 300.0
         self.proximo_tiro: float = 0.0
+        self.aviso_sem_municao: bool = False
 
     @property
     def label(self) -> str:
         """Identificador legível, e.g. 'E1', 'B2'."""
         return f"{'E' if self.lado == 'estibordo' else 'B'}{self.indice}"
 
-    def operacional(self) -> bool:
-        """Retorna True se o canhão ainda tem HP e pode ser usado."""
-        return self.hp > 0
-
     def armado(self) -> bool:
-        """Retorna True se o canhão tem tripulação, HP e alvo definido."""
-        return self.operacional() and self.tripulantes >= 1 and self.dist_alvo is not None
+        """Retorna True se o canhão tem tripulação e alvo definido."""
+        return self.tripulantes >= 1 and self.dist_alvo is not None
+
+
+def calcular_entrada_agua(partes: dict) -> float:
+    """Calcula a taxa de entrada de água (unid/s) a partir do dano nas partes críticas.
+
+    Função pura: não aplica dt nem modifica nenhum estado.
+
+    Args:
+        partes: Dict parte→HP (0-100) do navio.
+
+    Returns:
+        Taxa de entrada de água em unidades por segundo.
+    """
+    entrada = 0.0
+    for p in PARTES_CRITICAS:
+        dano_frac = (100 - partes[p]) / 100
+        entrada += AGUA_BASE * (math.exp(AGUA_K * dano_frac) - 1)
+    return entrada
 
 
 def resolver_canhao(id_str: str, jogador: 'Navio') -> 'Canhao | None':
@@ -110,6 +128,7 @@ class Navio:
         velocidade_max_base: float = 11.0,
         giro_graus_seg: float = GIRO_GRAUS_SEG_PADRAO,
         reparo_mult: float = 1.0,
+        porao_capacidade: int = 0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -128,6 +147,10 @@ class Navio:
         self.reparo_mult = reparo_mult
         self.tipo_nome: str = ""
         self.num_velas: int = 1
+        self.moral_atual: float = 100.0
+        self.porao: Porao = Porao(porao_capacidade)
+        self.upgrades: dict[str, float] = {}
+        self.upgrade_niveis: dict[str, int] = {}
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -138,10 +161,16 @@ class Navio:
         return self.giro_graus_seg * max(0.0, self.partes['roda'] / 100)
 
     def velocidade_maxima(self) -> float:
-        """Velocidade máxima alcançável com o nível de vela e dano atuais."""
+        """Velocidade máxima alcançável com o nível de vela e dano atuais.
+        Aplica bônus de upgrade 'velocidade_giro' (fração multiplicativa)."""
         fator_vela = self.nivel_vela / 3
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
-        return self.velocidade_max_base * fator_vela * fator_dano
+        base = self.velocidade_max_base * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
+        return base * fator_vela * fator_dano
+
+    def alcance_canhao_efetivo(self) -> float:
+        """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
+        return self.alcance_canhao + self.upgrades.get('alcance_canhao', 0.0)
 
     def atualizar_movimento(self, dt: float) -> None:
         """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
@@ -176,6 +205,8 @@ class Navio:
         """Avança o reparo contínuo de uma parte do navio.
 
         A eficiência cai exponencialmente com o dano acumulado (fator REPARO_K).
+        Se o porão tiver capacidade > 0, consome tábuas proporcionalmente ao HP
+        restaurado; sem tábuas suficientes, o reparo é proporcionalmente reduzido.
 
         Args:
             parte:       Nome da parte a reparar.
@@ -188,7 +219,20 @@ class Navio:
         dano_frac = (100 - self.partes[parte]) / 100
         fator_recuperacao = math.exp(-REPARO_K * dano_frac)
         taxa = (tripulantes * TAXA_REPARO_SEG * eficiencia
-                * fator_recuperacao * self.reparo_mult * dt)
+                * fator_recuperacao * self.reparo_mult * self.multiplicador_moral() * dt)
+
+        if self.porao.capacidade > 0 and taxa > 1e-9:
+            saude_potencial = min(taxa, 100.0 - self.partes[parte])
+            tabuas_necessarias = saude_potencial * FATOR_TABUAS_POR_HP
+            if tabuas_necessarias > 1e-9:
+                disponivel = self.porao.total("tabuas")
+                if disponivel < tabuas_necessarias:
+                    fracao = disponivel / tabuas_necessarias if tabuas_necessarias > 0 else 0.0
+                    taxa *= fracao
+                    self.porao.consumir("tabuas", disponivel)
+                else:
+                    self.porao.consumir("tabuas", tabuas_necessarias)
+
         self.partes[parte] = clamp(self.partes[parte] + taxa, 0, 100)
 
     def atualizar_agua(self, tripulantes_bomba: int, dt: float) -> None:
@@ -201,11 +245,8 @@ class Navio:
             tripulantes_bomba: Tripulantes alocados às bombas.
             dt:                Delta de tempo em segundos.
         """
-        entrada = 0.0
-        for p in PARTES_CRITICAS:
-            dano_frac = (100 - self.partes[p]) / 100
-            entrada += AGUA_BASE * (math.exp(AGUA_K * dano_frac) - 1)
-        saida = tripulantes_bomba * SAIDA_BOMBA_SEG
+        entrada = calcular_entrada_agua(self.partes)
+        saida = tripulantes_bomba * SAIDA_BOMBA_SEG * self.multiplicador_moral()
         self.agua = clamp(self.agua + (entrada - saida) * dt, 0, 100)
         if self.agua >= 100:
             self.afundado = True
@@ -213,3 +254,52 @@ class Navio:
     def parte_critica_destruida(self) -> bool:
         """Retorna True se alguma parte crítica chegou a 0 HP."""
         return any(self.partes[p] <= 0 for p in PARTES_CRITICAS)
+
+    def moral_alvo(self) -> float:
+        """Calcula a moral-alvo com base no estado atual do navio (0-100).
+
+        Combina HP do casco, nível de água (invertido) e média das partes
+        não-críticas, ponderados por MORAL_PESO_*.
+        """
+        hp_casco = self.partes['casco']
+        fator_agua = clamp(100.0 - self.agua, 0.0, 100.0)
+        outras = [v for k, v in self.partes.items() if k not in PARTES_CRITICAS]
+        media_outras = sum(outras) / len(outras) if outras else 100.0
+        alvo = (
+            hp_casco * MORAL_PESO_CASCO
+            + fator_agua * MORAL_PESO_AGUA
+            + media_outras * MORAL_PESO_OUTRAS
+        ) / 100.0
+        return clamp(alvo, 0.0, 100.0)
+
+    def atualizar_moral(self, dt: float) -> None:
+        """Avança a moral para mais perto da moral-alvo pelo intervalo *dt*.
+
+        Queda é proporcional a MORAL_QUEDA_TAXA_SEG; recuperação usa uma
+        curva exponencial amortecida (igual a REPARO_K mas para a moral).
+        """
+        alvo = self.moral_alvo()
+        if self.moral_atual > alvo:
+            self.moral_atual = max(alvo, self.moral_atual - MORAL_QUEDA_TAXA_SEG * dt)
+        else:
+            dano_moral = (100.0 - self.moral_atual) / 100.0
+            fator = math.exp(-MORAL_K * dano_moral)
+            self.moral_atual = min(
+                alvo,
+                self.moral_atual + MORAL_RECUP_BASE_SEG * fator * dt,
+            )
+        self.moral_atual = clamp(self.moral_atual, 0.0, 100.0)
+
+    def registrar_acerto_moral(self) -> None:
+        """Adiciona um bonus de moral por acerto bem-sucedido."""
+        self.moral_atual = clamp(self.moral_atual + MORAL_BONUS_ACERTO, 0.0, 100.0)
+
+    def multiplicador_moral(self) -> float:
+        """Retorna o multiplicador de eficiência (acerto / reparo / bomba) conforme a moral."""
+        if self.moral_atual > MORAL_LIMIAR_ALTO:
+            return MORAL_MULT_NORMAL
+        if self.moral_atual > MORAL_LIMIAR_MEDIO:
+            return MORAL_MULT_ABALADO
+        if self.moral_atual > 0:
+            return MORAL_MULT_COMBALIDO
+        return MORAL_MULT_PANICO

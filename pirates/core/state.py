@@ -9,8 +9,13 @@ o sistema de prioridades (bomba > reparo > canhões).
 import random
 from collections import deque
 
-from ..constants import PARTES, NAVIO_TIPOS
+from ..constants import (
+    PARTES, NAVIO_TIPOS,
+    FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
+)
 from .ship import Navio, Canhao
+from .porao import estoque_inicial_jogador, gerar_porao_inimigo
+from .frota import Frota
 
 
 class Estado:
@@ -30,11 +35,15 @@ class Estado:
         inimigo_crew_bomba:  Tripulantes do inimigo nas bombas.
         ia_limiar_agua:    Nível de água que dispara o modo bomba da IA.
         ia_limiar_casco:   HP de casco que dispara o reparo da IA.
+        ia_limiar_fuga_entrada: Moral abaixo da qual o inimigo entra em modo fuga.
+        ia_limiar_fuga_saida:   Moral acima da qual o inimigo sai do modo fuga.
+        inimigo_em_fuga:   True quando o inimigo está tentando escapar.
+        tempo_fuga_longe:  Segundos que o inimigo ficou além de ALCANCE_FUGA_ESCAPE.
         crew_reparo:       Dict parte→int com tripulação de reparo do jogador.
         crew_bomba:        Tripulantes do jogador nas bombas.
         tempo:             Tempo decorrido de simulação, em segundos.
         rodando:           False quando o loop principal deve encerrar.
-        fim:               'vitoria', 'derrota' ou None.
+        fim:               'vitoria', 'derrota', 'fuga' ou None.
         stats:             Dict com contadores de tiros e acertos.
         log:               Deque de mensagens recentes (máx 8).
         ultimo_comando:    Último comando de texto digitado (para repetição).
@@ -65,11 +74,13 @@ class Estado:
             f"{l}{i}" for l in ("E", "B") for i in range(1, self.canhoes_lado + 1)
         ]
 
+        cap = params["porao_capacidade"]
         self.jogador = Navio(
             "Seu Navio", x=0, y=0, heading=0,
             velocidade_max_base=params["velocidade_max_base"],
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
+            porao_capacidade=cap,
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
@@ -77,6 +88,7 @@ class Estado:
             'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
             'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
         }
+        self.jogador.porao = estoque_inicial_jogador(cap)
 
         # O inimigo usa o mesmo perfil do jogador (simetria total).
         self.inimigo = Navio(
@@ -84,6 +96,7 @@ class Estado:
             velocidade_max_base=params["velocidade_max_base"],
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
+            porao_capacidade=cap,
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas
@@ -91,12 +104,17 @@ class Estado:
             'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
             'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
         }
+        self.inimigo.porao = gerar_porao_inimigo(cap)
         self.inimigo_crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.inimigo_crew_bomba: int = 0
 
         # Limiares aleatorizados por partida para criar variação na IA.
         self.ia_limiar_agua: float = random.uniform(20.0, 40.0)
         self.ia_limiar_casco: float = random.uniform(40.0, 60.0)
+        self.ia_limiar_fuga_entrada: float = random.uniform(FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX)
+        self.ia_limiar_fuga_saida: float = random.uniform(FUGA_SAIDA_MIN, FUGA_SAIDA_MAX)
+        self.inimigo_em_fuga: bool = False
+        self.tempo_fuga_longe: float = 0.0
 
         self.crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.crew_bomba: int = 0
@@ -115,6 +133,8 @@ class Estado:
         self.foco = None
         self.zoom_atual: int | None = None
         self.zoom_mudou_em: float = -999.0
+        self.modo_adm: bool = False
+        self.frota: Frota = Frota()
 
         self.log.append(
             f"Bem-vindo ao conves do {params['navio']}, capitao. "
