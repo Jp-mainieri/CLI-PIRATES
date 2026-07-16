@@ -238,9 +238,13 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
 
     row = topo_colunas + maxlen + 1
 
+    em_combate = getattr(estado_mundo, 'em_combate', False)
+
     safe_addstr(stdscr, row, 0, f"VISAO DO CAPITAO {SIMB_CAPITAO}", _curses.A_UNDERLINE)
     row += 1
-    for texto, attr, overlays in build_vista_mundo_linhas(estado_mundo, estado):
+    _vista_fn = build_vista_linhas if em_combate else build_vista_mundo_linhas
+    _vista_args = (estado,) if em_combate else (estado_mundo, estado)
+    for texto, attr, overlays in _vista_fn(*_vista_args):
         safe_addstr(stdscr, row, 0, texto, attr)
         for col, segmento, attr_seg in overlays:
             safe_addstr(stdscr, row, col, segmento, attr_seg)
@@ -251,8 +255,6 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
             safe_addstr(stdscr, row, col, segmento, attr_seg)
         row += 1
     row += 1
-
-    em_combate = getattr(estado_mundo, 'em_combate', False)
     if estado_mundo.mapa_mundo_visivel:
         for texto, attr, overlays in build_mapa_mundo_linhas(estado_mundo, estado):
             safe_addstr(stdscr, row, 0, texto, attr)
@@ -288,6 +290,8 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     for i, linha in enumerate(log_lines):
         safe_addstr(stdscr, base + 1 + i, 0, linha, cor_log(estado, linha))
     safe_addstr(stdscr, max_y - 2, 0, "-" * min(max_x - 1, 78))
+    if estado.hotkeys_ativo:
+        safe_addstr(stdscr, max_y - 2, 0, f"FOCO: {_descrever_foco(estado)}")
     safe_addstr(stdscr, max_y - 1, 0, f"> {buffer_entrada}", _curses.A_REVERSE)
 
     stdscr.refresh()

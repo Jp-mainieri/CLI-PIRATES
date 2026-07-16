@@ -322,6 +322,7 @@ def mundo_loop(stdscr, config: dict) -> str:
                 estado.inimigo.heading_alvo = inimigo_engajado.heading
                 estado.inimigo.velocidade = inimigo_engajado.velocidade
                 estado.inimigo.afundado = False
+                estado.inimigo.tipo_nome = params.get('navio', 'Chalupa')
                 if inimigo_engajado.partes is not None:
                     estado.inimigo.partes = dict(inimigo_engajado.partes)
                     estado.inimigo.agua = inimigo_engajado.agua

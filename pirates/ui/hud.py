@@ -292,10 +292,9 @@ def build_mapa_linhas(estado) -> list[tuple]:
         )
 
     attr_mar = cor_mar(estado)
-    linhas: list[tuple] = [("  N", 0, [])]
+    linhas: list[tuple] = []
     for i, row in enumerate(grid):
         linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
-    linhas.append(("  S", 0, []))
 
     zoom_recente = (estado.tempo - estado.zoom_mudou_em) < 2.0
     attr_zoom = 0
@@ -542,10 +541,9 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     overlays_por_linha[rr].append((cr * largura_celula, celula_j, cor_navio(estado, e_jogador=True)))
 
     attr_mar = cor_mar(estado)
-    linhas: list[tuple] = [("  N", 0, [])]
+    linhas: list[tuple] = []
     for i, row_data in enumerate(grid):
         linhas.append((''.join(row_data), attr_mar, overlays_por_linha[i]))
-    linhas.append(("  S", 0, []))
     linhas.append((f"ZOOM: ~{half_range}m", 0, []))
     return linhas
 
