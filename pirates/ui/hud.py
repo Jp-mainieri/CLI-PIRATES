@@ -451,15 +451,19 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     em_combate = getattr(estado_mundo, 'em_combate', False)
 
     if not em_combate:
-        # Portos — 'P'
+        # Portos — 'P' (somente se dentro do raio visível)
         for porto in getattr(estado_mundo, 'portos', []):
+            if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) > HALF_RANGE:
+                continue
             col, row = _to_cell_mundo(porto.x, porto.y, jx, jy, HALF_RANGE, GRID_W, GRID_H)
             grid[row][col] = ' P '
             overlays_por_linha[row].append((col * largura_celula, ' P ', 0))
 
-        # Destroços com loot — 'x'
+        # Destroços com loot — 'x' (somente se dentro do raio visível)
         for navio in getattr(estado_mundo, 'inimigos', []):
             if navio.status == "afundado" and navio.loot is not None:
+                if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > HALF_RANGE:
+                    continue
                 col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, HALF_RANGE, GRID_W, GRID_H)
                 grid[row][col] = ' x '
                 overlays_por_linha[row].append((col * largura_celula, ' x ', cor_mar(estado)))
@@ -530,7 +534,37 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             tipo_nome=tipo_nome,
         )
 
-    return build_vista_linhas(estado, inimigo_vista=inimigo_vista, jogador_vista=jogador_vista)
+    linhas = build_vista_linhas(estado, inimigo_vista=inimigo_vista, jogador_vista=jogador_vista)
+
+    # Porto na visão do capitão quando próximo (500m)
+    ALCANCE_VISUAL_PORTO = 500.0
+    if not getattr(estado_mundo, 'em_combate', False):
+        from types import SimpleNamespace as _NS
+        for porto in getattr(estado_mundo, 'portos', []):
+            d_porto = estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y)
+            if d_porto > ALCANCE_VISUAL_PORTO:
+                continue
+            pdx = porto.x - jx
+            pdy = porto.y - jy
+            if abs(pdx) > MUNDO_TAMANHO / 2:
+                pdx -= math.copysign(MUNDO_TAMANHO, pdx)
+            if abs(pdy) > MUNDO_TAMANHO / 2:
+                pdy -= math.copysign(MUNDO_TAMANHO, pdy)
+            porto_ns = _NS(x=jx + pdx, y=jy + pdy)
+            largura = 50
+            rel = (rumo_para(jogador_vista, porto_ns) - jogador_vista.heading + 540) % 360 - 180
+            pos = clamp(int(round((rel + 180) / 360 * (largura - 1))), 0, largura - 1)
+            icone = '(P)'
+            inicio = clamp(pos - len(icone) // 2, 0, largura - len(icone))
+            horizonte_chars = list(linhas[0][0])
+            for i, ch in enumerate(icone):
+                horizonte_chars[inicio + i] = ch
+            overlays_h = list(linhas[0][2]) + [(inicio, icone, 0)]
+            linhas = [(''.join(horizonte_chars), linhas[0][1], overlays_h)] + list(linhas[1:])
+            linhas = list(linhas) + [(f'Porto: "{porto.nome} a {d_porto:.0f}m!"', 0, [])]
+            break
+
+    return linhas
 
 
 def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
