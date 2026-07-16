@@ -15,7 +15,7 @@ except ImportError:
 
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
-    MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO,
+    MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR,
 )
 from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
 from ..core.combat import distancia, rumo_para
@@ -503,20 +503,28 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     em_combate = getattr(estado_mundo, 'em_combate', False)
 
     if not em_combate:
-        # Portos ( P )
+        # Portos [P]
         for porto in getattr(estado_mundo, 'portos', []):
             if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) <= half_range:
                 col, row = _to_cell_mundo(porto.x, porto.y, jx, jy, half_range, GRID_W, GRID_H)
-                grid[row][col] = ' P '
-                overlays_por_linha[row].append((col * largura_celula, ' P ', 0))
+                grid[row][col] = '[P]'
+                overlays_por_linha[row].append((col * largura_celula, '[P]', 0))
 
-        # Destroços com loot ( x )
+        # Destroços [x]: amarelo=não visitado (loot), ciano=visitado (sem loot)
         for navio in getattr(estado_mundo, 'inimigos', []):
-            if navio.status == "afundado" and navio.loot is not None:
-                if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) <= half_range:
-                    col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
-                    grid[row][col] = ' x '
-                    overlays_por_linha[row].append((col * largura_celula, ' x ', cor_mar(estado)))
+            if navio.status != "afundado":
+                continue
+            if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > half_range:
+                continue
+            col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
+            grid[row][col] = '[x]'
+            if navio.loot is not None:
+                attr = (_curses.color_pair(COR_AMARELO)
+                        if (estado.cores_ativo and _curses) else 0)
+            else:
+                attr = (_curses.color_pair(COR_JOGADOR)
+                        if (estado.cores_ativo and _curses) else 0)
+            overlays_por_linha[row].append((col * largura_celula, '[x]', attr))
 
     # Inimigos ativos — ícone direcional [glifo]
     for navio in getattr(estado_mundo, 'inimigos', []):
@@ -651,12 +659,12 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             row = int((1.0 - wy / MUNDO_TAMANHO) * GRID_H) % GRID_H
             return col, row
 
-        # Portos — visíveis fora do combate
+        # Portos [P] — visíveis fora do combate
         if not getattr(estado_mundo, 'em_combate', False):
             for porto in getattr(estado_mundo, 'portos', []):
                 col, row = _world_to_cell(porto.x, porto.y)
                 grid[row][col] = 'P'
-                overlays_por_linha[row].append((col, 'P', 0))
+                overlays_por_linha[row].append((max(0, col - 1), '[P]', 0))
 
         # Jogador — sempre visível
         col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
@@ -667,23 +675,37 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
         for navio in estado_mundo.inimigos:
             col, row = _world_to_cell(navio.x, navio.y)
             if navio.status == "afundado":
-                glifo, attr = 'x', cor_mar(estado)
+                grid[row][col] = 'x'
+                if navio.loot is not None:
+                    attr = (_curses.color_pair(COR_AMARELO)
+                            if (estado.cores_ativo and _curses) else 0)
+                else:
+                    attr = (_curses.color_pair(COR_JOGADOR)
+                            if (estado.cores_ativo and _curses) else 0)
+                overlays_por_linha[row].append((max(0, col - 1), '[x]', attr))
             elif navio.status == "fugindo":
                 glifo, attr = 'e', cor_navio(estado, e_jogador=False)
+                grid[row][col] = glifo
+                overlays_por_linha[row].append((col, glifo, attr))
             else:
                 glifo, attr = 'E', cor_navio(estado, e_jogador=False)
-            grid[row][col] = glifo
-            overlays_por_linha[row].append((col, glifo, attr))
+                grid[row][col] = glifo
+                overlays_por_linha[row].append((col, glifo, attr))
+
+    # W/E nos lados da linha central
+    mid = GRID_H // 2
+    grid[mid][0] = 'W'
+    grid[mid][GRID_W - 1] = 'E'
 
     attr_mar = cor_mar(estado)
     if getattr(estado_mundo, 'em_combate', False):
         titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
     else:
-        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  x afundado  P porto] ==="
+        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [P] porto] ==="
     linhas: list[tuple] = [(titulo_mapa, 0, [])]
-    linhas.append((" N", 0, []))
+    linhas.append(("N".center(GRID_W), 0, []))
     for i, row in enumerate(grid):
         linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
-    linhas.append((" S", 0, []))
+    linhas.append(("S".center(GRID_W), 0, []))
     linhas.append(("[M] fecha", 0, []))
     return linhas

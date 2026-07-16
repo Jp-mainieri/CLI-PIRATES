@@ -167,10 +167,10 @@ MUNDO_TICK = 0.5
 MUNDO_NUM_PORTOS = 1
 """Número de portos fixos espalhados pelo mundo."""
 
-MUNDO_RAIO_ATRACACAO = 150.0
+MUNDO_RAIO_ATRACACAO = 250.0
 """Distância máxima para poder usar o comando 'atracar'."""
 
-MUNDO_RAIO_COLETA_LOOT = 100.0
+MUNDO_RAIO_COLETA_LOOT = 250.0
 """Distância máxima para coletar automaticamente destroços de um navio afundado."""
 
 # ---------------------------------------------------------------------------
