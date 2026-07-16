@@ -39,6 +39,14 @@ from .world.simulation import (
 from .port.scene import porto_loop
 
 
+def _parar_jogador_mundo(estado, estado_mundo) -> None:
+    """Zera a inércia do jogador antes de abrir uma cena bloqueante."""
+    estado_mundo.jogador_velocidade = 0.0
+    estado_mundo.jogador_heading_alvo = estado_mundo.jogador_heading
+    estado.jogador.velocidade = 0.0
+    estado.jogador.heading_alvo = estado.jogador.heading
+
+
 def jogo_loop(
     stdscr,
     config: dict,
@@ -215,6 +223,7 @@ def mundo_loop(stdscr, config: dict) -> str:
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
             elif ch in (ord('V'), ord('v')) and buffer_entrada == "":
                 from .ui.inventario import abrir_inventario
+                _parar_jogador_mundo(estado, estado_mundo)
                 abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
                 if estado_mundo.loot_pendente is not None:
                     if not estado_mundo.loot_pendente.barris:
@@ -508,6 +517,7 @@ def _processar_cmd_mundo(
                 break
         if porto_proximo is not None:
             estado.log.append(f"Atracando em {porto_proximo.nome}...")
+            _parar_jogador_mundo(estado, estado_mundo)
             porto_loop(stdscr, estado, estado_mundo, porto_idx)
             estado_mundo.rastro_jogador.clear()
             if estado_mundo.loot_pendente is not None and not estado_mundo.loot_pendente.barris:
@@ -528,6 +538,7 @@ def _processar_cmd_mundo(
         if navio_destroco is not None:
             estado.log.append("Coletando destrocos do navio afundado...")
             from .ui.inventario import abrir_inventario
+            _parar_jogador_mundo(estado, estado_mundo)
             abrir_inventario(stdscr, estado.jogador, navio_destroco.loot, cores=estado.cores_ativo)
             navio_destroco.loot = None  # loot coletado ou descartado
             estado.log.append("Destrocos processados.")
@@ -538,6 +549,7 @@ def _processar_cmd_mundo(
             estado.log.append("Erro interno: stdscr nao disponivel para 'inventario'.")
             return
         from .ui.inventario import abrir_inventario
+        _parar_jogador_mundo(estado, estado_mundo)
         abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
         if estado_mundo.loot_pendente is not None:
             if not estado_mundo.loot_pendente.barris:
