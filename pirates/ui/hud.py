@@ -463,6 +463,19 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
 # HUD de mundo aberto
 # ---------------------------------------------------------------------------
 
+def _cel_mar(x_mundo: float, y_mundo: float) -> str:
+    """Char de mar determinístico por coordenada absoluta (grão de 50m)."""
+    GRAO = 50
+    xc = int(x_mundo // GRAO) & 0xFFFF
+    yc = int(y_mundo // GRAO) & 0xFFFF
+    h = (xc * 2654435761 ^ yc * 1234567891) & 0xFFFF
+    if h < 4096:     # ~6.25% → decoração rara: pedra, coral, onda
+        return ('o', '*', 'v')[h % 3]
+    elif h < 18000:  # ~21% → variante abstrata
+        return ' ' if h & 1 else '-'
+    return '~'       # ~73% → mar padrão
+
+
 def _to_cell_mundo(nx: float, ny: float, cx: float, cy: float, half_range: float,
                    grid_w: int, grid_h: int) -> tuple[int, int]:
     """Converte coordenadas do mundo para célula da grade, considerando wrap toroidal."""
@@ -492,15 +505,38 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     GRID_W, GRID_H = 13, 20
     half_range = MUNDO_ZOOM_NAV_FIXO
     largura_celula = 3
-    filler = '~~~'
     unicode_on = getattr(estado, 'graficos_unicode', False)
-
-    grid = [[filler] * GRID_W for _ in range(GRID_H)]
-    overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
     jx = estado_mundo.jogador_x
     jy = estado_mundo.jogador_y
     em_combate = getattr(estado_mundo, 'em_combate', False)
+
+    # Grid com textura de mar deslizante (coordenada absoluta → char determinístico)
+    grid = [[''] * GRID_W for _ in range(GRID_H)]
+    for _r in range(GRID_H):
+        for _c in range(GRID_W):
+            _dx = (_c - (GRID_W - 1) / 2) / (GRID_W - 1) * (2 * half_range)
+            _dy = ((GRID_H - 1 - _r) - (GRID_H - 1) / 2) / (GRID_H - 1) * (2 * half_range)
+            _wx = (jx + _dx) % MUNDO_TAMANHO
+            _wy = (jy + _dy) % MUNDO_TAMANHO
+            _c_mar = _cel_mar(_wx, _wy)
+            grid[_r][_c] = f'~{_c_mar}~'
+    overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
+
+    # Rastro do navio (pontos históricos, index 0=mais antigo, -1=mais recente)
+    _rastro = getattr(estado_mundo, 'rastro_jogador', None)
+    if _rastro:
+        _pontos = list(_rastro)
+        _n = len(_pontos)
+        _mid = _n // 2
+        _cr, _rr = GRID_W // 2, GRID_H // 2
+        for _i, (_px, _py) in enumerate(_pontos):
+            _col, _row = _to_cell_mundo(_px, _py, jx, jy, half_range, GRID_W, GRID_H)
+            if _col == _cr and _row == _rr:
+                continue
+            _attr = (_curses.A_BOLD if _curses else 0) if _i >= _mid else cor_mar(estado)
+            grid[_row][_col] = '~.~'
+            overlays_por_linha[_row].append((_col * largura_celula, '~.~', _attr))
 
     if not em_combate:
         # Portos [P]

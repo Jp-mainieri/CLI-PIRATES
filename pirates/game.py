@@ -271,6 +271,10 @@ def mundo_loop(stdscr, config: dict) -> str:
             estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
 
             atualizar_jogador_mundo(estado_mundo, params, dt)
+            if not estado_mundo.em_combate:
+                estado_mundo.rastro_jogador.append(
+                    (estado_mundo.jogador_x, estado_mundo.jogador_y)
+                )
             atualizar_ia_mundo(estado_mundo, dt)
 
             # Sync heading/velocidade de volta pro navio (usado na bussola e HUD)
@@ -501,6 +505,7 @@ def _processar_cmd_mundo(
         if porto_proximo is not None:
             estado.log.append(f"Atracando em {porto_proximo.nome}...")
             porto_loop(stdscr, estado, estado_mundo, porto_idx)
+            estado_mundo.rastro_jogador.clear()
             if estado_mundo.loot_pendente is not None and not estado_mundo.loot_pendente.barris:
                 estado_mundo.loot_pendente = None
             estado.log.append(f"Zarpou de {porto_proximo.nome}.")
