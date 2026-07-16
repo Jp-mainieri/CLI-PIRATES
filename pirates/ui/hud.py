@@ -432,16 +432,22 @@ def _to_cell_mundo(nx: float, ny: float, cx: float, cy: float, half_range: float
 
 
 def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
-    """Mapa de navegação centrado no jogador. Mesmas dimensões do mapa-mundo (40×20).
+    """Mapa de navegação centrado no jogador. Dimensões equivalentes ao mapa-mundo (39×20).
 
-    Usa zoom do estado (mesmo mecanismo do mini-mapa de combate).
-    Fora de combate: inimigos, portos (P) e destroços (x) dentro do raio de zoom.
+    Zoom fixo MUNDO_ZOOM_NAV_FIXO=800m. Ícones direcionais {↑}/{↓} para jogador,
+    [↑]/[↓] para inimigos — mesmo padrão do mini-mapa de combate.
+    Fora de combate: portos ( P ) e destroços ( x ) dentro do raio.
     Em combate: apenas inimigos (porto some, igual ao mapa-mundo).
     """
-    GRID_W, GRID_H = 40, 20
-    half_range = getattr(estado, 'zoom_atual', None) or 400
+    from ..constants import MUNDO_ZOOM_NAV_FIXO
 
-    grid = [['~'] * GRID_W for _ in range(GRID_H)]
+    GRID_W, GRID_H = 13, 20
+    half_range = MUNDO_ZOOM_NAV_FIXO
+    largura_celula = 3
+    filler = '~~~'
+    unicode_on = getattr(estado, 'graficos_unicode', False)
+
+    grid = [[filler] * GRID_W for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
     jx = estado_mundo.jogador_x
@@ -449,37 +455,42 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     em_combate = getattr(estado_mundo, 'em_combate', False)
 
     if not em_combate:
-        # Portos (P)
+        # Portos ( P )
         for porto in getattr(estado_mundo, 'portos', []):
             if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) <= half_range:
                 col, row = _to_cell_mundo(porto.x, porto.y, jx, jy, half_range, GRID_W, GRID_H)
-                grid[row][col] = 'P'
-                overlays_por_linha[row].append((col, 'P', 0))
+                grid[row][col] = ' P '
+                overlays_por_linha[row].append((col * largura_celula, ' P ', 0))
 
-        # Destroços com loot (x)
+        # Destroços com loot ( x )
         for navio in getattr(estado_mundo, 'inimigos', []):
             if navio.status == "afundado" and navio.loot is not None:
                 if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) <= half_range:
                     col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
-                    grid[row][col] = 'x'
-                    overlays_por_linha[row].append((col, 'x', cor_mar(estado)))
+                    grid[row][col] = ' x '
+                    overlays_por_linha[row].append((col * largura_celula, ' x ', cor_mar(estado)))
 
-    # Inimigos ativos (E=patrulha, e=fugindo) — visíveis em combate e navegação
+    # Inimigos ativos — ícone direcional [glifo]
     for navio in getattr(estado_mundo, 'inimigos', []):
         if navio.status == "afundado":
             continue
         if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > half_range:
             continue
-        glifo = 'e' if navio.status == "fugindo" else 'E'
+        glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
+                 else seta_ascii_para_heading(navio.heading))
+        celula_e = '[' + glifo + ']'
         attr = cor_navio(estado, e_jogador=False)
         col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
-        grid[row][col] = glifo
-        overlays_por_linha[row].append((col, glifo, attr))
+        grid[row][col] = celula_e
+        overlays_por_linha[row].append((col * largura_celula, celula_e, attr))
 
-    # Jogador (@) sempre no centro, desenhado por último para sobrepor
+    # Jogador {glifo} sempre no centro, desenhado por último para sobrepor
+    glifo_j = (seta_unicode_para_heading(estado_mundo.jogador_heading) if unicode_on
+               else seta_ascii_para_heading(estado_mundo.jogador_heading))
+    celula_j = '{' + glifo_j + '}'
     cr, rr = GRID_W // 2, GRID_H // 2
-    grid[rr][cr] = '@'
-    overlays_por_linha[rr].append((cr, '@', cor_navio(estado, e_jogador=True)))
+    grid[rr][cr] = celula_j
+    overlays_por_linha[rr].append((cr * largura_celula, celula_j, cor_navio(estado, e_jogador=True)))
 
     attr_mar = cor_mar(estado)
     linhas: list[tuple] = [("  N", 0, [])]
