@@ -8,7 +8,7 @@ except ImportError:
     _curses = None  # type: ignore[assignment]
 
 from ..ui.renderer import safe_addstr
-from ..ui.hud import build_porao_inventario_linhas, build_navio_diagrama
+from ..ui.hud import build_porao_linhas, build_porao_inventario_linhas, build_navio_diagrama
 from .lojas import (
     preco_reparo, preco_reabastecer, preco_venda,
     preco_upgrade_nivel, nivel_atual_upgrade, nivel_max_upgrade,
@@ -23,23 +23,55 @@ from ..constants import (
 )
 
 # ---------------------------------------------------------------------------
-# Layout da grade do porto (30×15)
+# Layout da grade do porto
+#
+# GRID_W = 10 células lógicas de 3 chars cada → 30 chars visuais
+# GRID_H = 12 linhas
+# Célula k → string cols k*3 .. k*3+2 → visual col base+k*3 .. base+k*3+2
+# Paredes: col 0 (esquerda) e col 9 (direita) — bloqueiam movimento
+# Jogador: cols 1..8, rows 1..10
 # ---------------------------------------------------------------------------
 
-GRID_W = 30
-GRID_H = 15
+GRID_W = 10   # células lógicas
+GRID_H = 12   # linhas
 
-# Posições (col, row) dos elementos fixos
-_DOCA_COL, _DOCA_ROW = 14, 12
-_CAP_INICIO_COL, _CAP_INICIO_ROW = 14, 9
+# Posições lógicas dos elementos fixos
+_DOCA_COL, _DOCA_ROW     = 4, 8
+_CAP_INICIO_COL, _CAP_INICIO_ROW = 4, 3
 
-# Entradas das lojas: capitão precisa chegar a distância ≤1 de uma destas posições
+# Entradas das lojas: posição lógica exata onde o capitão aciona a loja
 _ENTRADAS: dict[str, tuple[int, int]] = {
-    "polvora": (9,  3),
-    "bolas":   (19, 3),
-    "tabuas":  (9,  10),
-    "navios":  (19, 10),
+    "polvora": (1, 1),   # à direita de [P] (célula 0, linha 1)
+    "bolas":   (8, 1),   # à esquerda de [O] (célula 9, linha 1)
+    "tabuas":  (1, 4),   # à direita de [T] (célula 0, linha 4)
+    "navios":  (8, 4),   # à esquerda de [N] (célula 9, linha 4)
 }
+
+# ---------------------------------------------------------------------------
+# Grid background  (cada linha tem exatamente 30 chars = 10 células × 3)
+# ---------------------------------------------------------------------------
+#
+#  Legenda de células:
+#    [P]/[O]/[T]/[N]  – loja embutida na parede
+#     * (centro da célula 1 e 8) – entrada da loja, dentro da praça
+#   | |  – parede sólida (bloqueia movimento)
+#   ___  – casco do navio na doca (célula 4, linha 8)
+#    |   – caminho até a doca (célula 4, linhas 9-10)
+#
+_GRID_BG: list[str] = [
+    "                              ",  # 0  topo (padding)
+    "[P] *                    * [O]",  # 1  lojas top + entradas (* em cell 1 e 8)
+    "| |                        | |",  # 2  paredes
+    "| |                        | |",  # 3  praça (capitão começa aqui)
+    "[T] *                    * [N]",  # 4  lojas bottom + entradas (mais para cima)
+    "| |                        | |",  # 5  paredes
+    "| |                        | |",  # 6  praça
+    "| |                        | |",  # 7  praça
+    "| |         ___            | |",  # 8  doca – navio na célula 4
+    "| |          |             | |",  # 9  caminho doca
+    "| |         DOCA           | |",  # 10 rótulo doca
+    "                              ",  # 11 fundo (padding)
+]
 
 
 def capitao_perto_de(cap_col: int, cap_row: int, alvo_col: int, alvo_row: int) -> bool:
@@ -48,8 +80,9 @@ def capitao_perto_de(cap_col: int, cap_row: int, alvo_col: int, alvo_row: int) -
 
 
 def _prox_entrada(cap_col: int, cap_row: int) -> str | None:
+    """Entrada exata: o capitão deve estar NA célula da entrada."""
     for nome, (ec, er) in _ENTRADAS.items():
-        if capitao_perto_de(cap_col, cap_row, ec, er):
+        if cap_col == ec and cap_row == er:
             return nome
     return None
 
@@ -61,25 +94,6 @@ def _proxima_doca(cap_col: int, cap_row: int) -> bool:
 # ---------------------------------------------------------------------------
 # Rendering da grade
 # ---------------------------------------------------------------------------
-
-_GRID_BG: list[str] = [
-    "                              ",  # 0
-    "        [P]       [O]         ",  # 1  lojas top  (col 9 e 19)
-    "         |         |          ",  # 2
-    "         *         *          ",  # 3  ← entradas polvora(9) e bolas(19)
-    "         |         |          ",  # 4
-    "         |         |          ",  # 5
-    "         |         |          ",  # 6
-    "         |         |          ",  # 7
-    "         |         |          ",  # 8
-    "         |         |          ",  # 9
-    "         *         *          ",  # 10 ← entradas tabuas(9) e navios(19)
-    "         |         |          ",  # 11
-    "        [T]  ___  [N]         ",  # 12 lojas bottom + doca (col 14)
-    "              |               ",  # 13
-    "             DOCA             ",  # 14
-]
-
 
 def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
                     navio_nome: str, msg: str, estado, vista: str = "hud") -> None:
@@ -97,21 +111,20 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
     safe_addstr(stdscr, 1, max_x - len(navio_info) - 2, navio_info)
     safe_addstr(stdscr, 2, 0, "-" * min(max_x - 1, 78))
 
-    # Grade do porto com offset vertical
+    # Grade
     base_row = 3
+    base_col = 4
     for r, linha in enumerate(_GRID_BG):
-        safe_addstr(stdscr, base_row + r, 4, linha)
+        safe_addstr(stdscr, base_row + r, base_col, linha)
 
-    # Cores das lojas sobre o grid (col de string → visual col = 4 + col_string)
-    # [P] polvora: string col 8-10, row 1  →  visual col 12, row base_row+1
-    # [O] bolas:   string col 18-20, row 1 →  visual col 22, row base_row+1
-    # [T] tabuas:  string col 8-10, row 12 →  visual col 12, row base_row+12
-    # [N] navios:  string col 18-20, row 12→  visual col 22, row base_row+12
+    # Cores das lojas: visual col = base_col + célula_lógica * 3
+    # [P] e [T] em célula 0 → visual col base_col + 0 = 4
+    # [O] e [N] em célula 9 → visual col base_col + 27 = 31
     _lojas_info = [
-        ("[P]", base_row + 1,  12, COR_VERMELHO),
-        ("[O]", base_row + 1,  22, None),          # bolas: só bold
-        ("[T]", base_row + 12, 12, COR_VERDE),
-        ("[N]", base_row + 12, 22, COR_JOGADOR),
+        ("[P]", base_row + 1,  base_col + 0,  COR_VERMELHO),
+        ("[O]", base_row + 1,  base_col + 27, None),           # bolas: só bold
+        ("[T]", base_row + 4,  base_col + 0,  COR_VERDE),
+        ("[N]", base_row + 4,  base_col + 27, COR_JOGADOR),
     ]
     for texto, row, col, par in _lojas_info:
         if cores and par is not None:
@@ -120,12 +133,9 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
             attr = _curses.A_BOLD
         safe_addstr(stdscr, row, col, texto, attr)
 
-    # Capitão (amarelo+bold)
-    if cores:
-        cap_attr = _curses.color_pair(COR_AMARELO) | _curses.A_BOLD
-    else:
-        cap_attr = _curses.A_BOLD
-    safe_addstr(stdscr, base_row + cap_row, 4 + cap_col, SIMB_CAPITAO, cap_attr)
+    # Capitão em amarelo+bold; cada célula = 3 chars → visual col = base_col + cap_col*3
+    cap_attr = (_curses.color_pair(COR_AMARELO) | _curses.A_BOLD) if cores else _curses.A_BOLD
+    safe_addstr(stdscr, base_row + cap_row, base_col + cap_col * 3, SIMB_CAPITAO, cap_attr)
 
     # Painel inferior: HUD ou porão
     sep_row = base_row + GRID_H + 1
@@ -183,7 +193,7 @@ def _input_texto(stdscr, prompt: str, max_y: int, max_x: int) -> str:
 
 def _menu_simples(stdscr, titulo: str, opcoes: list[str],
                   rodape: str, estado, extra_linhas: list[str] | None = None) -> int:
-    """Menu navegável com CIMA/BAIXO + ESPACO. Retorna índice da opção escolhida ou -1 (ESC)."""
+    """Menu navegável. TAB abre inventário completo. Retorna índice ou -1 (ESC)."""
     cursor = 0
     while True:
         stdscr.erase()
@@ -205,12 +215,11 @@ def _menu_simples(stdscr, titulo: str, opcoes: list[str],
                 safe_addstr(stdscr, row, 4, linha)
                 row += 1
 
-        # Painel de porão
-        pr = max_y - 10
+        # Painel de porão (formato resumido para caber no espaço)
+        pr = max_y - 9
         safe_addstr(stdscr, pr, 0, "-" * min(max_x - 1, 78))
         pr += 1
-        cores = estado.cores_ativo and _curses is not None
-        for texto, attr in build_porao_inventario_linhas(estado.jogador, cores=cores):
+        for texto, attr in build_porao_linhas(estado.jogador):
             if pr >= max_y - 5:
                 break
             safe_addstr(stdscr, pr, 0, texto, attr)
@@ -219,12 +228,16 @@ def _menu_simples(stdscr, titulo: str, opcoes: list[str],
         ouro = estado.jogador.porao.total("ouro")
         safe_addstr(stdscr, max_y - 4, 0, f"Ouro disponivel: {ouro:.1f}")
         safe_addstr(stdscr, max_y - 3, 0, "-" * min(max_x - 1, 78))
-        safe_addstr(stdscr, max_y - 2, 0, rodape)
+        safe_addstr(stdscr, max_y - 2, 0,
+                    rodape + "   TAB: inventario")
         stdscr.refresh()
 
         ch = stdscr.getch()
         if ch == 27:
             return -1
+        elif ch == ord('\t'):
+            from ..ui.inventario import abrir_inventario
+            abrir_inventario(stdscr, estado.jogador, cores=estado.cores_ativo)
         elif ch == _curses.KEY_UP:
             cursor = max(0, cursor - 1)
         elif ch == _curses.KEY_DOWN:
@@ -233,18 +246,45 @@ def _menu_simples(stdscr, titulo: str, opcoes: list[str],
             return cursor
 
 
-def _loja_inventario_simples(stdscr, navio, tipo: str, estado) -> int | None:
-    """Mostra o porão e pede ao jogador selecionar um barril do `tipo`. Retorna índice ou None."""
-    from ..ui.inventario import abrir_inventario
-    # Apenas abre o inventário para o jogador selecionar
-    # Retorna o índice do primeiro barril do tipo com espaço (reabastecer)
-    # ou qualquer barril do tipo (vender)
+def _selecionar_barril(stdscr, navio, tipo: str, estado) -> int | None:
+    """Inventário interativo: seleciona barril do `tipo`. Retorna índice real ou None."""
     barris_tipo = [(i, b) for i, b in enumerate(navio.porao.barris) if b.tipo == tipo]
     if not barris_tipo:
         return None
-    # Retorna o índice do barril mais vazio (candidato para reabastecer)
-    idx, _ = min(barris_tipo, key=lambda ib: ib[1].quantidade)
-    return idx
+    from ..core.porao import capacidade_barril
+    from ..ui.colors import cor_recurso
+    cores = estado.cores_ativo and _curses is not None
+    cap_b = capacidade_barril(tipo)
+    cursor = 0
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        safe_addstr(stdscr, 0, 0, "-" * min(max_x - 1, 78))
+        safe_addstr(stdscr, 1, 2, f"SELECIONAR BARRIL DE {tipo.upper()}", _curses.A_BOLD)
+        safe_addstr(stdscr, 2, 0, "-" * min(max_x - 1, 78))
+        row = 4
+        for ci, (i, b) in enumerate(barris_tipo):
+            prefixo = " > " if ci == cursor else "   "
+            sel_attr = _curses.A_REVERSE if ci == cursor else 0
+            pct = b.quantidade / cap_b if cap_b > 0 else 0.0
+            n_h = int(round(pct * 10))
+            barra_str = "#" * n_h + "-" * (10 - n_h)
+            linha = f"{prefixo}{i+1:2d}.  {b.tipo:7s}  {b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]"
+            cor = cor_recurso(cores, b.tipo)
+            safe_addstr(stdscr, row, 0, linha, sel_attr | cor if not sel_attr else sel_attr)
+            row += 1
+        safe_addstr(stdscr, max_y - 2, 0,
+                    "CIMA/BAIXO: navegar   ENTER/ESPACO: selecionar   ESC: cancelar")
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == 27:
+            return None
+        elif ch == _curses.KEY_UP:
+            cursor = max(0, cursor - 1)
+        elif ch == _curses.KEY_DOWN:
+            cursor = min(len(barris_tipo) - 1, cursor + 1)
+        elif ch in (ord(' '), _curses.KEY_ENTER, 10, 13):
+            return barris_tipo[cursor][0]
 
 
 def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
@@ -256,8 +296,8 @@ def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
     while True:
         navio_ativo = estado.jogador
         barril_sel_info = ""
-        reab_str = "Reabastecer barril selecionado ........... (selecione um barril)"
-        vend_str = "Vender barril selecionado ................. (selecione um barril)"
+        reab_str = "Reabastecer barril selecionado ........... (TAB: escolher)"
+        vend_str = "Vender barril selecionado ................. (TAB: escolher)"
         if barril_sel is not None and barril_sel < len(navio_ativo.porao.barris):
             b = navio_ativo.porao.barris[barril_sel]
             if b.tipo == tipo:
@@ -280,7 +320,7 @@ def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
             opcoes.append(f"Reparo instantaneo completo ............... {preco_r:.1f} ouro")
         opcoes.append("[Voltar]")
 
-        extra = [f"Barril selecionado: {barril_sel_info}" if barril_sel_info else "Barril selecionado: (nenhum)"]
+        extra = [f"Barril selecionado: {barril_sel_info}" if barril_sel_info else "Barril selecionado: (nenhum — use TAB)"]
         if msg:
             extra.append(f">> {msg}")
 
@@ -300,9 +340,9 @@ def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
 
         elif escolha == 1:  # Reabastecer
             if barril_sel is None or barril_sel >= len(navio_ativo.porao.barris):
-                barril_sel = _loja_inventario_simples(stdscr, navio_ativo, tipo, estado)
+                barril_sel = _selecionar_barril(stdscr, navio_ativo, tipo, estado)
                 if barril_sel is None:
-                    msg = f"Nenhum barril de {tipo} no porcao."
+                    msg = f"Nenhum barril de {tipo} selecionado."
                     continue
             ok, m = reabastecer_barril(navio_ativo, barril_sel, tipo)
             msg = m
@@ -311,9 +351,9 @@ def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
 
         elif escolha == 2:  # Vender
             if barril_sel is None or barril_sel >= len(navio_ativo.porao.barris):
-                barril_sel = _loja_inventario_simples(stdscr, navio_ativo, tipo, estado)
+                barril_sel = _selecionar_barril(stdscr, navio_ativo, tipo, estado)
                 if barril_sel is None:
-                    msg = f"Nenhum barril de {tipo} no porcao."
+                    msg = f"Nenhum barril de {tipo} selecionado."
                     continue
             ok, m = vender_barril(navio_ativo, barril_sel)
             msg = m
@@ -330,7 +370,6 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
     msg = ""
     while True:
         navio_ativo = estado.jogador
-        ouro = navio_ativo.porao.total("ouro")
         opcoes = [
             "Comprar navio novo ......................................",
             "Trocar de navio ativo (frota) ...........................",
@@ -348,10 +387,10 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
         if escolha in (-1, 4):
             return
 
-        elif escolha == 0:  # Comprar navio novo
+        elif escolha == 0:
             msg = _fluxo_comprar_navio(stdscr, frota, porto_id, navio_ativo, estado)
 
-        elif escolha == 1:  # Trocar de navio ativo
+        elif escolha == 1:
             msg = _fluxo_trocar_navio(stdscr, frota, porto_id, estado)
 
         elif escolha == 2:  # Renomear
@@ -369,7 +408,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
             else:
                 msg = "Cancelado."
 
-        elif escolha == 3:  # Upgrades
+        elif escolha == 3:
             _loja_upgrades(stdscr, navio_ativo, tipo_navio_atual, estado)
 
 
@@ -414,7 +453,7 @@ def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
         opcoes.append(f"{np_obj.nome} ({NAVIO_TIPOS.get(np_obj.tipo, {}).get('navio', '?')}) casco {casco:.0f}%{ativo_str}")
         indices_reais.append(idx_real)
     opcoes.append("[Voltar]")
-    escolha = _menu_simples(stdscr, f"SUA FROTA EM PORTO", opcoes,
+    escolha = _menu_simples(stdscr, "SUA FROTA EM PORTO", opcoes,
                             "CIMA/BAIXO: navegar  ESPACO: trocar  ESC: voltar", estado)
     if escolha in (-1, len(opcoes) - 1):
         return "Cancelado."
@@ -424,7 +463,6 @@ def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
     ok = frota.trocar_ativo(idx_real, porto_id)
     if ok:
         novo = frota.ativo()
-        # Atualiza estado.jogador para o novo navio
         if novo is not None:
             estado.jogador = novo.navio
         return f"Navio trocado para {frota.ativo().nome if frota.ativo() else '?'}."
@@ -487,7 +525,6 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
     porto = estado_mundo.portos[porto_id]
     porto_nome = porto.nome
 
-    # Registra navio inicial na frota se ainda não foi feito
     frota = estado.frota
     if frota.indice_ativo == -1:
         frota.adicionar(
@@ -512,20 +549,23 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
         ch = stdscr.getch()
         if ch == 27:  # ESC → zarpar
             break
-        elif ch == ord('\t'):  # TAB → alternar vista
+        elif ch == ord('\t'):  # TAB → alternar vista HUD / porão
             vista = "porao" if vista == "hud" else "hud"
             continue
 
         nova_col, nova_row = cap_col, cap_row
         if ch in (ord('w'), ord('W')):
-            nova_row = max(0, cap_row - 1)
+            nova_row -= 1
         elif ch in (ord('s'), ord('S')):
-            nova_row = min(GRID_H - 1, cap_row + 1)
+            nova_row += 1
         elif ch in (ord('a'), ord('A')):
-            nova_col = max(0, cap_col - 1)
+            nova_col -= 1
         elif ch in (ord('d'), ord('D')):
-            nova_col = min(GRID_W - 1, cap_col + 1)
+            nova_col += 1
 
+        # Colisão com paredes: mantém dentro de cols 1..GRID_W-2 e rows 1..GRID_H-2
+        nova_col = max(1, min(GRID_W - 2, nova_col))
+        nova_row = max(1, min(GRID_H - 2, nova_row))
         cap_col, cap_row = nova_col, nova_row
 
         # Verifica doca (zarpar)

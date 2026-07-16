@@ -310,7 +310,7 @@ PRECO_REABASTECER_POR_UNIDADE = 0.4
 """0.4/unidade: ponto de virada em 12.5 unidades (= 5.0 ouro = preço de um
 barril novo cheio). Reabastecer mais que isso fica mais caro que comprar novo."""
 
-PRECO_VENDA_BARRIL_CHEIO = 2.0
+PRECO_VENDA_BARRIL_CHEIO = 3.0
 """Preço de venda de um barril cheio; venda proporcional ao conteúdo restante."""
 
 PRECO_REPARO_POR_PONTO_DANO = 0.5
