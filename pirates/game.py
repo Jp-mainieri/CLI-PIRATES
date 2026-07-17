@@ -148,7 +148,7 @@ def jogo_loop(
             if estado_mundo is not None:
                 estado_mundo.jogador_x = (arena_ox + estado.jogador.x) % MUNDO_TAMANHO
                 estado_mundo.jogador_y = (arena_oy + estado.jogador.y) % MUNDO_TAMANHO
-                if estado_mundo.inimigo_engajado is not None and not estado.inimigo.afundado:
+                if estado_mundo.inimigo_engajado is not None:
                     estado_mundo.inimigo_engajado.x = (arena_ox + estado.inimigo.x) % MUNDO_TAMANHO
                     estado_mundo.inimigo_engajado.y = (arena_oy + estado.inimigo.y) % MUNDO_TAMANHO
 
