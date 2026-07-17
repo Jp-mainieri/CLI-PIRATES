@@ -38,6 +38,7 @@ from .saves import (
 from .ui.menus import (
     tela_menu, tela_como_jogar, tela_navio, tela_ajustes, tela_fim,
     tela_mundo_menu, tela_novo_capitao, tela_continuar, tela_historico,
+    tela_fim_mundo,
 )
 from .world.state import EstadoMundo
 from .world.simulation import (
@@ -58,6 +59,73 @@ def _sigint_handler(_sig, _frame) -> None:
         except Exception:
             pass
     raise SystemExit(0)
+
+
+def _tentar_respawn(estado, estado_mundo):
+    """Verifica frota e faz respawn no porto mais próximo com o próximo navio.
+
+    Retorna o Porto de respawn, ou None se a frota estiver vazia.
+    """
+    frota = estado.frota
+    candidatos = [
+        (i, n) for i, n in enumerate(frota.navios)
+        if n.porto_ancorado is not None and not n.navio.afundado
+    ]
+    if not candidatos:
+        return None
+
+    pos_afundamento = (estado_mundo.jogador_x, estado_mundo.jogador_y)
+    estado_mundo.destrocos_jogador.append(pos_afundamento)
+    estado.jogador.porao.barris.clear()
+
+    idx_real, novo = candidatos[0]
+    novo.porto_ancorado = None
+    frota.indice_ativo = idx_real
+    estado.jogador = novo.navio
+
+    porto = min(
+        estado_mundo.portos,
+        key=lambda p: estado_mundo._distancia_toroidal(
+            pos_afundamento[0], pos_afundamento[1], p.x, p.y,
+        ),
+    )
+
+    estado_mundo.jogador_x = porto.x
+    estado_mundo.jogador_y = porto.y
+    estado_mundo.jogador_velocidade = 0.0
+    estado_mundo.jogador_heading = 0.0
+    estado_mundo.jogador_heading_alvo = 0.0
+    estado_mundo.jogador_nivel_vela = 0
+
+    estado.fim = None
+    estado.jogador.afundado = False
+    estado_mundo.em_combate = False
+    estado_mundo.inimigo_engajado = None
+
+    estado.log.clear()
+    estado.log.append(
+        f"Navio afundou! Voltou a {porto.nome} com '{novo.nome}'."
+    )
+    return porto
+
+
+def _processar_morte_mundo(stdscr, estado, estado_mundo, slug, causa: str) -> str:
+    """Game over definitivo: migra save para histórico e mostra tela de derrota."""
+    _save_ctx.clear()
+    nome_capitao = ""
+    if slug:
+        try:
+            data = carregar(slug)
+            nome_capitao = data.get("nome_capitao", "")
+            from .saves import mover_para_historico
+            mover_para_historico(slug, {
+                "causa_morte": causa,
+                "notoriedade_maxima": getattr(estado_mundo, "notoriedade", 0),
+                "duracao_segundos": int(getattr(estado, "tempo", 0)),
+            })
+        except Exception:
+            pass
+    return tela_fim_mundo(stdscr, estado, estado_mundo, nome_capitao)
 
 
 def _parar_jogador_mundo(estado, estado_mundo) -> None:
@@ -341,9 +409,13 @@ def mundo_loop(
             estado.jogador.atualizar_moral(dt)
 
             if estado.jogador.afundado:
-                estado.log.append("Seu navio afundou durante a navegacao!")
-                estado.fim = "derrota"
-                return tela_fim(stdscr, estado)
+                porto = _tentar_respawn(estado, estado_mundo)
+                if porto is None:
+                    estado.fim = "derrota"
+                    return _processar_morte_mundo(
+                        stdscr, estado, estado_mundo, slug, "afundou na navegacao"
+                    )
+                # tem frota → continua com novo navio no porto mais próximo
 
             # Verificar gatilho de combate
             inimigo_engajado = None
@@ -439,9 +511,12 @@ def mundo_loop(
 
                 if estado.fim == "derrota":
                     if estado.jogador.afundado:
-                        # Navio afundou → tela de derrota, "jogar novamente" reinicia o mundo
-                        resultado_fim = tela_fim(stdscr, estado)
-                        return "mundo" if resultado_fim == "jogar" else resultado_fim
+                        porto = _tentar_respawn(estado, estado_mundo)
+                        if porto is None:
+                            return _processar_morte_mundo(
+                                stdscr, estado, estado_mundo, slug, "afundou em combate"
+                            )
+                        # tem frota → continua com novo navio no porto mais próximo
                     else:
                         # ESC durante combate → menu principal diretamente
                         return "menu"

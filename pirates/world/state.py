@@ -48,6 +48,7 @@ class EstadoMundo:
         self.em_combate: bool = False
         self.inimigo_engajado = None  # NavioMundo | None durante combate
         self.rastro_jogador: deque[tuple[float, float]] = deque(maxlen=128)
+        self.destrocos_jogador: list[tuple[float, float]] = []
         self._sortear_portos()
         self.sortear_novo_lote()
 

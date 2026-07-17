@@ -180,6 +180,66 @@ def tela_ajustes(stdscr, config: dict) -> None:
             return
 
 
+def tela_fim_mundo(stdscr, estado, estado_mundo, nome_capitao: str = "") -> str:
+    """Tela de derrota do modo mundo aberto (frota vazia).
+
+    Returns:
+        'mundo' (novo capitão) | 'menu' | 'sair'
+    """
+    from ..core.utils import barra
+    opcoes = [("Novo Capitao", "mundo"), ("Menu principal", "menu"), ("Sair", "sair")]
+    idx = 0
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+    notoriedade = getattr(estado_mundo, "notoriedade", 0)
+    attr_arte = _curses.color_pair(COR_VERMELHO) if (estado.cores_ativo and _curses) else 0
+    while True:
+        stdscr.erase()
+        arte = list(ARTE_DERROTA)
+        for i, l in enumerate(arte):
+            safe_addstr(stdscr, i, 2, l, attr_arte)
+        row = len(arte) + 1
+        if nome_capitao:
+            safe_addstr(stdscr, row, 2, f"Capitao: {nome_capitao:<20s}  Notoriedade: {notoriedade}")
+        else:
+            safe_addstr(stdscr, row, 2, f"Notoriedade: {notoriedade}")
+        row += 2
+        safe_addstr(stdscr, row, 2, "Estado final do navio:")
+        row += 1
+        for p in PARTES:
+            safe_addstr(
+                stdscr, row, 4,
+                f"{p:8s} [{barra(estado.jogador.partes[p], 10)}] {estado.jogador.partes[p]:5.1f}%",
+            )
+            row += 1
+        safe_addstr(
+            stdscr, row, 4,
+            f"{'moral':8s} [{barra(estado.jogador.moral_atual, 10)}] {estado.jogador.moral_atual:5.1f}%",
+        )
+        row += 2
+        barris = estado.jogador.porao.barris
+        if barris:
+            resumo = "   ".join(f"{b.tipo}: {b.quantidade:.0f}u" for b in barris)
+            safe_addstr(stdscr, row, 2, f"Porao ao afundar: {resumo}")
+        else:
+            safe_addstr(stdscr, row, 2, "Porao ao afundar: (vazio)")
+        row += 2
+        for i, (label, _) in enumerate(opcoes):
+            marcador = "> " if i == idx else "  "
+            attr = _curses.A_REVERSE if i == idx else 0
+            safe_addstr(stdscr, row + i, 2, f"{marcador}[{i + 1}] {label}", attr)
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == _curses.KEY_UP:
+            idx = (idx - 1) % len(opcoes)
+        elif ch == _curses.KEY_DOWN:
+            idx = (idx + 1) % len(opcoes)
+        elif ch in (_curses.KEY_ENTER, 10, 13):
+            return opcoes[idx][1]
+        elif ord('1') <= ch <= ord(str(len(opcoes))):
+            return opcoes[ch - ord('1')][1]
+
+
 def tela_mundo_menu(stdscr) -> str:
     """Sub-menu do Mundo Aberto: novo capitão, continuar, histórico ou voltar.
 

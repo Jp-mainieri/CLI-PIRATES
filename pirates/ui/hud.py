@@ -578,6 +578,16 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
                 grid[row][col] = '[P]'
                 overlays_por_linha[row].append((col * largura_celula, '[P]', 0))
 
+        # Destroços do jogador [*]: vermelho = navio próprio afundado
+        for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
+            if estado_mundo._distancia_toroidal(jx, jy, wx, wy) > half_range:
+                continue
+            col, row = _to_cell_mundo(wx, wy, jx, jy, half_range, GRID_W, GRID_H)
+            grid[row][col] = '[*]'
+            attr = (_curses.color_pair(COR_VERMELHO)
+                    if (estado.cores_ativo and _curses) else 0)
+            overlays_por_linha[row].append((col * largura_celula, '[*]', attr))
+
         # Destroços [x]: amarelo=não visitado (loot), ciano=visitado (sem loot)
         for navio in getattr(estado_mundo, 'inimigos', []):
             if navio.status != "afundado":
@@ -760,6 +770,14 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 grid[row][col] = glifo
                 overlays_por_linha[row].append((col, glifo, attr))
 
+    # Destroços do jogador [*] no mapa mundo — vermelho
+    for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
+        col, row = _world_to_cell(wx, wy)
+        grid[row][col] = '*'
+        attr = (_curses.color_pair(COR_VERMELHO)
+                if (estado.cores_ativo and _curses) else 0)
+        overlays_por_linha[row].append((max(0, col - 1), '[*]', attr))
+
     # W/E nos lados da linha central
     mid = GRID_H // 2
     grid[mid][0] = 'W'
@@ -769,7 +787,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     if getattr(estado_mundo, 'em_combate', False):
         titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
     else:
-        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [P] porto] ==="
+        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [*] seu navio  [P] porto] ==="
     linhas: list[tuple] = [(titulo_mapa, 0, [])]
     linhas.append(("N".center(GRID_W), 0, []))
     for i, row in enumerate(grid):
