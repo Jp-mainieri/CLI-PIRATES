@@ -9,6 +9,7 @@ except ImportError:
 
 from ..core.porao import TIPOS_CARGA, capacidade_barril, Porao
 from .renderer import safe_addstr
+from .colors import cor_recurso
 
 
 def _barra(quantidade: float, capacidade: float, largura: int = 10) -> str:
@@ -17,7 +18,7 @@ def _barra(quantidade: float, capacidade: float, largura: int = 10) -> str:
     return "#" * n + "-" * (largura - n)
 
 
-def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
+def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None, cores: bool = True) -> None:
     """Sub-loop de inventário: mostra barris com barras, permite reorganizar e descartar.
 
     Se loot_pendente for fornecido, tenta auto-alocar nos slots livres ao abrir.
@@ -98,6 +99,8 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
                     f"{prefixo}{i+1:2d}.  {b.tipo:7s}  "
                     f"{b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]"
                 )
+                cor = cor_recurso(cores, b.tipo)
+                attr = attr | cor if cor and not (attr & _curses.A_REVERSE) else attr
             else:
                 linha = f"{prefixo}{i+1:2d}.  [slot vazio]"
 
@@ -116,6 +119,7 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None) -> None:
                 safe_addstr(
                     stdscr, row, 2,
                     f"{b.tipo:7s}  {b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]",
+                    cor_recurso(cores, b.tipo),
                 )
                 row += 1
 

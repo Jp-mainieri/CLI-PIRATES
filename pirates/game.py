@@ -39,6 +39,14 @@ from .world.simulation import (
 from .port.scene import porto_loop
 
 
+def _parar_jogador_mundo(estado, estado_mundo) -> None:
+    """Zera a inércia do jogador antes de abrir uma cena bloqueante."""
+    estado_mundo.jogador_velocidade = 0.0
+    estado_mundo.jogador_heading_alvo = estado_mundo.jogador_heading
+    estado.jogador.velocidade = 0.0
+    estado.jogador.heading_alvo = estado.jogador.heading
+
+
 def jogo_loop(
     stdscr,
     config: dict,
@@ -72,6 +80,8 @@ def jogo_loop(
             hotkeys=config["hotkeys"],
             cores=cores,
             graficos_unicode=config["unicode"],
+            textura_mar=config.get("textura_mar", True),
+            rastro_ativo=config.get("rastro", True),
         )
     buffer_entrada = ""
     last_tick = time.time()
@@ -138,7 +148,7 @@ def jogo_loop(
             if estado_mundo is not None:
                 estado_mundo.jogador_x = (arena_ox + estado.jogador.x) % MUNDO_TAMANHO
                 estado_mundo.jogador_y = (arena_oy + estado.jogador.y) % MUNDO_TAMANHO
-                if estado_mundo.inimigo_engajado is not None and not estado.inimigo.afundado:
+                if estado_mundo.inimigo_engajado is not None:
                     estado_mundo.inimigo_engajado.x = (arena_ox + estado.inimigo.x) % MUNDO_TAMANHO
                     estado_mundo.inimigo_engajado.y = (arena_oy + estado.inimigo.y) % MUNDO_TAMANHO
 
@@ -182,6 +192,8 @@ def mundo_loop(stdscr, config: dict) -> str:
         hotkeys=config["hotkeys"],
         cores=cores,
         graficos_unicode=config["unicode"],
+        textura_mar=config.get("textura_mar", True),
+        rastro_ativo=config.get("rastro", True),
     )
     # Sem inimigo em cena durante a navegação; visão do capitão mostra apenas água.
     estado.inimigo.afundado = True
@@ -211,7 +223,8 @@ def mundo_loop(stdscr, config: dict) -> str:
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
             elif ch in (ord('V'), ord('v')) and buffer_entrada == "":
                 from .ui.inventario import abrir_inventario
-                abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+                _parar_jogador_mundo(estado, estado_mundo)
+                abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
                 if estado_mundo.loot_pendente is not None:
                     if not estado_mundo.loot_pendente.barris:
                         estado_mundo.loot_pendente = None
@@ -271,6 +284,10 @@ def mundo_loop(stdscr, config: dict) -> str:
             estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
 
             atualizar_jogador_mundo(estado_mundo, params, dt)
+            if not estado_mundo.em_combate:
+                estado_mundo.rastro_jogador.append(
+                    (estado_mundo.jogador_x, estado_mundo.jogador_y)
+                )
             atualizar_ia_mundo(estado_mundo, dt)
 
             # Sync heading/velocidade de volta pro navio (usado na bussola e HUD)
@@ -500,7 +517,9 @@ def _processar_cmd_mundo(
                 break
         if porto_proximo is not None:
             estado.log.append(f"Atracando em {porto_proximo.nome}...")
+            _parar_jogador_mundo(estado, estado_mundo)
             porto_loop(stdscr, estado, estado_mundo, porto_idx)
+            estado_mundo.rastro_jogador.clear()
             if estado_mundo.loot_pendente is not None and not estado_mundo.loot_pendente.barris:
                 estado_mundo.loot_pendente = None
             estado.log.append(f"Zarpou de {porto_proximo.nome}.")
@@ -519,7 +538,8 @@ def _processar_cmd_mundo(
         if navio_destroco is not None:
             estado.log.append("Coletando destrocos do navio afundado...")
             from .ui.inventario import abrir_inventario
-            abrir_inventario(stdscr, estado.jogador, navio_destroco.loot)
+            _parar_jogador_mundo(estado, estado_mundo)
+            abrir_inventario(stdscr, estado.jogador, navio_destroco.loot, cores=estado.cores_ativo)
             navio_destroco.loot = None  # loot coletado ou descartado
             estado.log.append("Destrocos processados.")
         else:
@@ -529,7 +549,8 @@ def _processar_cmd_mundo(
             estado.log.append("Erro interno: stdscr nao disponivel para 'inventario'.")
             return
         from .ui.inventario import abrir_inventario
-        abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente)
+        _parar_jogador_mundo(estado, estado_mundo)
+        abrir_inventario(stdscr, estado.jogador, estado_mundo.loot_pendente, cores=estado.cores_ativo)
         if estado_mundo.loot_pendente is not None:
             if not estado_mundo.loot_pendente.barris:
                 estado_mundo.loot_pendente = None
@@ -574,7 +595,8 @@ def main(stdscr) -> None:
         _curses.init_pair(COR_INIMIGO,  _curses.COLOR_MAGENTA, fundo)
         _curses.init_pair(COR_MAR,      _curses.COLOR_BLUE,    fundo)
 
-    config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True}
+    config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True,
+              "textura_mar": True, "rastro": True}
     tela_atual = "menu"
 
     while tela_atual != "sair":

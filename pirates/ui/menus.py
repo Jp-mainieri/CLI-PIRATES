@@ -128,6 +128,8 @@ def tela_ajustes(stdscr, config: dict) -> None:
         ("Hotkeys", "hotkeys"),
         ("Cores", "cores"),
         ("Graficos Unicode", "unicode"),
+        ("Textura do mar", "textura_mar"),
+        ("Rastro do navio", "rastro"),
     ]
     idx = 0
     stdscr.nodelay(False)
