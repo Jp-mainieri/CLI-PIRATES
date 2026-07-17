@@ -275,7 +275,7 @@ def mundo_loop(stdscr, config: dict) -> str:
 
         agora = time.time()
         if agora - last_tick >= MUNDO_TICK:
-            dt = agora - last_tick
+            dt = min(agora - last_tick, MUNDO_TICK)
             last_tick = agora
             estado.tempo += dt
 
