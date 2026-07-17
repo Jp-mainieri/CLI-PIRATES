@@ -256,9 +256,10 @@ def jogo_loop(
                                 _cdy = estado.jogador.y - _ai.y
                                 _cdist = math.hypot(_cdx, _cdy)
                                 if _cdist > 0:
-                                    estado.jogador.heading_alvo = (
-                                        math.degrees(math.atan2(_cdx, _cdy)) + 25
-                                    ) % 360
+                                    _jbear = math.degrees(math.atan2(_cdx, _cdy)) % 360
+                                    estado.jogador.heading = _jbear
+                                    estado.jogador.heading_alvo = (_jbear + 25.0) % 360
+                                    estado.jogador.velocidade = 0.0
                                 if _d > 0.1:
                                     estado.log.append(f"[COLISAO] Bateu em ilha! (-{_d:.0f}% casco)")
                             estado_mundo.em_colisao_ilha = True
@@ -279,9 +280,10 @@ def jogo_loop(
                                     _cdy = estado.inimigo.y - _ai.y
                                     _cdist = math.hypot(_cdx, _cdy)
                                     if _cdist > 0:
-                                        estado.inimigo.heading_alvo = (
-                                            math.degrees(math.atan2(_cdx, _cdy)) + 25
-                                        ) % 360
+                                        _ibear = math.degrees(math.atan2(_cdx, _cdy)) % 360
+                                        estado.inimigo.heading = _ibear
+                                        estado.inimigo.heading_alvo = (_ibear + 25.0) % 360
+                                        estado.inimigo.velocidade = 0.0
                                 estado.em_colisao_ilha_inimigo = True
                                 break
                     else:
@@ -472,7 +474,9 @@ def mundo_loop(
                         estado_mundo.jogador_x = (_ilha_col.x + (_cdx / _cdist) * _empurra) % MUNDO_TAMANHO
                         estado_mundo.jogador_y = (_ilha_col.y + (_cdy / _cdist) * _empurra) % MUNDO_TAMANHO
                         _bear = math.degrees(math.atan2(_cdx, _cdy)) % 360
+                        estado_mundo.jogador_heading = _bear
                         estado_mundo.jogador_heading_alvo = (_bear + 25.0) % 360
+                        estado_mundo.jogador_velocidade = 0.0
                     if _dano > 0.1:
                         estado.log.append(f"[COLISAO] Bateu em ilha! (-{_dano:.0f}% casco)")
                 estado_mundo.em_colisao_ilha = True
