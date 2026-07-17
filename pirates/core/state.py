@@ -139,6 +139,9 @@ class Estado:
         self.zoom_mudou_em: float = -999.0
         self.modo_adm: bool = False
         self.frota: Frota = Frota()
+        self.ia_island_avoidance_mult: float = random.uniform(1.5, 3.0)
+        self.ilhas_arena: list = []
+        self.em_colisao_ilha_inimigo: bool = False
 
         self.log.append(
             f"Bem-vindo ao conves do {params['navio']}, capitao. "

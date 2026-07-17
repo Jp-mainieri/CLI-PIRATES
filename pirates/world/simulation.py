@@ -98,6 +98,19 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
                 navio.heading_alvo = random.uniform(0, 360)
             velocidade_max = vmax_patrulha
 
+        # Evasão de ilhas (personalidade via avoidance_mult)
+        for ilha in getattr(estado_mundo, 'ilhas', []):
+            d_ilha = estado_mundo._distancia_toroidal(navio.x, navio.y, ilha.x, ilha.y)
+            if d_ilha < ilha.raio_maximo * navio.avoidance_mult:
+                _idx = navio.x - ilha.x
+                _idy = navio.y - ilha.y
+                if abs(_idx) > MUNDO_TAMANHO / 2:
+                    _idx -= math.copysign(MUNDO_TAMANHO, _idx)
+                if abs(_idy) > MUNDO_TAMANHO / 2:
+                    _idy -= math.copysign(MUNDO_TAMANHO, _idy)
+                navio.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
+                break
+
         navio.x, navio.y, navio.heading, navio.velocidade = atualizar_posicao_toroidal(
             navio.x, navio.y,
             navio.heading, navio.heading_alvo,

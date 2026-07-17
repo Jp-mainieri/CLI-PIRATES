@@ -6,6 +6,7 @@ precisar de comportamento complexo. Ela gerencia movimento, alocação
 de tripulação e mira de forma reativa ao estado atual do combate.
 """
 
+import math
 import random
 
 from ..constants import PARTES, NAVIO_TIPOS
@@ -67,6 +68,15 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
         inimigo.heading_alvo = (r + 90) % 360
         inimigo.nivel_vela = 2
+
+    # Evasão de ilhas em combate (personalidade via ia_island_avoidance_mult)
+    for ilha in getattr(estado, 'ilhas_arena', []):
+        _idx = inimigo.x - ilha.x
+        _idy = inimigo.y - ilha.y
+        dist_ilha = math.hypot(_idx, _idy)
+        if dist_ilha < ilha.raio_maximo * estado.ia_island_avoidance_mult:
+            inimigo.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
+            break
 
 
 def _crewar_canhoes(estado, inimigo, restante: int) -> None:

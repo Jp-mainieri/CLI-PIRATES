@@ -2,11 +2,58 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..core.porao import Porao
+
+
+@dataclass
+class Ilha:
+    """Uma ilha no mundo aberto com forma orgânica harmônica.
+
+    A borda é definida por:
+        raio(θ) = raio_base * (1 + a1*sin(k1*θ+f1) + a2*sin(k2*θ+f2) + a3*sin(k3*θ+f3))
+    """
+    x: float
+    y: float
+    raio_base: float
+    a1: float; a2: float; a3: float  # amplitudes harmônicas
+    k1: int;   k2: int;   k3: int    # frequências harmônicas
+    f1: float; f2: float; f3: float  # fases harmônicas
+
+    @property
+    def raio_maximo(self) -> float:
+        """Raio máximo possível (envelope externo para coarse filter)."""
+        return self.raio_base * (1.0 + max(self.a1, self.a2, self.a3))
+
+
+def eh_solido_ilha(x: float, y: float, ilha: Ilha, mundo_tamanho: float = 8000.0) -> bool:
+    """Retorna True se (x, y) está dentro da ilha (usando forma harmônica).
+
+    Passa mundo_tamanho=1e9 para desativar o wraparound toroidal (coords de arena).
+    """
+    dx = x - ilha.x
+    dy = y - ilha.y
+    if abs(dx) > mundo_tamanho / 2:
+        dx -= math.copysign(mundo_tamanho, dx)
+    if abs(dy) > mundo_tamanho / 2:
+        dy -= math.copysign(mundo_tamanho, dy)
+    dist = math.hypot(dx, dy)
+    if dist >= ilha.raio_maximo:
+        return False
+    if dist == 0:
+        return True
+    theta = math.atan2(dy, dx)
+    raio = ilha.raio_base * (
+        1.0
+        + ilha.a1 * math.sin(ilha.k1 * theta + ilha.f1)
+        + ilha.a2 * math.sin(ilha.k2 * theta + ilha.f2)
+        + ilha.a3 * math.sin(ilha.k3 * theta + ilha.f3)
+    )
+    return dist < raio
 
 
 @dataclass
@@ -51,3 +98,4 @@ class NavioMundo:
     agua: float = 0.0
     porao: Porao | None = None
     loot: Porao | None = None
+    avoidance_mult: float = 2.0  # personalidade: evita ilha quando dist < raio_max * mult

@@ -18,11 +18,12 @@ except ImportError:
 from .constants import (
     SIM_TICK, POLL_MS,
     COR_VERDE, COR_AMARELO, COR_VERMELHO,
-    COR_JOGADOR, COR_INIMIGO, COR_MAR,
+    COR_JOGADOR, COR_INIMIGO, COR_MAR, COR_ILHA,
     MODO_ADM_DISPONIVEL,
     PARTES, NAVIO_TIPOS,
-    MUNDO_TAMANHO,
+    MUNDO_TAMANHO, MAPA_TAMANHO,
     MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT, MUNDO_RAIO_ATRACACAO,
+    DANO_COLISAO_BASE, DANO_COLISAO_K, DANO_COLISAO_V_REF,
 )
 from .core.state import Estado
 from .core.ship import Canhao
@@ -241,6 +242,51 @@ def jogo_loop(
                     estado_mundo.inimigo_engajado.x = (arena_ox + estado.inimigo.x) % MUNDO_TAMANHO
                     estado_mundo.inimigo_engajado.y = (arena_oy + estado.inimigo.y) % MUNDO_TAMANHO
 
+                # --- Colisão com ilhas no combate (usa coords arena via ilhas_arena) ---
+                from .world.entities import eh_solido_ilha as _esi_cmb
+                for _ai in getattr(estado, 'ilhas_arena', []):
+                    if math.hypot(estado.jogador.x - _ai.x, estado.jogador.y - _ai.y) <= _ai.raio_maximo:
+                        if _esi_cmb(estado.jogador.x, estado.jogador.y, _ai, mundo_tamanho=1e9):
+                            _v = estado.jogador.velocidade
+                            _d = DANO_COLISAO_BASE * (math.exp(DANO_COLISAO_K * _v / DANO_COLISAO_V_REF) - 1)
+                            estado.jogador.partes['casco'] = max(0.0, estado.jogador.partes['casco'] - _d)
+                            estado.jogador.velocidade *= 0.7
+                            if not estado_mundo.em_colisao_ilha:
+                                _cdx = estado.jogador.x - _ai.x
+                                _cdy = estado.jogador.y - _ai.y
+                                _cdist = math.hypot(_cdx, _cdy)
+                                if _cdist > 0:
+                                    estado.jogador.heading_alvo = (
+                                        math.degrees(math.atan2(_cdx, _cdy)) + 25
+                                    ) % 360
+                                if _d > 0.1:
+                                    estado.log.append(f"[COLISAO] Bateu em ilha! (-{_d:.0f}% casco)")
+                            estado_mundo.em_colisao_ilha = True
+                            break
+                else:
+                    estado_mundo.em_colisao_ilha = False
+
+                if not estado.inimigo.afundado:
+                    for _ai in getattr(estado, 'ilhas_arena', []):
+                        if math.hypot(estado.inimigo.x - _ai.x, estado.inimigo.y - _ai.y) <= _ai.raio_maximo:
+                            if _esi_cmb(estado.inimigo.x, estado.inimigo.y, _ai, mundo_tamanho=1e9):
+                                _v = estado.inimigo.velocidade
+                                _d = DANO_COLISAO_BASE * (math.exp(DANO_COLISAO_K * _v / DANO_COLISAO_V_REF) - 1)
+                                estado.inimigo.partes['casco'] = max(0.0, estado.inimigo.partes['casco'] - _d)
+                                estado.inimigo.velocidade *= 0.7
+                                if not estado.em_colisao_ilha_inimigo:
+                                    _cdx = estado.inimigo.x - _ai.x
+                                    _cdy = estado.inimigo.y - _ai.y
+                                    _cdist = math.hypot(_cdx, _cdy)
+                                    if _cdist > 0:
+                                        estado.inimigo.heading_alvo = (
+                                            math.degrees(math.atan2(_cdx, _cdy)) + 25
+                                        ) % 360
+                                estado.em_colisao_ilha_inimigo = True
+                                break
+                    else:
+                        estado.em_colisao_ilha_inimigo = False
+
         if estado_mundo is not None:
             desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
         else:
@@ -392,6 +438,47 @@ def mundo_loop(
             estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
 
             atualizar_jogador_mundo(estado_mundo, params, dt)
+
+            # --- Colisão com ilha (navegação) ---
+            from .world.entities import eh_solido_ilha as _esi_nav
+            _jx, _jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+            _ilha_col = None
+            for _ilha in estado_mundo.ilhas:
+                if estado_mundo._distancia_toroidal(_jx, _jy, _ilha.x, _ilha.y) <= _ilha.raio_maximo:
+                    if _esi_nav(_jx, _jy, _ilha):
+                        _ilha_col = _ilha
+                        break
+            if _ilha_col is not None:
+                _v = estado_mundo.jogador_velocidade
+                _dano = DANO_COLISAO_BASE * (math.exp(DANO_COLISAO_K * _v / DANO_COLISAO_V_REF) - 1)
+                estado.jogador.partes['casco'] = max(0.0, estado.jogador.partes['casco'] - _dano)
+                estado_mundo.jogador_velocidade *= 0.7
+                if not estado_mundo.em_colisao_ilha:
+                    _cdx = _jx - _ilha_col.x
+                    _cdy = _jy - _ilha_col.y
+                    if abs(_cdx) > MUNDO_TAMANHO / 2:
+                        _cdx -= math.copysign(MUNDO_TAMANHO, _cdx)
+                    if abs(_cdy) > MUNDO_TAMANHO / 2:
+                        _cdy -= math.copysign(MUNDO_TAMANHO, _cdy)
+                    _cdist = math.hypot(_cdx, _cdy)
+                    if _cdist > 0:
+                        _theta = math.atan2(_cdy, _cdx)
+                        _raio_s = _ilha_col.raio_base * (
+                            1 + _ilha_col.a1 * math.sin(_ilha_col.k1 * _theta + _ilha_col.f1)
+                              + _ilha_col.a2 * math.sin(_ilha_col.k2 * _theta + _ilha_col.f2)
+                              + _ilha_col.a3 * math.sin(_ilha_col.k3 * _theta + _ilha_col.f3)
+                        )
+                        _empurra = _raio_s + 2.0
+                        estado_mundo.jogador_x = (_ilha_col.x + (_cdx / _cdist) * _empurra) % MUNDO_TAMANHO
+                        estado_mundo.jogador_y = (_ilha_col.y + (_cdy / _cdist) * _empurra) % MUNDO_TAMANHO
+                        _bear = math.degrees(math.atan2(_cdx, _cdy)) % 360
+                        estado_mundo.jogador_heading_alvo = (_bear + 25.0) % 360
+                    if _dano > 0.1:
+                        estado.log.append(f"[COLISAO] Bateu em ilha! (-{_dano:.0f}% casco)")
+                estado_mundo.em_colisao_ilha = True
+            else:
+                estado_mundo.em_colisao_ilha = False
+
             if not estado_mundo.em_combate:
                 estado_mundo.rastro_jogador.append(
                     (estado_mundo.jogador_x, estado_mundo.jogador_y)
@@ -491,6 +578,20 @@ def mundo_loop(
                 estado.log.clear()
                 d_ini = (inimigo_dx ** 2 + inimigo_dy ** 2) ** 0.5
                 estado.log.append(f"Combate! Inimigo a {d_ini:.0f}m. Prepare-se!")
+
+                # Popula ilhas_arena com ilhas em coords relativas à origem da arena
+                import dataclasses as _dc
+                estado.ilhas_arena = []
+                for _ilha in estado_mundo.ilhas:
+                    _adx = _ilha.x - ox
+                    _ady = _ilha.y - oy
+                    if abs(_adx) > MUNDO_TAMANHO / 2:
+                        _adx -= math.copysign(MUNDO_TAMANHO, _adx)
+                    if abs(_ady) > MUNDO_TAMANHO / 2:
+                        _ady -= math.copysign(MUNDO_TAMANHO, _ady)
+                    if abs(_adx) < MAPA_TAMANHO + _ilha.raio_maximo and abs(_ady) < MAPA_TAMANHO + _ilha.raio_maximo:
+                        estado.ilhas_arena.append(_dc.replace(_ilha, x=_adx, y=_ady))
+                estado.em_colisao_ilha_inimigo = False
 
                 # Corre o loop de combate no mesmo mapa (sem exibir tela_fim)
                 estado_mundo.em_combate = True
@@ -735,6 +836,7 @@ def main(stdscr) -> None:
         _curses.init_pair(COR_JOGADOR,  _curses.COLOR_CYAN,    fundo)
         _curses.init_pair(COR_INIMIGO,  _curses.COLOR_MAGENTA, fundo)
         _curses.init_pair(COR_MAR,      _curses.COLOR_BLUE,    fundo)
+        _curses.init_pair(COR_ILHA,     _curses.COLOR_YELLOW,  fundo)
 
     config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True,
               "textura_mar": True, "rastro": True}

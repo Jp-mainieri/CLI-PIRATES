@@ -167,6 +167,27 @@ MUNDO_TICK = 0.5
 MUNDO_NUM_PORTOS = 1
 """Número de portos fixos espalhados pelo mundo."""
 
+MUNDO_NUM_ILHAS = 20
+"""Número de ilhas espalhadas pelo mundo (geração determinística)."""
+
+ILHA_RAIO_MIN = 150.0
+"""Raio base mínimo de uma ilha, em unidades de jogo."""
+
+ILHA_RAIO_MAX = 400.0
+"""Raio base máximo de uma ilha, em unidades de jogo."""
+
+ILHA_PORTO_EXCLUSAO = 800.0
+"""Distância mínima entre o centro de uma ilha e o spawn do jogador ou qualquer porto."""
+
+DANO_COLISAO_BASE = 6.0
+"""Dano base de colisão com ilha (% do casco) à velocidade zero."""
+
+DANO_COLISAO_K = 1.5
+"""Expoente da curva de dano por colisão (mais velocidade → mais dano exponencialmente)."""
+
+DANO_COLISAO_V_REF = 13.0
+"""Velocidade de referência para normalizar o dano de colisão (vel. máx do Galeão)."""
+
 MUNDO_RAIO_ATRACACAO = 250.0
 """Distância máxima para poder usar o comando 'atracar'."""
 
@@ -246,6 +267,7 @@ COR_VERMELHO = 3
 COR_JOGADOR = 4   # ciano
 COR_INIMIGO = 5   # magenta
 COR_MAR = 6       # azul
+COR_ILHA = 7      # amarelo (terra/areia)
 
 # ---------------------------------------------------------------------------
 # Tipos de navio / dificuldade

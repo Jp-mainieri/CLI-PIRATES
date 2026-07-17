@@ -15,7 +15,7 @@ except ImportError:
 
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
-    MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR,
+    MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
 )
 from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
 from ..core.combat import distancia, rumo_para
@@ -275,6 +275,20 @@ def build_mapa_linhas(estado) -> list[tuple]:
     filler = '~' * largura_celula
     grid = [[filler for _ in range(GRID_W)] for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
+
+    # Ilhas em coords de arena
+    _ilhas_arena = getattr(estado, 'ilhas_arena', [])
+    if _ilhas_arena:
+        from ..world.entities import eh_solido_ilha as _esi_mapa
+        _attr_ilha = (_curses.color_pair(COR_ILHA) if (estado.cores_ativo and _curses) else 0)
+        for _ilha in _ilhas_arena:
+            for _ri in range(GRID_H):
+                for _ci in range(GRID_W):
+                    _ax = cx + (_ci - (GRID_W - 1) / 2) * (2 * half_range) / (GRID_W - 1)
+                    _ay = cy + ((GRID_H - 1) / 2 - _ri) * (2 * half_range) / (GRID_H - 1)
+                    if _esi_mapa(_ax, _ay, _ilha, mundo_tamanho=1e9):
+                        grid[_ri][_ci] = '###'
+                        overlays_por_linha[_ri].append((_ci * largura_celula, '###', _attr_ilha))
 
     if inimigo.vivo():
         c, r = to_cell(inimigo.x, inimigo.y)
@@ -604,6 +618,20 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
                         if (estado.cores_ativo and _curses) else 0)
             overlays_por_linha[row].append((col * largura_celula, '[x]', attr))
 
+    # Ilhas — varredura de células (aparece antes dos overlays de navios)
+    _attr_ilha_nav = (_curses.color_pair(COR_ILHA) if (getattr(estado, 'cores_ativo', False) and _curses) else 0)
+    from ..world.entities import eh_solido_ilha as _esi_nav
+    for _ilha in getattr(estado_mundo, 'ilhas', []):
+        if estado_mundo._distancia_toroidal(jx, jy, _ilha.x, _ilha.y) > half_range + _ilha.raio_maximo:
+            continue
+        for _ri in range(GRID_H):
+            for _ci in range(GRID_W):
+                _wx = (jx + (_ci - (GRID_W - 1) / 2) * (2 * half_range) / (GRID_W - 1)) % MUNDO_TAMANHO
+                _wy = (jy - (_ri - (GRID_H - 1) / 2) * (2 * half_range) / (GRID_H - 1)) % MUNDO_TAMANHO
+                if _esi_nav(_wx, _wy, _ilha):
+                    grid[_ri][_ci] = '###'
+                    overlays_por_linha[_ri].append((_ci * largura_celula, '###', _attr_ilha_nav))
+
     # Inimigos ativos — ícone direcional [glifo]
     for navio in getattr(estado_mundo, 'inimigos', []):
         if navio.status == "afundado":
@@ -744,6 +772,13 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 grid[row][col] = 'P'
                 overlays_por_linha[row].append((max(0, col - 1), '[P]', 0))
 
+        # Ilhas [#] — sempre visíveis
+        _attr_ilha_mw = (_curses.color_pair(COR_ILHA) if (estado.cores_ativo and _curses) else 0)
+        for ilha in getattr(estado_mundo, 'ilhas', []):
+            col, row = _world_to_cell(ilha.x, ilha.y)
+            grid[row][col] = '#'
+            overlays_por_linha[row].append((max(0, col - 1), '[#]', _attr_ilha_mw))
+
         # Jogador — sempre visível
         col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
         grid[row][col] = '@'
@@ -787,7 +822,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     if getattr(estado_mundo, 'em_combate', False):
         titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
     else:
-        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [*] seu navio  [P] porto] ==="
+        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [*] seu navio  [P] porto  [#] ilha] ==="
     linhas: list[tuple] = [(titulo_mapa, 0, [])]
     linhas.append(("N".center(GRID_W), 0, []))
     for i, row in enumerate(grid):
