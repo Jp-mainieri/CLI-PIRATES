@@ -180,6 +180,164 @@ def tela_ajustes(stdscr, config: dict) -> None:
             return
 
 
+def tela_mundo_menu(stdscr) -> str:
+    """Sub-menu do Mundo Aberto: novo capitão, continuar, histórico ou voltar.
+
+    Returns:
+        'novo' | 'continuar' | 'historico' | 'voltar'
+    """
+    opcoes = [
+        ("Novo Capitao",    "novo"),
+        ("Continuar",       "continuar"),
+        ("Capitaes Caidos", "historico"),
+        ("Voltar",          "voltar"),
+    ]
+    idx = 0
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+    while True:
+        stdscr.erase()
+        for i, l in enumerate(TITULO_ARTE):
+            safe_addstr(stdscr, i, 2, l)
+        row = len(TITULO_ARTE) + 1
+        safe_addstr(stdscr, row, 2, "── Mundo Aberto ──────────────────────")
+        row += 1
+        for i, (label, _) in enumerate(opcoes):
+            marcador = "> " if i == idx else "  "
+            attr = _curses.A_REVERSE if i == idx else 0
+            safe_addstr(stdscr, row + i, 2, f"{marcador}[{i + 1}] {label}", attr)
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == _curses.KEY_UP:
+            idx = (idx - 1) % len(opcoes)
+        elif ch == _curses.KEY_DOWN:
+            idx = (idx + 1) % len(opcoes)
+        elif ch in (_curses.KEY_ENTER, 10, 13):
+            return opcoes[idx][1]
+        elif ch == 27:
+            return "voltar"
+        elif ord('1') <= ch <= ord(str(len(opcoes))):
+            return opcoes[ch - ord('1')][1]
+
+
+def tela_novo_capitao(stdscr) -> str | None:
+    """Tela de entrada do nome do capitão.
+
+    Returns:
+        Nome digitado (str) ou None se ESC foi pressionado.
+    """
+    buf = ""
+    msg = ""
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+    while True:
+        stdscr.erase()
+        for i, l in enumerate(TITULO_ARTE):
+            safe_addstr(stdscr, i, 2, l)
+        row = len(TITULO_ARTE) + 1
+        safe_addstr(stdscr, row, 2, "── Novo Capitao ──────────────────────")
+        safe_addstr(stdscr, row + 2, 2, "Nome do capitao:")
+        safe_addstr(stdscr, row + 3, 4, f"{buf}_", _curses.A_BOLD)
+        if msg:
+            safe_addstr(stdscr, row + 5, 2, msg)
+        safe_addstr(stdscr, row + 7, 2, "ENTER confirma  |  ESC cancela")
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == 27:
+            return None
+        elif ch in (_curses.KEY_ENTER, 10, 13):
+            nome = buf.strip()
+            if len(nome) < 2:
+                msg = "Nome muito curto (minimo 2 caracteres)."
+            else:
+                return nome
+        elif ch in (_curses.KEY_BACKSPACE, 127, 8):
+            buf = buf[:-1]
+            msg = ""
+        elif 32 <= ch <= 126 and len(buf) < 30:
+            buf += chr(ch)
+            msg = ""
+
+
+def tela_continuar(stdscr, saves: list[dict]) -> str | None:
+    """Lista saves ativos para o jogador escolher.
+
+    Args:
+        saves: Lista de dicts com 'slug', 'nome_capitao', 'tipo_navio', 'atualizado_em'.
+
+    Returns:
+        slug selecionado ou None (ESC / lista vazia).
+    """
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+    if not saves:
+        while True:
+            stdscr.erase()
+            safe_addstr(stdscr, 0, 2, "CONTINUAR", _curses.A_BOLD)
+            safe_addstr(stdscr, 2, 2, "Nenhum capitao encontrado.")
+            safe_addstr(stdscr, 4, 2, "ESC/ENTER para voltar.")
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch in (27, _curses.KEY_ENTER, 10, 13):
+                return None
+    idx = 0
+    while True:
+        stdscr.erase()
+        safe_addstr(stdscr, 0, 2, "CONTINUAR", _curses.A_BOLD)
+        safe_addstr(stdscr, 1, 2, "-" * 60)
+        for i, s in enumerate(saves):
+            marcador = "> " if i == idx else "  "
+            attr = _curses.A_REVERSE if i == idx else 0
+            linha = (
+                f"{marcador}{s['nome_capitao']:<22s}"
+                f"  [{s['tipo_navio']:6s}]"
+                f"  {s['atualizado_em'][:16]}"
+            )
+            safe_addstr(stdscr, 2 + i, 2, linha, attr)
+        safe_addstr(stdscr, 2 + len(saves) + 1, 2, "SETA CIMA/BAIXO: selecionar  ENTER: carregar  ESC: voltar")
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == _curses.KEY_UP:
+            idx = (idx - 1) % len(saves)
+        elif ch == _curses.KEY_DOWN:
+            idx = (idx + 1) % len(saves)
+        elif ch in (_curses.KEY_ENTER, 10, 13):
+            return saves[idx]["slug"]
+        elif ch == 27:
+            return None
+
+
+def tela_historico(stdscr, historico: list[dict]) -> None:
+    """Tela read-only de capitães caídos."""
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+    while True:
+        stdscr.erase()
+        safe_addstr(stdscr, 0, 2, "CAPITAES CAIDOS", _curses.A_BOLD)
+        safe_addstr(stdscr, 1, 2, "-" * 60)
+        if not historico:
+            safe_addstr(stdscr, 3, 2, "Nenhum capitao caido ainda.")
+        else:
+            for i, h in enumerate(historico):
+                duracao = h.get("duracao_segundos", 0)
+                minutos = duracao // 60
+                segundos = duracao % 60
+                causa = h.get("causa_morte") or "desconhecida"
+                not_max = h.get("notoriedade_maxima", 0)
+                linha = (
+                    f"{h['nome_capitao']:<20s}  "
+                    f"Causa: {causa:<14s}  "
+                    f"Not.: {not_max:4d}  "
+                    f"Tempo: {minutos:02d}:{segundos:02d}"
+                )
+                safe_addstr(stdscr, 2 + i, 2, linha)
+        safe_addstr(stdscr, max(4, 3 + len(historico)) + 1, 2, "ESC/ENTER para voltar.")
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch in (27, _curses.KEY_ENTER, 10, 13):
+            return
+
+
 def tela_fim(stdscr, estado) -> str:
     """Tela de fim de jogo com estatísticas e opções de continuidade.
 

@@ -27,8 +27,14 @@ class EstadoMundo:
         loot_pendente:        Porão com loot que não coube ao coletar (Tier 3b consome).
     """
 
-    def __init__(self, tipo_navio: str) -> None:
+    def __init__(self, tipo_navio: str, seed: int | None = None) -> None:
         self.tipo_navio = tipo_navio
+        if seed is None:
+            seed = random.randint(0, 2**31 - 1)
+        self.seed_mundo: int = seed
+        self._rng = random.Random(seed)
+        self.notoriedade: int = 0
+        self.portos_visitados: list[int] = []
         self.jogador_x: float = MUNDO_TAMANHO / 2
         self.jogador_y: float = MUNDO_TAMANHO / 2
         self.jogador_heading: float = 0.0
@@ -46,12 +52,12 @@ class EstadoMundo:
         self.sortear_novo_lote()
 
     def _sortear_portos(self) -> None:
-        """Sorteia posições dos portos fixos respeitando MUNDO_ESPACAMENTO_MIN."""
+        """Sorteia posições dos portos fixos de forma determinística via self._rng."""
         self.portos = []
         for _ in range(MUNDO_NUM_PORTOS):
             for _t in range(200):
-                x = random.uniform(0, MUNDO_TAMANHO)
-                y = random.uniform(0, MUNDO_TAMANHO)
+                x = self._rng.uniform(0, MUNDO_TAMANHO)
+                y = self._rng.uniform(0, MUNDO_TAMANHO)
                 if self._distancia_toroidal(x, y, self.jogador_x, self.jogador_y) < MUNDO_ESPACAMENTO_MIN:
                     continue
                 if any(

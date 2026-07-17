@@ -7,6 +7,7 @@ Contém jogo_loop() (loop de entrada+simulação+renderização) e main()
 
 import locale
 import math
+import signal
 import time
 
 try:
@@ -30,13 +31,33 @@ from .input.commands import processar_comando, obter_candidatos
 from .input.hotkeys import processar_hotkey
 from .core.simulation import atualizar_simulacao
 from .ui.renderer import desenhar_tela, desenhar_tela_mundo
-from .ui.menus import tela_menu, tela_como_jogar, tela_navio, tela_ajustes, tela_fim
+from .saves import (
+    criar_novo_save, salvar, carregar, restaurar_estado,
+    listar_saves_ativos, listar_historico,
+)
+from .ui.menus import (
+    tela_menu, tela_como_jogar, tela_navio, tela_ajustes, tela_fim,
+    tela_mundo_menu, tela_novo_capitao, tela_continuar, tela_historico,
+)
 from .world.state import EstadoMundo
 from .world.simulation import (
     atualizar_ia_mundo, atualizar_jogador_mundo,
     mundo_para_arena, arena_para_mundo,
 )
 from .port.scene import porto_loop
+
+
+# Contexto global para o handler de SIGINT salvar antes de sair.
+_save_ctx: list = []  # [estado, estado_mundo, slug] quando em mundo_loop
+
+
+def _sigint_handler(_sig, _frame) -> None:
+    if _save_ctx:
+        try:
+            salvar(_save_ctx[0], _save_ctx[1], _save_ctx[2])
+        except Exception:
+            pass
+    raise SystemExit(0)
 
 
 def _parar_jogador_mundo(estado, estado_mundo) -> None:
@@ -164,7 +185,12 @@ def jogo_loop(
     return tela_fim(stdscr, estado)
 
 
-def mundo_loop(stdscr, config: dict) -> str:
+def mundo_loop(
+    stdscr,
+    config: dict,
+    slug: str | None = None,
+    seed_mundo: int | None = None,
+) -> str:
     """Loop de navegação livre no mundo aberto.
 
     Cria e mantém um Estado persistente do jogador (dano, tripulação, moral) e
@@ -173,8 +199,10 @@ def mundo_loop(stdscr, config: dict) -> str:
     com o Estado já configurado. Ao terminar a batalha, transforma de volta.
 
     Args:
-        stdscr: Janela curses principal.
-        config: Dict com opções da sessão.
+        stdscr:      Janela curses principal.
+        config:      Dict com opções da sessão.
+        slug:        Slug do save ativo (None = sem persistência).
+        seed_mundo:  Seed para geração determinística do mundo (None = carregar do save).
 
     Returns:
         Próxima tela: 'menu' ou 'sair'.
@@ -183,18 +211,27 @@ def mundo_loop(stdscr, config: dict) -> str:
     stdscr.timeout(POLL_MS)
 
     cores = config["cores"] and bool(_curses and _curses.has_colors())
-    tipo_navio = config["tipo_navio"]
-    params = NAVIO_TIPOS[tipo_navio]
 
-    # Estado persistente do jogador (Navio + crew assignments vivem aqui)
-    estado = Estado(
-        tipo_navio=tipo_navio,
-        hotkeys=config["hotkeys"],
-        cores=cores,
-        graficos_unicode=config["unicode"],
-        textura_mar=config.get("textura_mar", True),
-        rastro_ativo=config.get("rastro", True),
-    )
+    if slug is not None and seed_mundo is None:
+        # Continuar save existente
+        data = carregar(slug)
+        seed_mundo = data["seed_mundo"]
+        estado, estado_mundo = restaurar_estado(data, config)
+        params = NAVIO_TIPOS[estado_mundo.tipo_navio]
+    else:
+        tipo_navio = config["tipo_navio"]
+        params = NAVIO_TIPOS[tipo_navio]
+        estado = Estado(
+            tipo_navio=tipo_navio,
+            hotkeys=config["hotkeys"],
+            cores=cores,
+            graficos_unicode=config["unicode"],
+            textura_mar=config.get("textura_mar", True),
+            rastro_ativo=config.get("rastro", True),
+        )
+        estado_mundo = EstadoMundo(tipo_navio, seed=seed_mundo)
+        estado_mundo.jogador_heading = estado.jogador.heading
+
     # Sem inimigo em cena durante a navegação; visão do capitão mostra apenas água.
     estado.inimigo.afundado = True
     estado.log.clear()
@@ -203,9 +240,10 @@ def mundo_loop(stdscr, config: dict) -> str:
         f"Use M para o mapa-mundo. Gatilho de combate: 750m."
     )
 
-    # Estado do mundo aberto (posicoes, inimigos NavioMundo)
-    estado_mundo = EstadoMundo(tipo_navio)
-    estado_mundo.jogador_heading = estado.jogador.heading
+    # Registra contexto para SIGINT/SIGTERM salvar antes de sair.
+    if slug:
+        _save_ctx.clear()
+        _save_ctx.extend([estado, estado_mundo, slug])
 
     buffer_entrada = ""
     last_tick = time.time()
@@ -218,6 +256,8 @@ def mundo_loop(stdscr, config: dict) -> str:
         ch = stdscr.getch()
         if ch != -1:
             if ch == 27:  # ESC → menu
+                if slug:
+                    salvar(estado, estado_mundo, slug)
                 return "menu"
             elif ch in (ord('M'), ord('m')):
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
@@ -519,6 +559,8 @@ def _processar_cmd_mundo(
             estado.log.append(f"Atracando em {porto_proximo.nome}...")
             _parar_jogador_mundo(estado, estado_mundo)
             porto_loop(stdscr, estado, estado_mundo, porto_idx)
+            if slug:
+                salvar(estado, estado_mundo, slug)
             estado_mundo.rastro_jogador.clear()
             if estado_mundo.loot_pendente is not None and not estado_mundo.loot_pendente.barris:
                 estado_mundo.loot_pendente = None
@@ -564,6 +606,29 @@ def _processar_cmd_mundo(
         estado.log.append("Inventario fechado.")
     else:
         processar_comando(texto, estado)
+
+
+def _mundo_menu_loop(stdscr, config: dict) -> str:
+    """Sub-menu do Mundo Aberto: cria/carrega capitão e lança mundo_loop."""
+    while True:
+        escolha = tela_mundo_menu(stdscr)
+        if escolha == "voltar":
+            return "menu"
+        elif escolha == "novo":
+            nome = tela_novo_capitao(stdscr)
+            if nome is None:
+                continue
+            slug, seed = criar_novo_save(nome, config.get("tipo_navio", "normal"))
+            resultado = mundo_loop(stdscr, config, slug=slug, seed_mundo=seed)
+            return "sair" if resultado == "sair" else "menu"
+        elif escolha == "continuar":
+            slug = tela_continuar(stdscr, listar_saves_ativos())
+            if slug is None:
+                continue
+            resultado = mundo_loop(stdscr, config, slug=slug, seed_mundo=None)
+            return "sair" if resultado == "sair" else "menu"
+        elif escolha == "historico":
+            tela_historico(stdscr, listar_historico())
 
 
 def main(stdscr) -> None:
@@ -614,7 +679,7 @@ def main(stdscr) -> None:
         elif tela_atual == "jogar":
             tela_atual = jogo_loop(stdscr, config)
         elif tela_atual == "mundo":
-            tela_atual = mundo_loop(stdscr, config)
+            tela_atual = _mundo_menu_loop(stdscr, config)
         else:
             tela_atual = "menu"
 
@@ -622,9 +687,11 @@ def main(stdscr) -> None:
 def run() -> None:
     """Ponto de entrada instalável via pyproject.toml [project.scripts]."""
     import sys
+    signal.signal(signal.SIGINT, _sigint_handler)
+    signal.signal(signal.SIGTERM, _sigint_handler)
     try:
         _curses.wrapper(main)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         pass
     except _curses.error as e:
         print(f"Erro de terminal (talvez a janela esteja pequena demais): {e}")
