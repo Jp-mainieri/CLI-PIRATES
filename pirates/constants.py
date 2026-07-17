@@ -265,7 +265,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
-        "reparo_mult": 1.0,
+        "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
     },
     "normal": {
@@ -278,7 +278,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
-        "reparo_mult": 1.0,
+        "reparo_mult": 1.0,     # Bergantim — velocidade de reparo média
         "porao_capacidade": 9,
     },
     "dificil": {
@@ -291,7 +291,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
-        "reparo_mult": 1.0,
+        "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
     },
 }

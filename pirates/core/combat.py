@@ -48,6 +48,15 @@ def rumo_para(a, b) -> float:
     return math.degrees(math.atan2(dx, dy)) % 360
 
 
+def eficiencia_angular(atirador, alvo, lado: str) -> float:
+    """Retorna 0.0 (borda do arco) a 1.0 (bordada perfeita a 90°/270°)."""
+    r = rumo_para(atirador, alvo)
+    rel = (r - atirador.heading) % 360
+    centro = 90.0 if lado == 'estibordo' else 270.0
+    offset = min(abs(rel - centro), 360 - abs(rel - centro))
+    return max(0.0, 1.0 - offset / 70.0)
+
+
 def dentro_do_arco(atirador, alvo, lado: str) -> tuple[bool, float]:
     """Verifica se *alvo* está dentro do arco de tiro de *lado* de *atirador*.
 
@@ -90,17 +99,19 @@ def escolher_parte_atingida() -> str:
     return random.choices(partes, weights=[pesos[p] for p in partes], k=1)[0]
 
 
-def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
+def disparar_canhao_unico(atirador, alvo, canhao, log, e_jogador: bool = True) -> str | bool:
     """Executa o disparo de um único canhão contra o alvo.
 
-    A chance de acerto depende do erro de estimativa de distância, da
-    instabilidade causada pelo dano no casco e da distância real.
+    A chance de acerto depende do erro de estimativa de distância (curva
+    quadrática), do ângulo de bordada, da instabilidade causada pelo dano
+    no casco e da distância real.
 
     Args:
-        atirador: Navio que atira.
-        alvo:     Navio alvo.
-        canhao:   Objeto Canhao sendo disparado.
-        log:      Deque de log para registrar o resultado.
+        atirador:   Navio que atira.
+        alvo:       Navio alvo.
+        canhao:     Objeto Canhao sendo disparado.
+        log:        Deque de log para registrar o resultado.
+        e_jogador:  True se o atirador é o jogador (controla mensagens de log).
 
     Returns:
         'acerto', 'erro', ou False se o alvo estiver fora de arco/alcance.
@@ -113,8 +124,10 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
         tem_polvora = atirador.porao.total("polvora") >= 1
         tem_bolas = atirador.porao.total("bolas") >= 1
         if not tem_polvora or not tem_bolas:
-            if not canhao.aviso_sem_municao:
+            if e_jogador and not canhao.aviso_sem_municao:
                 log.append(f"Canhao {canhao.label} sem municao, nao pode atirar")
+                canhao.aviso_sem_municao = True
+            elif not e_jogador:
                 canhao.aviso_sem_municao = True
             return False
         atirador.porao.consumir("polvora", 1)
@@ -122,7 +135,9 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
 
     erro_estimativa = abs(canhao.dist_alvo - d)
     instabilidade = (100 - atirador.partes['casco']) / 100 * 35
-    chance_base = clamp(88 - erro_estimativa * 0.18 - instabilidade - d * 0.03, 4, 92)
+    penalty_dist = (d / 500.0) ** 2 * 25
+    bonus_angulo = eficiencia_angular(atirador, alvo, canhao.lado) * 8
+    chance_base = clamp(88 + bonus_angulo - erro_estimativa * 0.18 - instabilidade - penalty_dist, 4, 92)
     chance_acerto = chance_base * atirador.multiplicador_moral()
 
     if random.uniform(0, 100) < chance_acerto:
@@ -135,7 +150,10 @@ def disparar_canhao_unico(atirador, alvo, canhao, log) -> str | bool:
         atirador.registrar_acerto_moral()
         return "acerto"
     else:
-        log.append(f"[ERRO] Canhao {canhao.label} erra o alvo")
+        if e_jogador:
+            log.append(f"[ERRO] Canhao {canhao.label} erra o alvo")
+        else:
+            log.append(f"[DESV] Tiro inimigo desvia de {alvo.nome}")
         return "erro"
 
 
@@ -163,7 +181,7 @@ def disparar_canhoes_navio(estado, atirador, alvo) -> None:
             ok, _ = dentro_do_arco(atirador, alvo, lado)
             if not ok:
                 continue
-            resultado = disparar_canhao_unico(atirador, alvo, c, estado.log)
+            resultado = disparar_canhao_unico(atirador, alvo, c, estado.log, e_jogador=e_jogador)
             if resultado in ("acerto", "erro"):
                 if e_jogador:
                     estado.stats["tiros_jogador"] += 1

@@ -36,9 +36,9 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     """Atualiza o heading alvo e o nível de vela do navio inimigo.
 
     Comportamento normal:
-    - Longe (>380m): aproxima em velocidade máxima.
-    - Perto (<250m): afasta para manter distância de combate.
-    - Faixa ideal (250-380m): circula lateralmente.
+    - Longe (>280m): aproxima em velocidade máxima.
+    - Perto (<150m): afasta para manter distância de combate.
+    - Faixa ideal (150-280m): circula lateralmente com estibordo ao jogador.
 
     Comportamento em fuga: foge na direção oposta ao jogador a todo vapor.
 
@@ -58,13 +58,13 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
         inimigo.nivel_vela = 3
         return
 
-    if d > 380:
+    if d > 280:
         inimigo.heading_alvo = r
         inimigo.nivel_vela = 3
-    elif d < 250:
+    elif d < 150:
         inimigo.heading_alvo = (r + 180) % 360
         inimigo.nivel_vela = 2
-    else:
+    else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
         inimigo.heading_alvo = (r + 90) % 360
         inimigo.nivel_vela = 2
 
