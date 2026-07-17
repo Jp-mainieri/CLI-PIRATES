@@ -567,6 +567,11 @@ def mundo_loop(
                         c.proximo_tiro = 0.0
                         c.aviso_sem_municao = False
 
+                for lado in ('bombordo', 'estibordo'):
+                    for c in estado.jogador.canhoes[lado]:
+                        c.proximo_tiro = 0.0
+                        c.aviso_sem_municao = False
+
                 # Reset do estado de combate
                 estado.rodando = True
                 estado.fim = None
