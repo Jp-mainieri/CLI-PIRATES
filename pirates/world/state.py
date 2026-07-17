@@ -11,6 +11,7 @@ from ..constants import (
 )
 from .entities import NavioMundo, Porto, Ilha, eh_solido_ilha
 from ..core.porao import Porao
+from ..core.notoriedade import sortear_tipo_navio, chance_elite
 
 
 class EstadoMundo:
@@ -35,7 +36,8 @@ class EstadoMundo:
             seed = random.randint(0, 2**31 - 1)
         self.seed_mundo: int = seed
         self._rng = random.Random(seed)
-        self.notoriedade: int = 0
+        self.notoriedade: float = 0.0
+        self.horas_na_faixa8: float = 0.0
         self.portos_visitados: list[int] = []
         self.jogador_x: float = MUNDO_TAMANHO / 2
         self.jogador_y: float = MUNDO_TAMANHO / 2
@@ -133,11 +135,21 @@ class EstadoMundo:
                     continue
                 if any(eh_solido_ilha(x, y, ilha) for ilha in self.ilhas):
                     continue
+                tipo = sortear_tipo_navio(self.notoriedade)
+                eh_elite = random.random() < chance_elite(self.notoriedade, self.horas_na_faixa8)
                 self.inimigos.append(
                     NavioMundo(x=x, y=y, heading=random.uniform(0, 360),
-                               avoidance_mult=random.uniform(1.5, 3.0))
+                               avoidance_mult=random.uniform(1.5, 3.0),
+                               tipo_navio=tipo, elite=eh_elite)
                 )
                 break
+
+    def acumular_horas_faixa8(self, dt: float) -> None:
+        """Acumula tempo de jogo na faixa 8 de notoriedade (usado no crescimento
+        assintótico da chance de elite). Chamado a cada tick do mundo aberto."""
+        from ..core.notoriedade import faixa_index
+        if faixa_index(self.notoriedade) == 7:
+            self.horas_na_faixa8 += dt / 3600.0
 
     def _distancia_toroidal(self, x1: float, y1: float, x2: float, y2: float) -> float:
         """Distância euclidiana considerando o wraparound do mundo toroidal."""

@@ -28,6 +28,7 @@ from .constants import (
 from .core.state import Estado
 from .core.ship import Canhao
 from .core.porao import gerar_porao_inimigo, coletar_loot
+from .core.notoriedade import sortear_bonus_elite, pontos_por_afundamento, pontos_perdidos_por_fuga
 from .input.commands import processar_comando, obter_candidatos
 from .input.hotkeys import processar_hotkey
 from .core.simulation import atualizar_simulacao
@@ -434,6 +435,7 @@ def mundo_loop(
             dt = min(agora - last_tick, MUNDO_TICK)
             last_tick = agora
             estado.tempo += dt
+            estado_mundo.acumular_horas_faixa8(dt)
 
             # Sync controles do jogador para o mundo
             estado_mundo.jogador_heading_alvo = estado.jogador.heading_alvo
@@ -535,14 +537,22 @@ def mundo_loop(
                 estado.jogador.x = 0.0
                 estado.jogador.y = 0.0
 
-                # Configura estado.inimigo a partir do NavioMundo
+                # Configura estado.inimigo a partir do NavioMundo (perfil por
+                # navio: tipo_navio individual, nao mais o tipo global do mundo)
+                params_inimigo = NAVIO_TIPOS[inimigo_engajado.tipo_navio]
                 estado.inimigo.x = inimigo_dx
                 estado.inimigo.y = inimigo_dy
                 estado.inimigo.heading = inimigo_engajado.heading
                 estado.inimigo.heading_alvo = inimigo_engajado.heading
                 estado.inimigo.velocidade = inimigo_engajado.velocidade
                 estado.inimigo.afundado = False
-                estado.inimigo.tipo_nome = params.get('navio', 'Chalupa')
+                estado.inimigo.tipo_nome = params_inimigo['navio']
+                estado.inimigo.velocidade_max_base = params_inimigo['velocidade_max_base']
+                estado.inimigo.giro_graus_seg = params_inimigo['giro_graus_seg']
+                estado.inimigo.reparo_mult = params_inimigo['reparo_mult']
+                estado.inimigo.num_velas = params_inimigo['num_velas']
+                estado.inimigo_tipo_navio = inimigo_engajado.tipo_navio
+                estado.inimigo_min_crew_canhao = params_inimigo['min_crew_canhao']
                 if inimigo_engajado.partes is not None:
                     estado.inimigo.partes = dict(inimigo_engajado.partes)
                     estado.inimigo.agua = inimigo_engajado.agua
@@ -553,19 +563,32 @@ def mundo_loop(
                     estado.inimigo.agua = 0.0
                     estado.inimigo.moral_atual = 100.0
 
-                cap = params["porao_capacidade"]
+                # Bonus de status do inimigo elite (sorteado por engajamento,
+                # nao persiste entre combates): +casco (via resistencia
+                # efetiva), +tripulacao, -cooldown.
+                if inimigo_engajado.elite:
+                    bonus_elite = sortear_bonus_elite(estado_mundo.notoriedade)
+                else:
+                    bonus_elite = {"casco": 0.0, "tripulacao": 0.0, "cooldown": 0.0}
+                estado.inimigo.upgrades['resistencia_casco'] = bonus_elite['casco']
+                estado.inimigo_crew_total = math.ceil(
+                    params_inimigo['crew_total'] * (1.0 + bonus_elite['tripulacao'])
+                )
+                estado.inimigo_cooldown_bonus = bonus_elite['cooldown']
+
+                cap = params_inimigo["porao_capacidade"]
                 if inimigo_engajado.porao is not None:
                     estado.inimigo.porao = inimigo_engajado.porao
                 else:
-                    estado.inimigo.porao = gerar_porao_inimigo(cap)
+                    estado.inimigo.porao = gerar_porao_inimigo(cap, elite=inimigo_engajado.elite)
                     inimigo_engajado.porao = estado.inimigo.porao
 
-                for lado in ('bombordo', 'estibordo'):
-                    for c in estado.inimigo.canhoes[lado]:
-                        c.tripulantes = 0
-                        c.dist_alvo = None
-                        c.proximo_tiro = 0.0
-                        c.aviso_sem_municao = False
+                # Recria os canhoes do inimigo no numero certo pro tipo dele
+                # (canhoes_lado varia por tipo de navio).
+                estado.inimigo.canhoes = {
+                    'bombordo':  [Canhao('bombordo', i + 1) for i in range(params_inimigo['canhoes_lado'])],
+                    'estibordo': [Canhao('estibordo', i + 1) for i in range(params_inimigo['canhoes_lado'])],
+                }
 
                 for lado in ('bombordo', 'estibordo'):
                     for c in estado.jogador.canhoes[lado]:
@@ -580,6 +603,8 @@ def mundo_loop(
                 estado.zoom_mudou_em = -999.0
                 estado.inimigo_em_fuga = False
                 estado.tempo_fuga_longe = 0.0
+                estado.jogador_tentando_fugir = False
+                estado.tempo_fuga_jogador = 0.0
                 estado.stats = {
                     "tiros_jogador": 0, "acertos_jogador": 0,
                     "tiros_inimigo": 0, "acertos_inimigo": 0,
@@ -638,6 +663,9 @@ def mundo_loop(
                     )
                     inimigo_engajado.loot = estado.inimigo.porao
                     inimigo_engajado.porao = None
+                    pontos = pontos_por_afundamento(inimigo_engajado.tipo_navio, inimigo_engajado.elite)
+                    estado_mundo.notoriedade += pontos
+                    estado.log.append(f"+{pontos:.0f} notoriedade!")
 
                 elif estado.fim == "fuga":
                     inimigo_engajado.status = "fugindo"
@@ -648,6 +676,20 @@ def mundo_loop(
                     inimigo_engajado.partes = dict(estado.inimigo.partes)
                     inimigo_engajado.agua = estado.inimigo.agua
                     inimigo_engajado.porao = estado.inimigo.porao
+
+                elif estado.fim == "fuga_jogador":
+                    # O inimigo nao fugiu, foi o jogador quem escapou: continua
+                    # em patrulha normal, mas com o dano sofrido preservado.
+                    inimigo_engajado.x, inimigo_engajado.y = arena_para_mundo(
+                        ox, oy, estado.inimigo.x, estado.inimigo.y,
+                    )
+                    inimigo_engajado.moral_atual = estado.inimigo.moral_atual
+                    inimigo_engajado.partes = dict(estado.inimigo.partes)
+                    inimigo_engajado.agua = estado.inimigo.agua
+                    inimigo_engajado.porao = estado.inimigo.porao
+                    perda = pontos_perdidos_por_fuga(inimigo_engajado.tipo_navio, inimigo_engajado.elite)
+                    estado_mundo.notoriedade = max(0.0, estado_mundo.notoriedade - perda)
+                    estado.log.append(f"-{perda:.0f} notoriedade por fugir do combate.")
 
                 # Reset do aviso de munição dos canhões do jogador
                 for lado in ('bombordo', 'estibordo'):

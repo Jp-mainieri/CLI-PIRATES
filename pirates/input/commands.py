@@ -195,6 +195,18 @@ def processar_comando(texto: str, estado: Estado) -> None:
                 "trip <n> | mirar <d> | parar"
             )
 
+    elif cmd == "fugir":
+        if estado.inimigo_em_fuga:
+            estado.log.append("O inimigo ja esta fugindo, nao ha sentido em fugir agora.")
+        elif estado.jogador_tentando_fugir:
+            estado.log.append("Voce ja esta tentando fugir. Afaste-se e mantenha distancia!")
+        else:
+            estado.jogador_tentando_fugir = True
+            estado.tempo_fuga_jogador = 0.0
+            estado.log.append(
+                "Voce tenta fugir! Afaste-se a mais de 900m por 15s (custa notoriedade)."
+            )
+
     else:
         estado.log.append("Comando nao reconhecido. Digite 'ajuda'.")
 

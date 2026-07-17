@@ -74,13 +74,13 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
     direção oposta ao jogador. Fora disso, comportamento de patrulha (mas
     mantém status 'fugindo' para preservar partes/agua/moral).
     """
-    params = NAVIO_TIPOS[estado_mundo.tipo_navio]
-    vmax_patrulha = params["velocidade_max_base"] * 1 / 3
-    vmax_fuga = params["velocidade_max_base"] * 3 / 3
-
     for navio in estado_mundo.inimigos:
         if navio.status == "afundado":
             continue
+
+        params = NAVIO_TIPOS[navio.tipo_navio]
+        vmax_patrulha = params["velocidade_max_base"] * 1 / 3
+        vmax_fuga = params["velocidade_max_base"] * 3 / 3
 
         dx, dy = delta_toroidal(
             navio.x, navio.y,

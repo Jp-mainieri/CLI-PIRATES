@@ -222,13 +222,13 @@ ARROWS_UNICODE = ['↑', '↗', '→', '↘',
                   '↓', '↙', '←', '↖']
 """Setas Unicode para os 8 rumos (↑ ↗ → ↘ ↓ ↙ ← ↖)."""
 
-COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda"]
+COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda", "fugir"]
 """Comandos de texto aceitos no prompt do jogo."""
 
 CANHAO_SUBCMDS = ["trip", "mirar", "parar"]
 """Subcomandos válidos para o comando 'canhao'."""
 
-ALIASES = {"l": "leme", "v": "vela", "r": "reparar", "b": "bomba", "c": "canhao"}
+ALIASES = {"l": "leme", "v": "vela", "r": "reparar", "b": "bomba", "c": "canhao", "f": "fugir"}
 """Atalhos de uma letra para comandos completos."""
 
 REPARO_CREW_PADRAO = 2
@@ -354,6 +354,20 @@ PRECO_UPGRADE = {
 }
 """Preços dos upgrades permanentes por navio."""
 
+PRECO_ITENS_TOPO = {
+    "casco_lendario":  600.0,   # +50% resistência efetiva de casco
+    "alcance_lendario": 450.0,  # +120m alcance (empilha com upgrade normal)
+    "porao_lendario":   500.0,  # +3 slots de porão de uma vez
+}
+"""Preços dos itens de topo, desbloqueados por faixa de notoriedade."""
+
+FAIXA_MINIMA_ITEM_TOPO = {
+    "casco_lendario":  6,   # índice 6 = "Terror dos Sete Mares"
+    "alcance_lendario": 6,
+    "porao_lendario":   7,  # índice 7 = "Lenda Viva"
+}
+"""Índice mínimo (0-indexado) em NOTORIEDADE_FAIXAS exigido para cada item de topo."""
+
 # ---------------------------------------------------------------------------
 # Arte ASCII
 # ---------------------------------------------------------------------------
@@ -394,6 +408,14 @@ ARTE_FUGA = [
     "     O INIMIGO FUGIU NO HORIZONTE!",
 ]
 
+ARTE_FUGA_JOGADOR = [
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "  <--<--<--[ SEU NAVIO ]",
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "",
+    "     VOCE ESCAPOU NO HORIZONTE!",
+]
+
 COMO_JOGAR_TEXTO = [
     "COMO JOGAR",
     "",
@@ -432,6 +454,8 @@ COMO_JOGAR_TEXTO = [
     "  canhao <id> <dist>       aloca e mira           alias: c",
     "  canhao <id> parar        para e libera crew",
     "  radar                    distancia/rumo exatos do inimigo",
+    "  fugir                    tenta escapar (fica a 900m+ por 15s) alias: f",
+    "                           inimigo nao pode estar fugindo; custa notoriedade",
     "  ENTER vazio              repete o ultimo comando",
     "",
     "  Canhao consome 1 polvora + 1 bola por tiro.",

@@ -143,6 +143,8 @@ def disparar_canhao_unico(atirador, alvo, canhao, log, e_jogador: bool = True) -
     if random.uniform(0, 100) < chance_acerto:
         parte = escolher_parte_atingida()
         dano = random.uniform(9, 19)
+        if parte == 'casco':
+            dano *= alvo.resistencia_casco_mult()
         alvo.partes[parte] = clamp(alvo.partes[parte] - dano, 0, 100)
         log.append(
             f"[ACERTO] Canhao {canhao.label} acerta {alvo.nome} no(a) {parte} (-{dano:.0f}%)"
@@ -168,7 +170,13 @@ def disparar_canhoes_navio(estado, atirador, alvo) -> None:
         alvo:     Navio alvo.
     """
     e_jogador = atirador is estado.jogador
-    cooldown_mult_base = 1.0 if e_jogador else NAVIO_TIPOS[estado.tipo_navio]["cooldown_mult"]
+    if e_jogador:
+        cooldown_mult_base = 1.0
+    else:
+        cooldown_mult_base = (
+            NAVIO_TIPOS[estado.inimigo_tipo_navio]["cooldown_mult"]
+            * (1.0 - estado.inimigo_cooldown_bonus)
+        )
     mult_moral = max(atirador.multiplicador_moral(), 0.05)
     cooldown_mult = cooldown_mult_base / mult_moral
 

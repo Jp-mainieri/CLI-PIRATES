@@ -82,7 +82,7 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
 def _crewar_canhoes(estado, inimigo, restante: int) -> None:
     """Distribui *restante* tripulantes pelos canhões do inimigo."""
     jogador = estado.jogador
-    min_c = estado.min_crew_canhao
+    min_c = estado.inimigo_min_crew_canhao
     lados_no_arco = [
         lado for lado in ('estibordo', 'bombordo')
         if dentro_do_arco(inimigo, jogador, lado)[0]
@@ -123,8 +123,8 @@ def atualizar_ia_tripulacao(estado) -> None:
         estado: Estado atual do jogo.
     """
     inimigo = estado.inimigo
-    total = estado.crew_total
-    min_c = estado.min_crew_canhao
+    total = estado.inimigo_crew_total
+    min_c = estado.inimigo_min_crew_canhao
 
     bomba_alvo = 0
     if inimigo.agua > estado.ia_limiar_agua:
@@ -162,12 +162,12 @@ def atualizar_ia_mira(estado) -> None:
     """
     inimigo = estado.inimigo
     jogador = estado.jogador
-    erro = NAVIO_TIPOS[estado.tipo_navio]["erro_mira"]
+    erro = NAVIO_TIPOS[estado.inimigo_tipo_navio]["erro_mira"]
     d_real = distancia(inimigo, jogador)
 
     for lado in ('bombordo', 'estibordo'):
         for c in inimigo.canhoes[lado]:
-            if c.tripulantes < estado.min_crew_canhao:
+            if c.tripulantes < estado.inimigo_min_crew_canhao:
                 continue
             if c.dist_alvo is None or estado.tempo >= c.proximo_tiro:
                 novo = d_real + random.uniform(-erro, erro)

@@ -39,11 +39,18 @@ class Estado:
         ia_limiar_fuga_saida:   Moral acima da qual o inimigo sai do modo fuga.
         inimigo_em_fuga:   True quando o inimigo está tentando escapar.
         tempo_fuga_longe:  Segundos que o inimigo ficou além de ALCANCE_FUGA_ESCAPE.
+        jogador_tentando_fugir: True quando o jogador está tentando escapar (comando 'fugir').
+        tempo_fuga_jogador:     Segundos que o jogador ficou além de ALCANCE_FUGA_ESCAPE.
+        inimigo_tipo_navio:  Chave NAVIO_TIPOS do inimigo atualmente engajado (pode
+                              divergir de tipo_navio do jogador; ver mundo aberto/notoriedade).
+        inimigo_crew_total:      Total de tripulantes do inimigo nesta partida.
+        inimigo_min_crew_canhao: Tripulantes mínimos por canhão do inimigo nesta partida.
+        inimigo_cooldown_bonus:  Fração de redução de cooldown do inimigo (bônus elite).
         crew_reparo:       Dict parte→int com tripulação de reparo do jogador.
         crew_bomba:        Tripulantes do jogador nas bombas.
         tempo:             Tempo decorrido de simulação, em segundos.
         rodando:           False quando o loop principal deve encerrar.
-        fim:               'vitoria', 'derrota', 'fuga' ou None.
+        fim:               'vitoria', 'derrota', 'fuga', 'fuga_jogador' ou None.
         stats:             Dict com contadores de tiros e acertos.
         log:               Deque de mensagens recentes (máx 8).
         ultimo_comando:    Último comando de texto digitado (para repetição).
@@ -117,6 +124,15 @@ class Estado:
         self.ia_limiar_fuga_saida: float = random.uniform(FUGA_SAIDA_MIN, FUGA_SAIDA_MAX)
         self.inimigo_em_fuga: bool = False
         self.tempo_fuga_longe: float = 0.0
+        self.jogador_tentando_fugir: bool = False
+        self.tempo_fuga_jogador: float = 0.0
+
+        # Perfil de combate do inimigo engajado (por padrão espelha o do jogador;
+        # o mundo aberto pode sobrescrever por navio, ver game.py/notoriedade).
+        self.inimigo_tipo_navio: str = self.tipo_navio
+        self.inimigo_crew_total: int = self.crew_total
+        self.inimigo_min_crew_canhao: int = self.min_crew_canhao
+        self.inimigo_cooldown_bonus: float = 0.0
 
         self.crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.crew_bomba: int = 0

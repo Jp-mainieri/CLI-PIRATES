@@ -11,7 +11,7 @@ except ImportError:
     _curses = None  # type: ignore[assignment]
 
 from ..constants import (
-    TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, COMO_JOGAR_TEXTO,
+    TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, ARTE_FUGA_JOGADOR, COMO_JOGAR_TEXTO,
     DIFICULDADES, NAVIO_TIPOS, PARTES,
     COR_VERDE, COR_VERMELHO, COR_AMARELO,
 )
@@ -419,6 +419,9 @@ def tela_fim(stdscr, estado) -> str:
             attr_arte = _curses.color_pair(COR_VERDE) if (estado.cores_ativo and _curses) else 0
         elif estado.fim == "fuga":
             arte = list(ARTE_FUGA)
+            attr_arte = _curses.color_pair(COR_AMARELO) if (estado.cores_ativo and _curses) else 0
+        elif estado.fim == "fuga_jogador":
+            arte = list(ARTE_FUGA_JOGADOR)
             attr_arte = _curses.color_pair(COR_AMARELO) if (estado.cores_ativo and _curses) else 0
         else:
             arte = list(ARTE_DERROTA)

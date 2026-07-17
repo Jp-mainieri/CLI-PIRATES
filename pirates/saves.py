@@ -97,6 +97,7 @@ def estado_para_dict(
             "y": estado_mundo.jogador_y,
             "heading": estado_mundo.jogador_heading,
             "notoriedade": getattr(estado_mundo, "notoriedade", 0),
+            "horas_na_faixa8": getattr(estado_mundo, "horas_na_faixa8", 0.0),
             "portos_visitados": list(getattr(estado_mundo, "portos_visitados", [])),
         },
         "navio": {
@@ -108,6 +109,7 @@ def estado_para_dict(
             "alcance_canhao": navio.alcance_canhao,
             "upgrades": dict(navio.upgrades),
             "upgrade_niveis": dict(navio.upgrade_niveis),
+            "itens_topo": dict(navio.itens_topo),
             "porao": [
                 {"tipo": b.tipo, "quantidade": b.quantidade}
                 for b in navio.porao.barris
@@ -152,6 +154,7 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     estado.jogador.alcance_canhao = navio_data["alcance_canhao"]
     estado.jogador.upgrades = dict(navio_data["upgrades"])
     estado.jogador.upgrade_niveis = dict(navio_data["upgrade_niveis"])
+    estado.jogador.itens_topo = dict(navio_data.get("itens_topo", {}))
     estado.jogador.porao.barris = [
         Barril(tipo=b["tipo"], quantidade=b["quantidade"])
         for b in navio_data["porao"]
@@ -168,6 +171,7 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     estado_mundo.jogador_heading = cap["heading"]
     estado_mundo.jogador_heading_alvo = cap["heading"]
     estado_mundo.notoriedade = cap.get("notoriedade", 0)
+    estado_mundo.horas_na_faixa8 = cap.get("horas_na_faixa8", 0.0)
     estado_mundo.portos_visitados = list(cap.get("portos_visitados", []))
 
     return estado, estado_mundo
@@ -206,6 +210,7 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "y": 4000.0,
             "heading": 0.0,
             "notoriedade": 0,
+            "horas_na_faixa8": 0.0,
             "portos_visitados": [],
         },
         "navio": {
@@ -217,6 +222,7 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "alcance_canhao": 550.0,
             "upgrades": {},
             "upgrade_niveis": {},
+            "itens_topo": {},
             "porao": [],
         },
         "estatisticas_finais": {

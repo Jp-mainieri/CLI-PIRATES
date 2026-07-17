@@ -212,6 +212,12 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     parte2 = f"{modo_label} | tempo: {estado.tempo:5.1f}s"
     safe_addstr(stdscr, row, col, parte2, cor_header(estado))
     col += len(parte2)
+    from ..core.notoriedade import titulo as notoriedade_titulo, icone as notoriedade_icone
+    notoriedade = getattr(estado_mundo, 'notoriedade', 0.0)
+    icone_not = notoriedade_icone(notoriedade, unicode=estado.graficos_unicode)
+    parte_not = f" | {icone_not} {notoriedade_titulo(notoriedade)} ({notoriedade:.0f})"
+    safe_addstr(stdscr, row, col, parte_not, cor_header(estado))
+    col += len(parte_not)
     if estado.modo_adm:
         attr_adm = (_curses.color_pair(COR_AMARELO) | _curses.A_BOLD) if _curses else 0
         safe_addstr(stdscr, row, col, " | [ADM]", attr_adm)

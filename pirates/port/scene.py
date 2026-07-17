@@ -13,14 +13,16 @@ from .lojas import (
     preco_reparo, preco_reabastecer, preco_venda,
     preco_upgrade_nivel, nivel_atual_upgrade, nivel_max_upgrade,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
-    comprar_navio_loja, renomear_navio_loja, aplicar_upgrade,
+    comprar_navio_loja, renomear_navio_loja, aplicar_upgrade, comprar_item_topo,
     UPGRADE_NIVEIS_MAX,
 )
 from ..constants import (
     PRECO_NAVIO_NOVO, PRECO_BARRIL_NOVO, PRECO_RENOMEAR,
     NAVIO_TIPOS, SIMB_CAPITAO,
     COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR,
+    PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
 )
+from ..core.notoriedade import faixa_index
 
 # ---------------------------------------------------------------------------
 # Layout da grade do porto
@@ -366,7 +368,7 @@ def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
             msg = m
 
 
-def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) -> None:
+def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, estado_mundo) -> None:
     """Sub-loop da loja de navios."""
     msg = ""
     while True:
@@ -376,6 +378,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
             "Trocar de navio ativo (frota) ...........................",
             f"Renomear navio atual .................................... {PRECO_RENOMEAR:.1f} ouro",
             "Upgrades do navio atual .................................",
+            "Itens de topo ............................................",
             "[Voltar]",
         ]
         extra = [f">> {msg}"] if msg else None
@@ -385,7 +388,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
             estado, extra_linhas=extra,
         )
         msg = ""
-        if escolha in (-1, 4):
+        if escolha in (-1, 5):
             return
 
         elif escolha == 0:
@@ -411,6 +414,9 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado) ->
 
         elif escolha == 3:
             _loja_upgrades(stdscr, navio_ativo, tipo_navio_atual, estado)
+
+        elif escolha == 4:
+            _loja_itens_topo(stdscr, navio_ativo, estado_mundo, estado)
 
 
 def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> str:
@@ -510,6 +516,51 @@ def _loja_upgrades(stdscr, navio, tipo_navio: str, estado) -> None:
         msg = m
 
 
+def _loja_itens_topo(stdscr, navio, estado_mundo, estado) -> None:
+    """Sub-loop dos itens de topo, desbloqueados por faixa de notoriedade.
+
+    Itens abaixo da faixa mínima nem aparecem listados.
+    """
+    CHAVES = ["casco_lendario", "alcance_lendario", "porao_lendario"]
+    LABELS = {
+        "casco_lendario":   "Casco Reforcado Lendario (+50% resistencia)",
+        "alcance_lendario": "Luneta Lendaria (+120m alcance)",
+        "porao_lendario":   "Porao Lendario (+3 slots)",
+    }
+    msg = ""
+    while True:
+        faixa_atual = faixa_index(getattr(estado_mundo, 'notoriedade', 0.0))
+        disponiveis = [c for c in CHAVES if faixa_atual >= FAIXA_MINIMA_ITEM_TOPO[c]]
+        if not disponiveis:
+            extra = ["Nenhum item de topo disponivel na sua faixa de notoriedade atual."]
+            _menu_simples(
+                stdscr, "ITENS DE TOPO", ["[Voltar]"],
+                "ESPACO/ESC: voltar", estado, extra_linhas=extra,
+            )
+            return
+
+        opcoes = []
+        for chave in disponiveis:
+            if navio.itens_topo.get(chave, False):
+                opcoes.append(f"{LABELS[chave]} ... (COMPRADO)  ---")
+            else:
+                preco = PRECO_ITENS_TOPO[chave]
+                opcoes.append(f"{LABELS[chave]} ... {preco:.1f} ouro")
+        opcoes.append("[Voltar]")
+        extra = [f">> {msg}"] if msg else None
+        escolha = _menu_simples(
+            stdscr, "ITENS DE TOPO", opcoes,
+            "CIMA/BAIXO: navegar  ESPACO: comprar  ESC: voltar",
+            estado, extra_linhas=extra,
+        )
+        msg = ""
+        if escolha in (-1, len(opcoes) - 1):
+            return
+        chave = disponiveis[escolha]
+        ok, m = comprar_item_topo(navio, chave, faixa_atual)
+        msg = m
+
+
 # ---------------------------------------------------------------------------
 # Loop principal do porto
 # ---------------------------------------------------------------------------
@@ -587,7 +638,7 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
             _loja_recurso(stdscr, estado.jogador, "tabuas", estado)
             msg = "Saindo da loja de tabuas."
         elif loja == "navios":
-            _loja_navios(stdscr, frota, porto_id, estado.tipo_navio, estado)
+            _loja_navios(stdscr, frota, porto_id, estado.tipo_navio, estado, estado_mundo)
             msg = "Saindo da loja de navios."
 
     stdscr.nodelay(True)
