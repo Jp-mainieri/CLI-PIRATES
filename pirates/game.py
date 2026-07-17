@@ -273,16 +273,16 @@ def mundo_loop(
                             estado.log.append(f"{b.quantidade:.1f} de {b.tipo} se perdeu nos destrocos.")
                         estado_mundo.loot_pendente = None
             elif ch in (ord('N'), ord('n')) and buffer_entrada == "":
-                _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr)
+                _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr, slug)
             elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
                 estado.modo_adm = not estado.modo_adm
             elif ch in (_curses.KEY_ENTER, 10, 13):
                 cmd = buffer_entrada.strip()
                 if cmd:
-                    _processar_cmd_mundo(cmd, estado, estado_mundo, stdscr)
+                    _processar_cmd_mundo(cmd, estado, estado_mundo, stdscr, slug)
                     estado.ultimo_comando = cmd
                 elif estado.ultimo_comando:
-                    _processar_cmd_mundo(estado.ultimo_comando, estado, estado_mundo, stdscr)
+                    _processar_cmd_mundo(estado.ultimo_comando, estado, estado_mundo, stdscr, slug)
                 buffer_entrada = ""
                 tab_estado["ativo"] = False
             elif ch in (_curses.KEY_BACKSPACE, 127, 8):
@@ -510,6 +510,7 @@ def _processar_cmd_mundo(
     estado: 'Estado',
     estado_mundo: 'EstadoMundo',
     stdscr=None,
+    slug: str | None = None,
 ) -> None:
     """Processa comando no modo navegação.
 
