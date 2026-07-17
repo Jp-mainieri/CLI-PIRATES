@@ -121,10 +121,11 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
     # [P] e [T] em célula 0 → visual col base_col + 0 = 4
     # [O] e [N] em célula 9 → visual col base_col + 27 = 31
     _lojas_info = [
-        ("[P]", base_row + 1,  base_col + 0,  COR_VERMELHO),
-        ("[O]", base_row + 1,  base_col + 12, None),           # bolas: só bold
-        ("[T]", base_row + 4,  base_col + 0,  COR_VERDE),
-        ("[N]", base_row + 4,  base_col + 12, COR_JOGADOR),
+        ("[P]", base_row + 3,  base_col + 0,  COR_VERMELHO),
+        ("[O]", base_row + 3,  base_col + 12, None),           # bolas: só bold
+        ("[T]", base_row + 6,  base_col + 0,  COR_VERDE),
+        ("[N]", base_row + 6,  base_col + 12, COR_JOGADOR),
+        ("[Z]", base_row + 10,  base_col + 6, COR_JOGADOR),
     ]
     for texto, row, col, par in _lojas_info:
         if cores and par is not None:
