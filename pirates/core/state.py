@@ -177,6 +177,20 @@ class Estado:
         return self.crew_total - self.crew_continua_usada()
 
 
+def sincronizar_crew_com_navio_ativo(estado: Estado, tipo_navio_ativo: str) -> None:
+    """Recalcula crew_total/tripulante_ids a partir do tipo do navio ativo e do
+    nível de upgrade 'tripulante_extra' desse navio específico.
+
+    Chamar sempre que estado.jogador passar a apontar para outro Navio (troca
+    de navio na frota, ou restauração de save) — crew_total é um campo de
+    Estado, não de Navio, então não acompanha a troca automaticamente.
+    """
+    base = NAVIO_TIPOS[tipo_navio_ativo]["crew_total"]
+    extra = estado.jogador.upgrade_niveis.get("tripulante_extra", 0)
+    estado.crew_total = base + extra
+    estado.tripulante_ids = [f"T{i+1}" for i in range(estado.crew_total)]
+
+
 # ---------------------------------------------------------------------------
 # Roster de tripulação
 # ---------------------------------------------------------------------------

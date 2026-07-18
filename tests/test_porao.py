@@ -152,6 +152,21 @@ class TestGerarPorao:
             p = gerar_porao_inimigo(cap, elite=False)
             assert len(p.barris) <= cap
 
+    def test_ouro_polvora_bolas_sao_inteiros(self):
+        for _ in range(50):
+            p = gerar_porao_inimigo(9, elite=False)
+            for b in p.barris:
+                if b.tipo in ("ouro", "polvora", "bolas"):
+                    assert b.quantidade == int(b.quantidade), (b.tipo, b.quantidade)
+
+    def test_tabuas_pode_ser_fracionaria(self):
+        random.seed(7)
+        valores = []
+        for _ in range(200):
+            p = gerar_porao_inimigo(9, elite=False)
+            valores.extend(b.quantidade for b in p.barris if b.tipo == "tabuas")
+        assert any(v != int(v) for v in valores)
+
 
 class TestGerarPoraoElite:
     def test_capacidade_30_por_cento_maior(self):

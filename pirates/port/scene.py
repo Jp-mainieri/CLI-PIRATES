@@ -18,11 +18,12 @@ from .lojas import (
 )
 from ..constants import (
     PRECO_NAVIO_NOVO, PRECO_BARRIL_NOVO, PRECO_RENOMEAR,
-    NAVIO_TIPOS, SIMB_CAPITAO,
+    NAVIO_TIPOS, SIMB_CAPITAO, POLL_MS,
     COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR, COR_MAR,
     PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
 )
 from ..core.notoriedade import faixa_index
+from ..core.state import sincronizar_crew_com_navio_ativo
 
 # ---------------------------------------------------------------------------
 # Layout da grade do porto
@@ -388,7 +389,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
             estado, extra_linhas=extra,
         )
         msg = ""
-        if escolha in (-1, 5):
+        if escolha in (-1, len(opcoes) - 1):
             return
 
         elif escolha == 0:
@@ -472,6 +473,7 @@ def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
         novo = frota.ativo()
         if novo is not None:
             estado.jogador = novo.navio
+            sincronizar_crew_com_navio_ativo(estado, novo.tipo)
         return f"Navio trocado para {frota.ativo().nome if frota.ativo() else '?'}."
     return "Nao foi possivel trocar o navio."
 
@@ -605,6 +607,7 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
             vista = "porao" if vista == "hud" else "hud"
             continue
 
+        pos_antes = (cap_col, cap_row)
         nova_col, nova_row = cap_col, cap_row
         if ch in (ord('w'), ord('W')):
             nova_row -= 1
@@ -619,6 +622,13 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
         nova_col = max(1, min(GRID_W - 2, nova_col))
         nova_row = max(1, min(GRID_H - 2, nova_row))
         cap_col, cap_row = nova_col, nova_row
+        moveu = (cap_col, cap_row) != pos_antes
+
+        # Doca/lojas só disparam na chegada (posição mudou nesse tick) — evita
+        # reabrir a mesma loja a cada tecla enquanto o capitão fica parado
+        # sobre a entrada (ex: ESPAÇO/ENTER, ou WASD contra uma parede).
+        if not moveu:
+            continue
 
         # Verifica doca (zarpar)
         if _proxima_doca(cap_col, cap_row):
@@ -642,3 +652,4 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
             msg = "Saindo da loja de navios."
 
     stdscr.nodelay(True)
+    stdscr.timeout(POLL_MS)

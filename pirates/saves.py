@@ -68,6 +68,46 @@ def gerar_slug_unico(nome: str) -> str:
 
 # ── Serialização ──────────────────────────────────────────────────────────────
 
+def _navio_para_dict(navio) -> dict:
+    """Serializa os campos persistentes de um Navio (dano, upgrades, porão)."""
+    return {
+        "nome": navio.nome,
+        "partes": dict(navio.partes),
+        "agua": navio.agua,
+        "moral_atual": navio.moral_atual,
+        "nivel_vela": navio.nivel_vela,
+        "alcance_canhao": navio.alcance_canhao,
+        "upgrades": dict(navio.upgrades),
+        "upgrade_niveis": dict(navio.upgrade_niveis),
+        "itens_topo": dict(navio.itens_topo),
+        "porao_capacidade": navio.porao.capacidade,
+        "porao": [
+            {"tipo": b.tipo, "quantidade": b.quantidade}
+            for b in navio.porao.barris
+        ],
+    }
+
+
+def _aplicar_navio_dict(navio, data: dict) -> None:
+    """Aplica de volta a um Navio já construído os campos de _navio_para_dict."""
+    from .core.porao import Barril
+    navio.nome = data["nome"]
+    navio.partes.update(data["partes"])
+    navio.agua = data["agua"]
+    navio.afundado = navio.agua >= 100
+    navio.moral_atual = data["moral_atual"]
+    navio.nivel_vela = data["nivel_vela"]
+    navio.alcance_canhao = data["alcance_canhao"]
+    navio.upgrades = dict(data["upgrades"])
+    navio.upgrade_niveis = dict(data["upgrade_niveis"])
+    navio.itens_topo = dict(data.get("itens_topo", {}))
+    navio.porao.capacidade = data.get("porao_capacidade", navio.porao.capacidade)
+    navio.porao.barris = [
+        Barril(tipo=b["tipo"], quantidade=b["quantidade"])
+        for b in data["porao"]
+    ]
+
+
 def estado_para_dict(
     estado: "Estado",
     estado_mundo: "EstadoMundo",
@@ -100,21 +140,17 @@ def estado_para_dict(
             "horas_na_faixa8": getattr(estado_mundo, "horas_na_faixa8", 0.0),
             "portos_visitados": list(getattr(estado_mundo, "portos_visitados", [])),
         },
-        "navio": {
-            "nome": navio.nome,
-            "partes": dict(navio.partes),
-            "agua": navio.agua,
-            "moral_atual": navio.moral_atual,
-            "nivel_vela": navio.nivel_vela,
-            "alcance_canhao": navio.alcance_canhao,
-            "upgrades": dict(navio.upgrades),
-            "upgrade_niveis": dict(navio.upgrade_niveis),
-            "itens_topo": dict(navio.itens_topo),
-            "porao": [
-                {"tipo": b.tipo, "quantidade": b.quantidade}
-                for b in navio.porao.barris
-            ],
-        },
+        "navio": _navio_para_dict(navio),
+        "frota": [
+            {
+                "nome": np_.nome,
+                "tipo": np_.tipo,
+                "porto_ancorado": np_.porto_ancorado,
+                "navio": _navio_para_dict(np_.navio),
+            }
+            for np_ in estado.frota.navios
+        ],
+        "frota_indice_ativo": estado.frota.indice_ativo,
         "estatisticas_finais": {
             "causa_morte": None,
             "notoriedade_maxima": getattr(estado_mundo, "notoriedade", 0),
@@ -128,9 +164,11 @@ def estado_para_dict(
 
 def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]:
     """Reconstrói Estado e EstadoMundo a partir de um save carregado."""
-    from .core.state import Estado
+    from .core.state import Estado, sincronizar_crew_com_navio_ativo
     from .world.state import EstadoMundo
-    from .core.porao import Barril
+    from .core.frota import Frota, NavioPossuido
+    from .core.ship import Navio, Canhao
+    from .constants import NAVIO_TIPOS
 
     tipo_navio = data["capitao"]["tipo_navio"]
     seed = data["seed_mundo"]
@@ -146,23 +184,46 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     )
 
     navio_data = data["navio"]
-    estado.jogador.nome = navio_data["nome"]
-    estado.jogador.partes.update(navio_data["partes"])
-    estado.jogador.agua = navio_data["agua"]
-    estado.jogador.moral_atual = navio_data["moral_atual"]
-    estado.jogador.nivel_vela = navio_data["nivel_vela"]
-    estado.jogador.alcance_canhao = navio_data["alcance_canhao"]
-    estado.jogador.upgrades = dict(navio_data["upgrades"])
-    estado.jogador.upgrade_niveis = dict(navio_data["upgrade_niveis"])
-    estado.jogador.itens_topo = dict(navio_data.get("itens_topo", {}))
-    estado.jogador.porao.barris = [
-        Barril(tipo=b["tipo"], quantidade=b["quantidade"])
-        for b in navio_data["porao"]
-    ]
+    _aplicar_navio_dict(estado.jogador, navio_data)
 
     heading = data["capitao"]["heading"]
     estado.jogador.heading = heading
     estado.jogador.heading_alvo = heading
+
+    tipo_navio_ativo = tipo_navio
+
+    frota_data = data.get("frota") or []
+    if frota_data:
+        frota = Frota()
+        for entry in frota_data:
+            tipo_n = entry.get("tipo", tipo_navio)
+            p = NAVIO_TIPOS.get(tipo_n, NAVIO_TIPOS[tipo_navio])
+            navio_n = Navio(
+                entry["navio"]["nome"], x=0.0, y=0.0, heading=heading,
+                velocidade_max_base=p["velocidade_max_base"],
+                giro_graus_seg=p["giro_graus_seg"],
+                reparo_mult=p["reparo_mult"],
+                porao_capacidade=p["porao_capacidade"],
+            )
+            navio_n.tipo_nome = p["navio"]
+            navio_n.num_velas = p["num_velas"]
+            navio_n.canhoes = {
+                'bombordo':  [Canhao('bombordo', i + 1) for i in range(p["canhoes_lado"])],
+                'estibordo': [Canhao('estibordo', i + 1) for i in range(p["canhoes_lado"])],
+            }
+            _aplicar_navio_dict(navio_n, entry["navio"])
+            frota.navios.append(NavioPossuido(
+                nome=entry["nome"], navio=navio_n, tipo=tipo_n,
+                porto_ancorado=entry.get("porto_ancorado"),
+            ))
+        frota.indice_ativo = data.get("frota_indice_ativo", 0)
+        estado.frota = frota
+        ativo = frota.ativo()
+        if ativo is not None:
+            estado.jogador = ativo.navio
+            tipo_navio_ativo = ativo.tipo
+
+    sincronizar_crew_com_navio_ativo(estado, tipo_navio_ativo)
 
     estado_mundo = EstadoMundo(tipo_navio, seed=seed)
     cap = data["capitao"]
@@ -187,6 +248,7 @@ def _escrever_atomico(path: Path, data: dict) -> None:
 
 def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
     """Cria save inicial e retorna (slug, seed_mundo)."""
+    from .constants import NAVIO_TIPOS
     slug = gerar_slug_unico(nome)
     seed = random.randint(0, 2**31 - 1)
     agora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
@@ -223,8 +285,11 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "upgrades": {},
             "upgrade_niveis": {},
             "itens_topo": {},
+            "porao_capacidade": NAVIO_TIPOS[tipo_navio]["porao_capacidade"],
             "porao": [],
         },
+        "frota": [],
+        "frota_indice_ativo": -1,
         "estatisticas_finais": {
             "causa_morte": None,
             "notoriedade_maxima": 0,
