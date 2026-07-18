@@ -131,25 +131,43 @@ def estoque_inicial_jogador(capacidade: int) -> Porao:
     return p
 
 
-def gerar_porao_inimigo(capacidade: int) -> Porao:
-    """Porão aleatório de um inimigo recém-spawnado: 1 barril de ouro
-    garantido, mínimo 1 pólvora + 1 bolas garantidos, resto aleatório."""
-    p = Porao(capacidade)
-    p.barris.append(Barril("ouro", random.uniform(5, CAPACIDADE_BARRIL_OURO)))
+def _sortear_quantidade_carga(tipo: str, faixa: tuple[float, float]) -> float:
+    """Sorteia a quantidade de um barril dentro de `faixa` (fração de 25u).
 
+    Ouro/pólvora/bolas nascem como valores inteiros (mais legível na UI e no
+    loot); tábuas continuam fracionárias, já que o reparo as consome em
+    frações (FATOR_TABUAS_POR_HP)."""
+    minimo, maximo = faixa[0] * 25, faixa[1] * 25
+    if tipo == "tabuas":
+        return random.uniform(minimo, maximo)
+    return float(random.randint(round(minimo), round(maximo)))
+
+
+def gerar_porao_inimigo(capacidade: int, elite: bool = False) -> Porao:
+    """Porão aleatório de um inimigo recém-spawnado: 1 barril de ouro
+    garantido, mínimo 1 pólvora + 1 bolas garantidos, resto aleatório.
+
+    Navios elite têm 30% mais capacidade e um conteúdo médio bem mais
+    cheio (nenhum slot fica vazio)."""
+    if elite:
+        capacidade = round(capacidade * 1.3)
+    p = Porao(capacidade)
+    p.barris.append(Barril("ouro", float(random.randint(5, int(CAPACIDADE_BARRIL_OURO)))))
+
+    faixa = (0.8, 1.0) if elite else (0.2, 1.0)
     slots_restantes = capacidade - 1
     for tipo in ("polvora", "bolas", "tabuas"):
         if slots_restantes <= 0:
             break
-        p.barris.append(Barril(tipo, random.uniform(5, 25)))
+        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa)))
         slots_restantes -= 1
 
     while slots_restantes > 0:
         slots_restantes -= 1
-        if random.random() < 0.3:  # 30% de chance de slot vazio
+        if not elite and random.random() < 0.3:  # 30% de chance de slot vazio
             continue
         tipo = random.choice(["polvora", "bolas", "tabuas"])
-        p.barris.append(Barril(tipo, random.uniform(5, 25)))
+        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa)))
 
     return p
 

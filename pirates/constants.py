@@ -127,7 +127,7 @@ FUGA_ENTRADA_MAX = 35.0
 FUGA_SAIDA_MIN = 35.0
 """Limiar mínimo de moral para o inimigo sair do modo fuga."""
 
-FUGA_SAIDA_MAX = 50.0
+FUGA_SAIDA_MAX = 70.0
 """Limiar máximo de moral para o inimigo sair do modo fuga."""
 
 ALCANCE_FUGA_ESCAPE = 900.0
@@ -143,7 +143,7 @@ TEMPO_FUGA_ESCAPE_SEG = 15.0
 MUNDO_TAMANHO = 8000.0
 """Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
 
-MUNDO_NUM_INIMIGOS = 6
+MUNDO_NUM_INIMIGOS = 8
 """Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
 
 MUNDO_ESPACAMENTO_MIN = 1000.0
@@ -164,8 +164,29 @@ do jogador."""
 MUNDO_TICK = 0.5
 """Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
 
-MUNDO_NUM_PORTOS = 1
+MUNDO_NUM_PORTOS = 2
 """Número de portos fixos espalhados pelo mundo."""
+
+MUNDO_NUM_ILHAS = 10
+"""Número de ilhas espalhadas pelo mundo (geração determinística)."""
+
+ILHA_RAIO_MIN = 150.0
+"""Raio base mínimo de uma ilha, em unidades de jogo."""
+
+ILHA_RAIO_MAX = 400.0
+"""Raio base máximo de uma ilha, em unidades de jogo."""
+
+ILHA_PORTO_EXCLUSAO = 800.0
+"""Distância mínima entre o centro de uma ilha e o spawn do jogador ou qualquer porto."""
+
+DANO_COLISAO_BASE = 6.0
+"""Dano base de colisão com ilha (% do casco) à velocidade zero."""
+
+DANO_COLISAO_K = 1.5
+"""Expoente da curva de dano por colisão (mais velocidade → mais dano exponencialmente)."""
+
+DANO_COLISAO_V_REF = 13.0
+"""Velocidade de referência para normalizar o dano de colisão (vel. máx do Galeão)."""
 
 MUNDO_RAIO_ATRACACAO = 250.0
 """Distância máxima para poder usar o comando 'atracar'."""
@@ -201,16 +222,16 @@ ARROWS_UNICODE = ['↑', '↗', '→', '↘',
                   '↓', '↙', '←', '↖']
 """Setas Unicode para os 8 rumos (↑ ↗ → ↘ ↓ ↙ ← ↖)."""
 
-COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda"]
+COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda", "fugir"]
 """Comandos de texto aceitos no prompt do jogo."""
 
 CANHAO_SUBCMDS = ["trip", "mirar", "parar"]
 """Subcomandos válidos para o comando 'canhao'."""
 
-ALIASES = {"l": "leme", "v": "vela", "r": "reparar", "b": "bomba", "c": "canhao"}
+ALIASES = {"l": "leme", "v": "vela", "r": "reparar", "b": "bomba", "c": "canhao", "f": "fugir"}
 """Atalhos de uma letra para comandos completos."""
 
-REPARO_CREW_PADRAO = 2
+REPARO_CREW_PADRAO = 1
 """Quantidade padrão de tripulantes enviada a reparo quando não especificado."""
 
 HOTKEY_PASSO_MIRA = 25.0
@@ -246,6 +267,7 @@ COR_VERMELHO = 3
 COR_JOGADOR = 4   # ciano
 COR_INIMIGO = 5   # magenta
 COR_MAR = 6       # azul
+COR_ILHA = 7      # amarelo (terra/areia)
 
 # ---------------------------------------------------------------------------
 # Tipos de navio / dificuldade
@@ -265,7 +287,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
-        "reparo_mult": 1.0,
+        "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
     },
     "normal": {
@@ -278,7 +300,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
-        "reparo_mult": 1.0,
+        "reparo_mult": 1.0,     # Bergantim — velocidade de reparo média
         "porao_capacidade": 9,
     },
     "dificil": {
@@ -291,7 +313,7 @@ NAVIO_TIPOS = {
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
-        "reparo_mult": 1.0,
+        "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
     },
 }
@@ -331,6 +353,20 @@ PRECO_UPGRADE = {
     "alcance_canhao":   50.0,   # +50m alcance
 }
 """Preços dos upgrades permanentes por navio."""
+
+PRECO_ITENS_TOPO = {
+    "casco_lendario":  600.0,   # +50% resistência efetiva de casco
+    "alcance_lendario": 450.0,  # +120m alcance (empilha com upgrade normal)
+    "porao_lendario":   500.0,  # +3 slots de porão de uma vez
+}
+"""Preços dos itens de topo, desbloqueados por faixa de notoriedade."""
+
+FAIXA_MINIMA_ITEM_TOPO = {
+    "casco_lendario":  6,   # índice 6 = "Terror dos Sete Mares"
+    "alcance_lendario": 6,
+    "porao_lendario":   7,  # índice 7 = "Lenda Viva"
+}
+"""Índice mínimo (0-indexado) em NOTORIEDADE_FAIXAS exigido para cada item de topo."""
 
 # ---------------------------------------------------------------------------
 # Arte ASCII
@@ -372,6 +408,14 @@ ARTE_FUGA = [
     "     O INIMIGO FUGIU NO HORIZONTE!",
 ]
 
+ARTE_FUGA_JOGADOR = [
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "  <--<--<--[ SEU NAVIO ]",
+    "  ~  ~  ~  ~  ~  ~  ~  ~  ~  ~",
+    "",
+    "     VOCE ESCAPOU NO HORIZONTE!",
+]
+
 COMO_JOGAR_TEXTO = [
     "COMO JOGAR",
     "",
@@ -410,6 +454,8 @@ COMO_JOGAR_TEXTO = [
     "  canhao <id> <dist>       aloca e mira           alias: c",
     "  canhao <id> parar        para e libera crew",
     "  radar                    distancia/rumo exatos do inimigo",
+    "  fugir                    tenta escapar (fica a 900m+ por 15s) alias: f",
+    "                           inimigo nao pode estar fugindo; custa notoriedade",
     "  ENTER vazio              repete o ultimo comando",
     "",
     "  Canhao consome 1 polvora + 1 bola por tiro.",

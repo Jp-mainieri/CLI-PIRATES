@@ -37,3 +37,7 @@ htmlcov/
 
 # Logs
 *.log
+
+saves/
+historico/
+arena_historico/

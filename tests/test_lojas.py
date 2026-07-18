@@ -10,9 +10,11 @@ from pirates.port.lojas import (
     preco_upgrade_nivel,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade,
-    nivel_atual_upgrade, nivel_max_upgrade,
+    nivel_atual_upgrade, nivel_max_upgrade, comprar_item_topo,
 )
-from pirates.constants import PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PARTES
+from pirates.constants import (
+    PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PARTES, PRECO_ITENS_TOPO,
+)
 
 
 def _navio(cap: int = 6) -> Navio:
@@ -245,3 +247,56 @@ def test_capitao_perto_de():
     assert capitao_perto_de(9, 3, 9, 3) is True
     assert capitao_perto_de(9, 2, 9, 3) is True
     assert capitao_perto_de(7, 3, 9, 3) is False
+
+
+class TestComprarItemTopo:
+    def test_compra_bem_sucedida_debita_ouro_e_aplica_efeito(self):
+        n = _navio_com_ouro(1000.0)
+        preco = PRECO_ITENS_TOPO["alcance_lendario"]
+        ok, msg = comprar_item_topo(n, "alcance_lendario", faixa_notoriedade=6)
+        assert ok is True
+        assert n.itens_topo["alcance_lendario"] is True
+        assert n.upgrades["alcance_canhao"] == pytest.approx(120.0)
+        assert n.porao.total("ouro") == pytest.approx(1000.0 - preco)
+
+    def test_casco_lendario_aplica_resistencia_casco(self):
+        n = _navio_com_ouro(1000.0)
+        ok, _ = comprar_item_topo(n, "casco_lendario", faixa_notoriedade=6)
+        assert ok is True
+        assert n.upgrades["resistencia_casco"] == pytest.approx(0.5)
+
+    def test_porao_lendario_soma_3_slots(self):
+        n = _navio_com_ouro(1000.0)
+        cap_antes = n.porao.capacidade
+        ok, _ = comprar_item_topo(n, "porao_lendario", faixa_notoriedade=7)
+        assert ok is True
+        assert n.porao.capacidade == cap_antes + 3
+
+    def test_notoriedade_insuficiente(self):
+        n = _navio_com_ouro(1000.0)
+        ok, msg = comprar_item_topo(n, "casco_lendario", faixa_notoriedade=5)
+        assert ok is False
+        assert "notoriedade" in msg.lower()
+        assert "casco_lendario" not in n.itens_topo
+
+    def test_ouro_insuficiente(self):
+        n = _navio_com_ouro(1.0)
+        ok, msg = comprar_item_topo(n, "casco_lendario", faixa_notoriedade=6)
+        assert ok is False
+        assert "insuficiente" in msg.lower()
+
+    def test_nao_pode_comprar_duas_vezes(self):
+        n = _navio_com_ouro(2000.0)
+        ok1, _ = comprar_item_topo(n, "alcance_lendario", faixa_notoriedade=6)
+        ok2, msg2 = comprar_item_topo(n, "alcance_lendario", faixa_notoriedade=6)
+        assert ok1 is True
+        assert ok2 is False
+        assert "ja comprado" in msg2.lower()
+        # Efeito nao dobrou
+        assert n.upgrades["alcance_canhao"] == pytest.approx(120.0)
+
+    def test_item_inexistente(self):
+        n = _navio_com_ouro(1000.0)
+        ok, msg = comprar_item_topo(n, "item_fantasma", faixa_notoriedade=7)
+        assert ok is False
+        assert "nao existe" in msg.lower()

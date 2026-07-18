@@ -81,6 +81,27 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
         else:
             estado.tempo_fuga_longe = 0.0
 
+    if (
+        estado.jogador_tentando_fugir
+        and not jogador.afundado
+        and not inimigo.afundado
+        and estado.fim is None
+    ):
+        if estado.inimigo_em_fuga:
+            # Inimigo comecou a fugir por conta propria: nao faz sentido
+            # contabilizar fuga do jogador ao mesmo tempo.
+            estado.tempo_fuga_jogador = 0.0
+        else:
+            d = distancia(jogador, inimigo)
+            if d > ALCANCE_FUGA_ESCAPE:
+                estado.tempo_fuga_jogador += dt
+                if estado.tempo_fuga_jogador >= TEMPO_FUGA_ESCAPE_SEG:
+                    estado.log.append("Voce escapou no horizonte!")
+                    estado.fim = "fuga_jogador"
+                    estado.rodando = False
+            else:
+                estado.tempo_fuga_jogador = 0.0
+
     if jogador.afundado and estado.fim is None:
         estado.log.append("Seu navio afundou! Fim de jogo.")
         estado.fim = "derrota"

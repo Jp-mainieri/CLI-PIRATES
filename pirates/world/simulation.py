@@ -74,13 +74,13 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
     direção oposta ao jogador. Fora disso, comportamento de patrulha (mas
     mantém status 'fugindo' para preservar partes/agua/moral).
     """
-    params = NAVIO_TIPOS[estado_mundo.tipo_navio]
-    vmax_patrulha = params["velocidade_max_base"] * 1 / 3
-    vmax_fuga = params["velocidade_max_base"] * 3 / 3
-
     for navio in estado_mundo.inimigos:
         if navio.status == "afundado":
             continue
+
+        params = NAVIO_TIPOS[navio.tipo_navio]
+        vmax_patrulha = params["velocidade_max_base"] * 1 / 3
+        vmax_fuga = params["velocidade_max_base"] * 3 / 3
 
         dx, dy = delta_toroidal(
             navio.x, navio.y,
@@ -97,6 +97,19 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
             if random.random() < 0.05:
                 navio.heading_alvo = random.uniform(0, 360)
             velocidade_max = vmax_patrulha
+
+        # Evasão de ilhas (personalidade via avoidance_mult)
+        for ilha in getattr(estado_mundo, 'ilhas', []):
+            d_ilha = estado_mundo._distancia_toroidal(navio.x, navio.y, ilha.x, ilha.y)
+            if d_ilha < ilha.raio_maximo * navio.avoidance_mult:
+                _idx = navio.x - ilha.x
+                _idy = navio.y - ilha.y
+                if abs(_idx) > MUNDO_TAMANHO / 2:
+                    _idx -= math.copysign(MUNDO_TAMANHO, _idx)
+                if abs(_idy) > MUNDO_TAMANHO / 2:
+                    _idy -= math.copysign(MUNDO_TAMANHO, _idy)
+                navio.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
+                break
 
         navio.x, navio.y, navio.heading, navio.velocidade = atualizar_posicao_toroidal(
             navio.x, navio.y,

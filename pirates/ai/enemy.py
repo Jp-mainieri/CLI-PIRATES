@@ -6,6 +6,7 @@ precisar de comportamento complexo. Ela gerencia movimento, alocação
 de tripulação e mira de forma reativa ao estado atual do combate.
 """
 
+import math
 import random
 
 from ..constants import PARTES, NAVIO_TIPOS
@@ -36,9 +37,9 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     """Atualiza o heading alvo e o nível de vela do navio inimigo.
 
     Comportamento normal:
-    - Longe (>380m): aproxima em velocidade máxima.
-    - Perto (<250m): afasta para manter distância de combate.
-    - Faixa ideal (250-380m): circula lateralmente.
+    - Longe (>280m): aproxima em velocidade máxima.
+    - Perto (<150m): afasta para manter distância de combate.
+    - Faixa ideal (150-280m): circula lateralmente com estibordo ao jogador.
 
     Comportamento em fuga: foge na direção oposta ao jogador a todo vapor.
 
@@ -58,21 +59,30 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
         inimigo.nivel_vela = 3
         return
 
-    if d > 380:
+    if d > 280:
         inimigo.heading_alvo = r
         inimigo.nivel_vela = 3
-    elif d < 250:
+    elif d < 150:
         inimigo.heading_alvo = (r + 180) % 360
         inimigo.nivel_vela = 2
-    else:
+    else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
         inimigo.heading_alvo = (r + 90) % 360
         inimigo.nivel_vela = 2
+
+    # Evasão de ilhas em combate (personalidade via ia_island_avoidance_mult)
+    for ilha in getattr(estado, 'ilhas_arena', []):
+        _idx = inimigo.x - ilha.x
+        _idy = inimigo.y - ilha.y
+        dist_ilha = math.hypot(_idx, _idy)
+        if dist_ilha < ilha.raio_maximo * estado.ia_island_avoidance_mult:
+            inimigo.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
+            break
 
 
 def _crewar_canhoes(estado, inimigo, restante: int) -> None:
     """Distribui *restante* tripulantes pelos canhões do inimigo."""
     jogador = estado.jogador
-    min_c = estado.min_crew_canhao
+    min_c = estado.inimigo_min_crew_canhao
     lados_no_arco = [
         lado for lado in ('estibordo', 'bombordo')
         if dentro_do_arco(inimigo, jogador, lado)[0]
@@ -113,8 +123,8 @@ def atualizar_ia_tripulacao(estado) -> None:
         estado: Estado atual do jogo.
     """
     inimigo = estado.inimigo
-    total = estado.crew_total
-    min_c = estado.min_crew_canhao
+    total = estado.inimigo_crew_total
+    min_c = estado.inimigo_min_crew_canhao
 
     bomba_alvo = 0
     if inimigo.agua > estado.ia_limiar_agua:
@@ -152,12 +162,12 @@ def atualizar_ia_mira(estado) -> None:
     """
     inimigo = estado.inimigo
     jogador = estado.jogador
-    erro = NAVIO_TIPOS[estado.tipo_navio]["erro_mira"]
+    erro = NAVIO_TIPOS[estado.inimigo_tipo_navio]["erro_mira"]
     d_real = distancia(inimigo, jogador)
 
     for lado in ('bombordo', 'estibordo'):
         for c in inimigo.canhoes[lado]:
-            if c.tripulantes < estado.min_crew_canhao:
+            if c.tripulantes < estado.inimigo_min_crew_canhao:
                 continue
             if c.dist_alvo is None or estado.tempo >= c.proximo_tiro:
                 novo = d_real + random.uniform(-erro, erro)

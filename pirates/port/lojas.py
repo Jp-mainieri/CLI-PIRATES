@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from ..constants import (
     PRECO_BARRIL_NOVO, PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
-    NAVIO_TIPOS, PARTES,
+    NAVIO_TIPOS, PARTES, PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
 )
 from ..core.porao import (
     Barril, Porao, CAPACIDADE_BARRIL,
@@ -193,3 +193,37 @@ def aplicar_upgrade(navio, tipo_navio: str, chave: str, estado=None) -> tuple[bo
         navio.upgrades['alcance_canhao'] = navio.upgrades.get('alcance_canhao', 0.0) + 50.0
 
     return True, f"Upgrade '{chave}' nivel {nivel + 1} aplicado por {preco:.1f} ouro."
+
+
+# ---------------------------------------------------------------------------
+# Itens de topo (desbloqueados por faixa de notoriedade)
+# ---------------------------------------------------------------------------
+
+def comprar_item_topo(navio, chave: str, faixa_notoriedade: int) -> tuple[bool, str]:
+    """Compra um item de topo (permanente, ligado ao navio, nao empilha nivel).
+
+    Args:
+        navio:              Navio que recebe o item.
+        chave:              Chave em PRECO_ITENS_TOPO.
+        faixa_notoriedade:  Indice 0-7 de notoriedade.NOTORIEDADE_FAIXAS.
+    """
+    if chave not in PRECO_ITENS_TOPO:
+        return False, f"Item de topo '{chave}' nao existe."
+    if navio.itens_topo.get(chave, False):
+        return False, "Item ja comprado neste navio."
+    if faixa_notoriedade < FAIXA_MINIMA_ITEM_TOPO[chave]:
+        return False, "Notoriedade insuficiente para este item."
+
+    preco = PRECO_ITENS_TOPO[chave]
+    if not _debitar_ouro(navio, preco):
+        return False, f"Ouro insuficiente (precisa {preco:.1f})."
+
+    navio.itens_topo[chave] = True
+    if chave == "casco_lendario":
+        navio.upgrades['resistencia_casco'] = navio.upgrades.get('resistencia_casco', 0.0) + 0.5
+    elif chave == "alcance_lendario":
+        navio.upgrades['alcance_canhao'] = navio.upgrades.get('alcance_canhao', 0.0) + 120.0
+    elif chave == "porao_lendario":
+        navio.porao.capacidade += 3
+
+    return True, f"Item de topo '{chave}' comprado por {preco:.1f} ouro."

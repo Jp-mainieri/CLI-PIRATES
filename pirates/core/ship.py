@@ -151,6 +151,7 @@ class Navio:
         self.porao: Porao = Porao(porao_capacidade)
         self.upgrades: dict[str, float] = {}
         self.upgrade_niveis: dict[str, int] = {}
+        self.itens_topo: dict[str, bool] = {}
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -171,6 +172,15 @@ class Navio:
     def alcance_canhao_efetivo(self) -> float:
         """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
         return self.alcance_canhao + self.upgrades.get('alcance_canhao', 0.0)
+
+    def resistencia_casco_mult(self) -> float:
+        """Multiplicador aplicado ao dano recebido no casco.
+
+        Um bônus fracionário de "+X% HP casco" (upgrades['resistencia_casco'])
+        é matematicamente equivalente a reduzir o dano recebido por um fator
+        1/(1+X), sem alterar a escala 0-100 de partes['casco'].
+        """
+        return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
 
     def atualizar_movimento(self, dt: float) -> None:
         """Aplica física de giro e propulsão para o intervalo de tempo *dt*.

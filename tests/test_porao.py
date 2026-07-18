@@ -1,5 +1,7 @@
 """Testes de pirates.core.porao — Barril, Porao, estoque e geração."""
 
+import random
+
 import pytest
 
 from pirates.core.porao import (
@@ -134,12 +136,12 @@ class TestEstoqueInicialJogador:
 class TestGerarPorao:
     def test_sempre_tem_barril_de_ouro(self):
         for _ in range(20):
-            p = gerar_porao_inimigo(6)
+            p = gerar_porao_inimigo(6, elite=False)
             assert p.total("ouro") > 0
 
     def test_sempre_tem_pelo_menos_1_polvora_bola_e_tabua(self):
         for _ in range(20):
-            p = gerar_porao_inimigo(6)
+            p = gerar_porao_inimigo(6, elite=False)
             assert p.total("polvora") > 0
             assert p.total("bolas") > 0
             assert p.total("tabuas") > 0
@@ -147,8 +149,47 @@ class TestGerarPorao:
     def test_barris_nao_excedem_capacidade(self):
         cap = 9
         for _ in range(20):
-            p = gerar_porao_inimigo(cap)
+            p = gerar_porao_inimigo(cap, elite=False)
             assert len(p.barris) <= cap
+
+    def test_ouro_polvora_bolas_sao_inteiros(self):
+        for _ in range(50):
+            p = gerar_porao_inimigo(9, elite=False)
+            for b in p.barris:
+                if b.tipo in ("ouro", "polvora", "bolas"):
+                    assert b.quantidade == int(b.quantidade), (b.tipo, b.quantidade)
+
+    def test_tabuas_pode_ser_fracionaria(self):
+        random.seed(7)
+        valores = []
+        for _ in range(200):
+            p = gerar_porao_inimigo(9, elite=False)
+            valores.extend(b.quantidade for b in p.barris if b.tipo == "tabuas")
+        assert any(v != int(v) for v in valores)
+
+
+class TestGerarPoraoElite:
+    def test_capacidade_30_por_cento_maior(self):
+        p = gerar_porao_inimigo(10, elite=True)
+        assert p.capacidade == round(10 * 1.3)
+
+    def test_nenhum_slot_vazio(self):
+        for _ in range(20):
+            p = gerar_porao_inimigo(9, elite=True)
+            assert len(p.barris) == p.capacidade
+
+    def test_conteudo_medio_mais_cheio_que_normal(self):
+        random.seed(42)
+        normais = [gerar_porao_inimigo(9, elite=False) for _ in range(200)]
+        random.seed(42)
+        elites = [gerar_porao_inimigo(9, elite=True) for _ in range(200)]
+        media_normal = sum(b.quantidade for p in normais for b in p.barris if b.tipo != "ouro") / sum(
+            len(p.barris) - 1 for p in normais
+        )
+        media_elite = sum(b.quantidade for p in elites for b in p.barris if b.tipo != "ouro") / sum(
+            len(p.barris) - 1 for p in elites
+        )
+        assert media_elite > media_normal
 
 
 class TestColetarLoot:
