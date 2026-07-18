@@ -36,11 +36,12 @@ from .ui.renderer import desenhar_tela, desenhar_tela_mundo
 from .saves import (
     criar_novo_save, salvar, carregar, restaurar_estado,
     listar_saves_ativos, listar_historico,
+    salvar_resultado_arena, listar_arena_historico,
 )
 from .ui.menus import (
     tela_menu, tela_como_jogar, tela_navio, tela_ajustes, tela_fim,
     tela_mundo_menu, tela_novo_capitao, tela_continuar, tela_historico,
-    tela_fim_mundo,
+    tela_fim_mundo, tela_arena_menu, tela_arena_historico, tela_fim_arena,
 )
 from .world.state import EstadoMundo
 from .world.simulation import (
@@ -839,14 +840,19 @@ def _processar_cmd_mundo(
 def _mundo_menu_loop(stdscr, config: dict) -> str:
     """Sub-menu do Mundo Aberto: cria/carrega capitão e lança mundo_loop."""
     while True:
-        escolha = tela_mundo_menu(stdscr)
+        tem_saves = bool(listar_saves_ativos())
+        tem_hist = bool(listar_historico())
+        escolha = tela_mundo_menu(stdscr, tem_saves, tem_hist)
         if escolha == "voltar":
             return "menu"
         elif escolha == "novo":
             nome = tela_novo_capitao(stdscr)
             if nome is None:
                 continue
-            slug, seed = criar_novo_save(nome, config.get("tipo_navio", "normal"))
+            tipo = tela_navio(stdscr)
+            if tipo is None:
+                continue
+            slug, seed = criar_novo_save(nome, tipo)
             resultado = mundo_loop(stdscr, config, slug=slug, seed_mundo=seed)
             return "sair" if resultado == "sair" else "menu"
         elif escolha == "continuar":
@@ -857,6 +863,57 @@ def _mundo_menu_loop(stdscr, config: dict) -> str:
             return "sair" if resultado == "sair" else "menu"
         elif escolha == "historico":
             tela_historico(stdscr, listar_historico())
+
+
+def _arena_menu_loop(stdscr, config: dict) -> str:
+    """Sub-menu da Arena: inicia uma campanha nova ou mostra campanhas passadas."""
+    while True:
+        tem_hist = bool(listar_arena_historico())
+        escolha = tela_arena_menu(stdscr, tem_hist)
+        if escolha == "voltar":
+            return "menu"
+        elif escolha == "nova":
+            nome = tela_novo_capitao(stdscr)
+            if nome is None:
+                continue
+            tipo = tela_navio(stdscr)
+            if tipo is None:
+                continue
+            return _arena_campanha_loop(stdscr, config, nome, tipo)
+        elif escolha == "historico":
+            tela_arena_historico(stdscr, listar_arena_historico())
+
+
+def _arena_campanha_loop(stdscr, config: dict, nome_capitao: str, tipo_navio: str) -> str:
+    """Roda uma campanha de Arena: batalhas 1x1 sucessivas até derrota/fuga
+    ou o jogador optar por encerrar. Cada rodada usa um Estado novo e fresco
+    — não mexe em nada da simulação de combate em si (jogo_loop intocado).
+    """
+    cores = config["cores"] and bool(_curses and _curses.has_colors())
+    rodada = 1
+    rodadas_vencidas = 0
+    inicio = time.time()
+    while True:
+        estado = Estado(
+            tipo_navio=tipo_navio,
+            hotkeys=config["hotkeys"],
+            cores=cores,
+            graficos_unicode=config["unicode"],
+            textura_mar=config.get("textura_mar", True),
+            rastro_ativo=config.get("rastro", True),
+        )
+        jogo_loop(stdscr, config, estado=estado, exibir_fim=False)
+        if estado.fim == "vitoria":
+            rodadas_vencidas += 1
+        escolha = tela_fim_arena(stdscr, estado, rodada)
+        if estado.fim == "vitoria" and escolha == "proxima":
+            rodada += 1
+            continue
+        salvar_resultado_arena(
+            nome_capitao, tipo_navio, rodadas_vencidas, estado.fim,
+            int(time.time() - inicio),
+        )
+        return "sair" if escolha == "sair" else "menu"
 
 
 def main(stdscr) -> None:
@@ -900,13 +957,13 @@ def main(stdscr) -> None:
             tela_como_jogar(stdscr)
             tela_atual = "menu"
         elif tela_atual == "navio":
-            tela_navio(stdscr, config)
+            tela_navio(stdscr)
             tela_atual = "menu"
         elif tela_atual == "ajustes":
             tela_ajustes(stdscr, config)
             tela_atual = "menu"
         elif tela_atual == "jogar":
-            tela_atual = jogo_loop(stdscr, config)
+            tela_atual = _arena_menu_loop(stdscr, config)
         elif tela_atual == "mundo":
             tela_atual = _mundo_menu_loop(stdscr, config)
         else:

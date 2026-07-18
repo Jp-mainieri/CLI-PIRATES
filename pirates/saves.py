@@ -38,6 +38,12 @@ def pasta_historico() -> Path:
     return p
 
 
+def pasta_arena_historico() -> Path:
+    p = _raiz() / "arena_historico"
+    p.mkdir(exist_ok=True)
+    return p
+
+
 # ── Slug ──────────────────────────────────────────────────────────────────────
 
 def gerar_slug(nome: str) -> str:
@@ -55,7 +61,7 @@ def gerar_slug_unico(nome: str) -> str:
     base = gerar_slug(nome)
     existentes = {
         p.stem
-        for pasta in (pasta_saves(), pasta_historico())
+        for pasta in (pasta_saves(), pasta_historico(), pasta_arena_historico())
         for p in pasta.glob("*.json")
     }
     if base not in existentes:
@@ -374,3 +380,48 @@ def mover_para_historico(slug: str, estatisticas: dict) -> None:
     dest = pasta_historico() / f"{slug}.json"
     _escrever_atomico(path, data)
     shutil.move(str(path), str(dest))
+
+
+# ── Histórico de campanhas de Arena ─────────────────────────────────────────
+
+def salvar_resultado_arena(
+    nome_capitao: str,
+    tipo_navio: str,
+    rodadas_vencidas: int,
+    causa_fim: str | None,
+    duracao_segundos: int,
+) -> None:
+    """Grava o resultado de uma campanha de Arena finalizada.
+
+    Diferente dos saves de capitão do mundo aberto, a Arena não tem fase de
+    "save ativo"/"continuar" — cada campanha só é gravada quando termina.
+    """
+    slug = gerar_slug_unico(nome_capitao)
+    agora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    data = {
+        "nome_capitao": nome_capitao,
+        "tipo_navio": tipo_navio,
+        "rodadas_vencidas": rodadas_vencidas,
+        "causa_fim": causa_fim,
+        "duracao_segundos": duracao_segundos,
+        "finalizado_em": agora,
+    }
+    _escrever_atomico(pasta_arena_historico() / f"{slug}.json", data)
+
+
+def listar_arena_historico() -> list[dict]:
+    hist = []
+    for p in sorted(pasta_arena_historico().glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            hist.append({
+                "nome_capitao": d.get("nome_capitao", p.stem),
+                "tipo_navio": d.get("tipo_navio", "?"),
+                "rodadas_vencidas": d.get("rodadas_vencidas", 0),
+                "causa_fim": d.get("causa_fim"),
+                "duracao_segundos": d.get("duracao_segundos", 0),
+                "finalizado_em": d.get("finalizado_em", ""),
+            })
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return hist

@@ -17,6 +17,8 @@ from pirates.saves import (
     listar_saves_ativos,
     listar_historico,
     mover_para_historico,
+    salvar_resultado_arena,
+    listar_arena_historico,
     VERSAO_SAVE,
 )
 
@@ -25,13 +27,16 @@ from pirates.saves import (
 
 @pytest.fixture(autouse=True)
 def pastas_tmp(monkeypatch, tmp_path):
-    """Redireciona pasta_saves() e pasta_historico() para tmp_path."""
+    """Redireciona pasta_saves()/pasta_historico()/pasta_arena_historico() para tmp_path."""
     saves_dir = tmp_path / "saves"
     hist_dir = tmp_path / "historico"
+    arena_hist_dir = tmp_path / "arena_historico"
     saves_dir.mkdir()
     hist_dir.mkdir()
+    arena_hist_dir.mkdir()
     monkeypatch.setattr(saves_mod, "pasta_saves", lambda: saves_dir)
     monkeypatch.setattr(saves_mod, "pasta_historico", lambda: hist_dir)
+    monkeypatch.setattr(saves_mod, "pasta_arena_historico", lambda: arena_hist_dir)
     return tmp_path
 
 
@@ -286,3 +291,40 @@ def test_listar_historico():
     mover_para_historico(slug, {"causa_morte": "tempestade"})
     hist = listar_historico()
     assert any(h["nome_capitao"] == "Finado" for h in hist)
+
+
+# ── histórico de Arena ──────────────────────────────────────────────────────
+
+def test_arena_historico_vazio_por_padrao():
+    assert listar_arena_historico() == []
+
+
+def test_salvar_resultado_arena_cria_arquivo():
+    salvar_resultado_arena("Barbanegra", "normal", 3, "derrota", 842)
+    arquivos = list(saves_mod.pasta_arena_historico().glob("*.json"))
+    assert len(arquivos) == 1
+
+
+def test_salvar_resultado_arena_campos_preenchidos():
+    salvar_resultado_arena("Barbanegra", "dificil", 5, "fuga_jogador", 1200)
+    hist = listar_arena_historico()
+    assert len(hist) == 1
+    entrada = hist[0]
+    assert entrada["nome_capitao"] == "Barbanegra"
+    assert entrada["tipo_navio"] == "dificil"
+    assert entrada["rodadas_vencidas"] == 5
+    assert entrada["causa_fim"] == "fuga_jogador"
+    assert entrada["duracao_segundos"] == 1200
+
+
+def test_salvar_multiplas_campanhas_mesmo_nome_nao_colidem():
+    salvar_resultado_arena("Anne", "facil", 1, "derrota", 100)
+    salvar_resultado_arena("Anne", "facil", 2, "derrota", 200)
+    hist = listar_arena_historico()
+    assert len(hist) == 2
+
+
+def test_gerar_slug_unico_evita_arena_historico():
+    salvar_resultado_arena("Rackham", "normal", 0, "derrota", 10)
+    slug = gerar_slug_unico("Rackham")
+    assert slug == "rackham_2"
