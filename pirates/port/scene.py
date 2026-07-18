@@ -19,7 +19,7 @@ from .lojas import (
 from ..constants import (
     PRECO_NAVIO_NOVO, PRECO_BARRIL_NOVO, PRECO_RENOMEAR,
     NAVIO_TIPOS, SIMB_CAPITAO,
-    COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR,
+    COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR, COR_MAR,
     PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
 )
 from ..core.notoriedade import faixa_index
@@ -38,15 +38,15 @@ GRID_W = 5   # células lógicas
 GRID_H = 12   # linhas
 
 # Posições lógicas dos elementos fixos
-_DOCA_COL, _DOCA_ROW     = 2,9 
+_DOCA_COL, _DOCA_ROW     = 2,10 
 _CAP_INICIO_COL, _CAP_INICIO_ROW = 2, 8
 
 # Entradas das lojas: posição lógica exata onde o capitão aciona a loja
 _ENTRADAS: dict[str, tuple[int, int]] = {
     "polvora": (1, 3),   # à direita de [P] (célula 0, linha 1)
     "bolas":   (3, 3),   # à esquerda de [O] (célula 9, linha 1)
-    "tabuas":  (1, 7),   # à direita de [T] (célula 0, linha 4)
-    "navios":  (3, 7),   # à esquerda de [N] (célula 9, linha 4)
+    "tabuas":  (1, 6),   # à direita de [T] (célula 0, linha 4)
+    "navios":  (3, 6),   # à esquerda de [N] (célula 9, linha 4)
 }
 
 # ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
         ("[O]", base_row + 3,  base_col + 12, None),           # bolas: só bold
         ("[T]", base_row + 6,  base_col + 0,  COR_VERDE),
         ("[N]", base_row + 6,  base_col + 12, COR_JOGADOR),
-        ("[Z]", base_row + 10,  base_col + 6, COR_JOGADOR),
+        ("[Z]", base_row + 10,  base_col + 6, COR_MAR),
     ]
     for texto, row, col, par in _lojas_info:
         if cores and par is not None:

@@ -887,7 +887,7 @@ def main(stdscr) -> None:
         _curses.init_pair(COR_JOGADOR,  _curses.COLOR_CYAN,    fundo)
         _curses.init_pair(COR_INIMIGO,  _curses.COLOR_MAGENTA, fundo)
         _curses.init_pair(COR_MAR,      _curses.COLOR_BLUE,    fundo)
-        _curses.init_pair(COR_ILHA,     _curses.COLOR_YELLOW,  fundo)
+        _curses.init_pair(COR_ILHA,     _curses.COLOR_WHITE,  fundo)
 
     config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True,
               "textura_mar": True, "rastro": True}

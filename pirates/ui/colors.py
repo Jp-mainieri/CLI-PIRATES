@@ -66,7 +66,7 @@ def cor_mar(estado) -> int:
 
 
 def cor_navio(estado, e_jogador: bool) -> int:
-    """Atributo curses para o ícone de navio no mapa (ciano=jogador, magenta=inimigo)."""
+    """Atributo curses para o ícone de navio no mapa (amarelo=jogador, magenta=inimigo)."""
     if not estado.cores_ativo or _curses is None:
         return 0
     return _curses.color_pair(COR_AMARELO if e_jogador else COR_INIMIGO)

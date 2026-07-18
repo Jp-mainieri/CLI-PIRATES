@@ -127,7 +127,7 @@ FUGA_ENTRADA_MAX = 35.0
 FUGA_SAIDA_MIN = 35.0
 """Limiar mínimo de moral para o inimigo sair do modo fuga."""
 
-FUGA_SAIDA_MAX = 50.0
+FUGA_SAIDA_MAX = 70.0
 """Limiar máximo de moral para o inimigo sair do modo fuga."""
 
 ALCANCE_FUGA_ESCAPE = 900.0
@@ -143,7 +143,7 @@ TEMPO_FUGA_ESCAPE_SEG = 15.0
 MUNDO_TAMANHO = 8000.0
 """Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
 
-MUNDO_NUM_INIMIGOS = 6
+MUNDO_NUM_INIMIGOS = 8
 """Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
 
 MUNDO_ESPACAMENTO_MIN = 1000.0
@@ -164,10 +164,10 @@ do jogador."""
 MUNDO_TICK = 0.5
 """Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
 
-MUNDO_NUM_PORTOS = 1
+MUNDO_NUM_PORTOS = 2
 """Número de portos fixos espalhados pelo mundo."""
 
-MUNDO_NUM_ILHAS = 20
+MUNDO_NUM_ILHAS = 10
 """Número de ilhas espalhadas pelo mundo (geração determinística)."""
 
 ILHA_RAIO_MIN = 150.0
@@ -231,7 +231,7 @@ CANHAO_SUBCMDS = ["trip", "mirar", "parar"]
 ALIASES = {"l": "leme", "v": "vela", "r": "reparar", "b": "bomba", "c": "canhao", "f": "fugir"}
 """Atalhos de uma letra para comandos completos."""
 
-REPARO_CREW_PADRAO = 2
+REPARO_CREW_PADRAO = 1
 """Quantidade padrão de tripulantes enviada a reparo quando não especificado."""
 
 HOTKEY_PASSO_MIRA = 25.0

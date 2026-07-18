@@ -1,5 +1,5 @@
 """
-hud.py – Construtores de elementos HUD de CLI PIRATES.
+hud.py - Construtores de elementos HUD de CLI PIRATES.
 
 Cada função ``build_*`` retorna uma lista de tuplas prontas para a camada
 de renderização (renderer.py). O formato é:
@@ -590,7 +590,9 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) <= half_range:
                 col, row = _to_cell_mundo(porto.x, porto.y, jx, jy, half_range, GRID_W, GRID_H)
                 grid[row][col] = '[P]'
-                overlays_por_linha[row].append((col * largura_celula, '[P]', 0))
+                attr = (_curses.color_pair(COR_VERDE)
+                    if (estado.cores_ativo and _curses) else 0)
+                overlays_por_linha[row].append((col * largura_celula, '[P]', attr))
 
         # Destroços do jogador [*]: vermelho = navio próprio afundado
         for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
@@ -714,8 +716,8 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
 
     linhas = build_vista_linhas(estado, inimigo_vista=inimigo_vista, jogador_vista=jogador_vista)
 
-    # Porto na visão do capitão quando próximo (500m)
-    ALCANCE_VISUAL_PORTO = 500.0
+    # Porto na visão do capitão quando próximo (1000m)
+    ALCANCE_VISUAL_PORTO = 1000.0
     if not getattr(estado_mundo, 'em_combate', False):
         from types import SimpleNamespace as _NS
         for porto in getattr(estado_mundo, 'portos', []):
@@ -732,12 +734,14 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             largura = 50
             rel = (rumo_para(jogador_vista, porto_ns) - jogador_vista.heading + 540) % 360 - 180
             pos = clamp(int(round((rel + 180) / 360 * (largura - 1))), 0, largura - 1)
-            icone = '(P)'
+            icone = '[P]'
             inicio = clamp(pos - len(icone) // 2, 0, largura - len(icone))
             horizonte_chars = list(linhas[0][0])
             for i, ch in enumerate(icone):
                 horizonte_chars[inicio + i] = ch
-            overlays_h = list(linhas[0][2]) + [(inicio, icone, 0)]
+            attr = (_curses.color_pair(COR_VERDE)
+                        if (estado.cores_ativo and _curses) else 0)
+            overlays_h = list(linhas[0][2]) + [(inicio, icone, attr)]
             linhas = [(''.join(horizonte_chars), linhas[0][1], overlays_h)] + list(linhas[1:])
             linhas = list(linhas) + [(f'Porto: "{porto.nome} a {d_porto:.0f}m!"', 0, [])]
             break
@@ -770,7 +774,8 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             for porto in getattr(estado_mundo, 'portos', []):
                 col, row = _world_to_cell(porto.x, porto.y)
                 grid[row][col] = 'P'
-                overlays_por_linha[row].append((max(0, col - 1), '[P]', 0))
+                _attr_porto_mw = (_curses.color_pair(COR_VERDE) if (estado.cores_ativo and _curses) else 0)
+                overlays_por_linha[row].append((max(0, col - 1), '[P]', _attr_porto_mw))
 
         # Ilhas [#] — sempre visíveis
         _attr_ilha_mw = (_curses.color_pair(COR_ILHA) if (estado.cores_ativo and _curses) else 0)
