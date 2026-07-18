@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from .ship import Navio
+from .ship import Navio, criar_canhoes
 from .porao import Porao, estoque_inicial_jogador
 
 
@@ -37,7 +37,7 @@ class Frota:
     def navios_no_porto(self, porto_id: int) -> list[NavioPossuido]:
         return [n for n in self.navios if n.porto_ancorado == porto_id]
 
-    def adicionar(self, nome: str, navio: Navio, tipo: str, porto_id: int) -> None:
+    def adicionar(self, nome: str, navio: Navio, tipo: str, porto_id: int | None) -> None:
         self.navios.append(
             NavioPossuido(nome=nome, navio=navio, tipo=tipo, porto_ancorado=porto_id)
         )
@@ -83,6 +83,7 @@ def comprar_navio(
     )
     navio.tipo_nome = params["navio"]
     navio.num_velas = params["num_velas"]
+    navio.canhoes = criar_canhoes(params["canhoes_lado"])
     navio.porao = estoque_inicial_jogador(params["porao_capacidade"])
     frota.adicionar(nome, navio, tipo, porto_id)
     return True
