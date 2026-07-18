@@ -97,6 +97,14 @@ def resolver_canhao(id_str: str, jogador: 'Navio') -> 'Canhao | None':
     return lista[idx - 1]
 
 
+def criar_canhoes(canhoes_lado: int) -> dict[str, list[Canhao]]:
+    """Cria o dict lado→lista[Canhao] para um navio com *canhoes_lado* canhões por lado."""
+    return {
+        'bombordo':  [Canhao('bombordo',  i + 1) for i in range(canhoes_lado)],
+        'estibordo': [Canhao('estibordo', i + 1) for i in range(canhoes_lado)],
+    }
+
+
 class Navio:
     """Representa um navio com física de movimento, dano e inundação.
 

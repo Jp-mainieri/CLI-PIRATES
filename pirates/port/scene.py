@@ -580,14 +580,6 @@ def porto_loop(stdscr, estado, estado_mundo, porto_id: int) -> None:
     porto_nome = porto.nome
 
     frota = estado.frota
-    if frota.indice_ativo == -1:
-        frota.adicionar(
-            nome=estado.jogador.nome or "Navio Inicial",
-            navio=estado.jogador,
-            tipo=estado.tipo_navio,
-            porto_id=porto_id,
-        )
-        frota.indice_ativo = 0
 
     cap_col = _CAP_INICIO_COL
     cap_row = _CAP_INICIO_ROW

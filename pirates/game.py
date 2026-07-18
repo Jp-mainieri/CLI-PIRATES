@@ -25,8 +25,8 @@ from .constants import (
     MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT, MUNDO_RAIO_ATRACACAO,
     DANO_COLISAO_BASE, DANO_COLISAO_K, DANO_COLISAO_V_REF,
 )
-from .core.state import Estado
-from .core.ship import Canhao
+from .core.state import Estado, sincronizar_crew_com_navio_ativo
+from .core.ship import criar_canhoes
 from .core.porao import gerar_porao_inimigo, coletar_loot
 from .core.notoriedade import sortear_bonus_elite, pontos_por_afundamento, pontos_perdidos_por_fuga
 from .input.commands import processar_comando, obter_candidatos
@@ -85,6 +85,7 @@ def _tentar_respawn(estado, estado_mundo):
     novo.porto_ancorado = None
     frota.indice_ativo = idx_real
     estado.jogador = novo.navio
+    sincronizar_crew_com_navio_ativo(estado, novo.tipo)
 
     porto = min(
         estado_mundo.portos,
@@ -586,10 +587,7 @@ def mundo_loop(
 
                 # Recria os canhoes do inimigo no numero certo pro tipo dele
                 # (canhoes_lado varia por tipo de navio).
-                estado.inimigo.canhoes = {
-                    'bombordo':  [Canhao('bombordo', i + 1) for i in range(params_inimigo['canhoes_lado'])],
-                    'estibordo': [Canhao('estibordo', i + 1) for i in range(params_inimigo['canhoes_lado'])],
-                }
+                estado.inimigo.canhoes = criar_canhoes(params_inimigo['canhoes_lado'])
 
                 for lado in ('bombordo', 'estibordo'):
                     for c in estado.jogador.canhoes[lado]:
