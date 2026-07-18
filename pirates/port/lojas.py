@@ -10,17 +10,23 @@ from __future__ import annotations
 from ..constants import (
     PRECO_BARRIL_NOVO, PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
     NAVIO_TIPOS, PARTES, PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
+    TAXA_CRESCIMENTO_UPGRADE,
 )
 from ..core.porao import (
-    Barril, Porao, CAPACIDADE_BARRIL,
+    Barril, Porao, CAPACIDADE_BARRIL, capacidade_barril_ouro_efetiva,
     preco_reabastecer, preco_venda, preco_reparo,  # re-exportadas do core
 )
 
 
 def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
-    """Preço do próximo nível de upgrade: base * 1.5^nivel_atual."""
+    """Preço do próximo nível de upgrade: base * taxa^nivel_atual.
+
+    A maioria dos upgrades usa taxa 1.5; algumas chaves (ver
+    TAXA_CRESCIMENTO_UPGRADE) têm taxa própria, mais suave, porque têm
+    muito mais níveis disponíveis."""
     base = PRECO_UPGRADE.get(chave, 0.0)
-    return base * (1.5 ** nivel_atual)
+    taxa = TAXA_CRESCIMENTO_UPGRADE.get(chave, 1.5)
+    return base * (taxa ** nivel_atual)
 
 
 # ---------------------------------------------------------------------------
@@ -29,11 +35,14 @@ def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
 
 UPGRADE_NIVEIS_MAX: dict[str, dict[str, int]] = {
     "facil":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
-                "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1},
+                "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1,
+                "capacidade_barril_ouro": 4},
     "normal":  {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
-                "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2},
+                "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2,
+                "capacidade_barril_ouro": 8},
     "dificil": {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
-                "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3},
+                "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3,
+                "capacidade_barril_ouro": 16},
 }
 
 
@@ -101,7 +110,7 @@ def vender_barril(navio, indice: int) -> tuple[bool, str]:
     b = p.barris[indice]
     valor = preco_venda(b)
     p.barris.pop(indice)
-    excedente = navio.porao.adicionar("ouro", valor)
+    excedente = navio.porao.adicionar("ouro", valor, capacidade=capacidade_barril_ouro_efetiva(navio))
     if excedente > 1e-9:
         return True, f"Barril vendido por {valor:.1f} ouro (excedente {excedente:.1f} perdido — porcao cheio)."
     return True, f"Barril de {b.tipo} vendido por {valor:.1f} ouro."
@@ -127,16 +136,21 @@ def reparo_instantaneo(navio) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def comprar_navio_loja(frota, tipo: str, nome: str, porto_id: int, navio_ativo) -> tuple[bool, str]:
-    """Debita ouro do navio ativo e chama comprar_navio da frota."""
+    """Debita ouro do navio ativo e chama comprar_navio da frota.
+
+    Preço escala por quantos navios DESSE TIPO o jogador já possui:
+    preco_base[tipo] * 1.4 ** (navios_do_tipo_ja_possuidos).
+    """
     from ..core.frota import comprar_navio
     if tipo not in NAVIO_TIPOS:
         return False, f"Tipo de navio invalido: {tipo}."
-    preco = float(PRECO_NAVIO_NOVO[tipo])
+    navios_do_tipo = sum(1 for n in frota.navios if n.tipo == tipo)
+    preco = float(PRECO_NAVIO_NOVO[tipo]) * (1.4 ** navios_do_tipo)
     if not _debitar_ouro(navio_ativo, preco):
         return False, f"Ouro insuficiente (precisa {preco:.0f})."
     ok = comprar_navio(frota, tipo, nome, porto_id, preco)
     if not ok:
-        navio_ativo.porao.adicionar("ouro", preco)  # estorna
+        navio_ativo.porao.adicionar("ouro", preco, capacidade=capacidade_barril_ouro_efetiva(navio_ativo))  # estorna
         return False, "Erro ao criar navio."
     return True, f"{nome} ({NAVIO_TIPOS[tipo]['navio']}) comprado por {preco:.0f} ouro."
 
@@ -149,7 +163,7 @@ def renomear_navio_loja(frota, indice: int, novo_nome: str, navio_ativo) -> tupl
         return False, f"Ouro insuficiente (precisa {preco:.0f})."
     ok = renomear_navio(frota, indice, novo_nome)
     if not ok:
-        navio_ativo.porao.adicionar("ouro", preco)
+        navio_ativo.porao.adicionar("ouro", preco, capacidade=capacidade_barril_ouro_efetiva(navio_ativo))
         return False, "Indice de navio invalido."
     return True, f"Navio renomeado para '{novo_nome}' por {preco:.0f} ouro."
 
@@ -191,6 +205,16 @@ def aplicar_upgrade(navio, tipo_navio: str, chave: str, estado=None) -> tuple[bo
         navio.upgrades['velocidade_giro'] = navio.upgrades.get('velocidade_giro', 0.0) + 0.1
     elif chave == "alcance_canhao":
         navio.upgrades['alcance_canhao'] = navio.upgrades.get('alcance_canhao', 0.0) + 50.0
+    elif chave == "capacidade_barril_ouro":
+        navio.upgrades['capacidade_barril_ouro'] = (
+            navio.upgrades.get('capacidade_barril_ouro', 0.0) + 10.0
+        )
+        # Retroativo: barris de ouro ja existentes ganham a capacidade nova na hora
+        # (mesmo padrao que casco_max ja usa, restaurando HP na hora da compra).
+        nova_capacidade = capacidade_barril_ouro_efetiva(navio)
+        for b in navio.porao.barris:
+            if b.tipo == "ouro":
+                b.capacidade = nova_capacidade
 
     return True, f"Upgrade '{chave}' nivel {nivel + 1} aplicado por {preco:.1f} ouro."
 

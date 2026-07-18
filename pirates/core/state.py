@@ -113,7 +113,7 @@ class Estado:
             'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
             'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
         }
-        self.inimigo.porao = gerar_porao_inimigo(cap)
+        self.inimigo.porao = gerar_porao_inimigo(cap, self.tipo_navio, 0.0)
         self.inimigo_crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.inimigo_crew_bomba: int = 0
 

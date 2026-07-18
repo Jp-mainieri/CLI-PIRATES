@@ -96,7 +96,7 @@ def _navio_para_dict(navio) -> dict:
 
 def _aplicar_navio_dict(navio, data: dict) -> None:
     """Aplica de volta a um Navio já construído os campos de _navio_para_dict."""
-    from .core.porao import Barril
+    from .core.porao import Barril, capacidade_barril_ouro_efetiva
     navio.nome = data["nome"]
     navio.partes.update(data["partes"])
     navio.agua = data["agua"]
@@ -108,8 +108,13 @@ def _aplicar_navio_dict(navio, data: dict) -> None:
     navio.upgrade_niveis = dict(data["upgrade_niveis"])
     navio.itens_topo = dict(data.get("itens_topo", {}))
     navio.porao.capacidade = data.get("porao_capacidade", navio.porao.capacidade)
+    # navio.upgrades ja esta setado acima: barris de ouro reconstroem com a
+    # capacidade efetiva do upgrade capacidade_barril_ouro, senao ela some no reload.
     navio.porao.barris = [
-        Barril(tipo=b["tipo"], quantidade=b["quantidade"])
+        Barril(
+            tipo=b["tipo"], quantidade=b["quantidade"],
+            capacidade=capacidade_barril_ouro_efetiva(navio) if b["tipo"] == "ouro" else 0.0,
+        )
         for b in data["porao"]
     ]
 

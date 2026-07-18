@@ -7,7 +7,7 @@ try:
 except ImportError:
     _curses = None  # type: ignore[assignment]
 
-from ..core.porao import TIPOS_CARGA, capacidade_barril, Porao
+from ..core.porao import TIPOS_CARGA, capacidade_barril, capacidade_barril_ouro_efetiva, Porao
 from .renderer import safe_addstr
 from .colors import cor_recurso
 
@@ -57,7 +57,8 @@ def abrir_inventario(stdscr, navio, loot_pendente: Porao | None = None, cores: b
         resto_barris = list(loot_pendente.barris)
         novos_barris: list = []
         for b in resto_barris:
-            exc = navio.porao.adicionar(b.tipo, b.quantidade)
+            cap = capacidade_barril_ouro_efetiva(navio) if b.tipo == "ouro" else None
+            exc = navio.porao.adicionar(b.tipo, b.quantidade, capacidade=cap)
             coletado = b.quantidade - exc
             if coletado > 1e-9:
                 loot_info.append(f"{coletado:.0f}u {b.tipo}")
