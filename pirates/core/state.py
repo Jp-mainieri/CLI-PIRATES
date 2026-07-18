@@ -22,7 +22,7 @@ class Estado:
     """Estado completo de uma partida de CLI PIRATES.
 
     Attributes:
-        tipo_navio:        Chave em NAVIO_TIPOS ('facil', 'normal', 'dificil').
+        tipo_navio:        Chave em NAVIO_TIPOS ('chalupa', 'brigantim', 'galeao').
         crew_total:        Total de tripulantes do navio do jogador.
         canhoes_lado:      Número de canhões por lado.
         num_velas:         Número de velas do navio.
@@ -64,14 +64,14 @@ class Estado:
 
     def __init__(
         self,
-        tipo_navio: str = "normal",
+        tipo_navio: str = "brigantim",
         hotkeys: bool = False,
         cores: bool = False,
         graficos_unicode: bool = False,
         textura_mar: bool = True,
         rastro_ativo: bool = True,
     ) -> None:
-        self.tipo_navio = tipo_navio if tipo_navio in NAVIO_TIPOS else "normal"
+        self.tipo_navio = tipo_navio if tipo_navio in NAVIO_TIPOS else "brigantim"
         params = NAVIO_TIPOS[self.tipo_navio]
 
         self.crew_total: int = params["crew_total"]
@@ -181,9 +181,11 @@ def sincronizar_crew_com_navio_ativo(estado: Estado, tipo_navio_ativo: str) -> N
     nível de upgrade 'tripulante_extra' desse navio específico.
 
     Chamar sempre que estado.jogador passar a apontar para outro Navio (troca
-    de navio na frota, ou restauração de save) — crew_total/canhao_ids são
-    campos de Estado, não de Navio, então não acompanham a troca automaticamente.
+    de navio na frota, ou restauração de save) — crew_total/canhao_ids/
+    tipo_navio são campos de Estado, não de Navio, então não acompanham a
+    troca automaticamente.
     """
+    estado.tipo_navio = tipo_navio_ativo
     base = NAVIO_TIPOS[tipo_navio_ativo]["crew_total"]
     extra = estado.jogador.upgrade_niveis.get("tripulante_extra", 0)
     estado.crew_total = base + extra

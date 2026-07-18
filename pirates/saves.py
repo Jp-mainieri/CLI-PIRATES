@@ -137,11 +137,11 @@ def estado_para_dict(
             "rastro_ativo": estado.rastro_ativo,
         },
         "capitao": {
-            "tipo_navio": estado_mundo.tipo_navio,
             "x": estado_mundo.jogador_x,
             "y": estado_mundo.jogador_y,
             "heading": estado_mundo.jogador_heading,
             "notoriedade": getattr(estado_mundo, "notoriedade", 0),
+            "notoriedade_maxima": getattr(estado_mundo, "notoriedade_maximo", 0.0),
             "horas_na_faixa8": getattr(estado_mundo, "horas_na_faixa8", 0.0),
             "portos_visitados": list(getattr(estado_mundo, "portos_visitados", [])),
         },
@@ -157,7 +157,7 @@ def estado_para_dict(
         "frota_indice_ativo": estado.frota.indice_ativo,
         "estatisticas_finais": {
             "causa_morte": None,
-            "notoriedade_maxima": getattr(estado_mundo, "notoriedade", 0),
+            "notoriedade_maxima": getattr(estado_mundo, "notoriedade_maximo", 0.0),
             "navios_afundados": 0,
             "ouro_total_acumulado": 0,
             "duracao_segundos": int(getattr(estado, "tempo", 0)),
@@ -174,12 +174,12 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     from .core.ship import Navio, criar_canhoes
     from .constants import NAVIO_TIPOS
 
-    tipo_navio = data["capitao"]["tipo_navio"]
+    tipo_navio_ativo = data["frota"][data["frota_indice_ativo"]]["tipo"]
     seed = data["seed_mundo"]
     prefs = data.get("preferencias", {})
 
     estado = Estado(
-        tipo_navio=tipo_navio,
+        tipo_navio=tipo_navio_ativo,
         hotkeys=prefs.get("hotkeys_ativo", config.get("hotkeys", True)),
         cores=prefs.get("cores_ativo", config.get("cores", True)),
         graficos_unicode=prefs.get("graficos_unicode", config.get("unicode", True)),
@@ -191,8 +191,8 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
 
     frota = Frota()
     for entry in data["frota"]:
-        tipo_n = entry.get("tipo", tipo_navio)
-        p = NAVIO_TIPOS.get(tipo_n, NAVIO_TIPOS[tipo_navio])
+        tipo_n = entry.get("tipo", tipo_navio_ativo)
+        p = NAVIO_TIPOS.get(tipo_n, NAVIO_TIPOS[tipo_navio_ativo])
         navio_n = Navio(
             entry["navio"]["nome"], x=0.0, y=0.0, heading=heading,
             velocidade_max_base=p["velocidade_max_base"],
@@ -217,13 +217,14 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
 
     sincronizar_crew_com_navio_ativo(estado, ativo.tipo)
 
-    estado_mundo = EstadoMundo(tipo_navio, seed=seed)
+    estado_mundo = EstadoMundo(tipo_navio_ativo, seed=seed)
     cap = data["capitao"]
     estado_mundo.jogador_x = cap["x"]
     estado_mundo.jogador_y = cap["y"]
     estado_mundo.jogador_heading = cap["heading"]
     estado_mundo.jogador_heading_alvo = cap["heading"]
     estado_mundo.notoriedade = cap.get("notoriedade", 0)
+    estado_mundo.notoriedade_maximo = cap.get("notoriedade_maxima", estado_mundo.notoriedade)
     estado_mundo.horas_na_faixa8 = cap.get("horas_na_faixa8", 0.0)
     estado_mundo.portos_visitados = list(cap.get("portos_visitados", []))
 
@@ -259,11 +260,11 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "rastro_ativo": True,
         },
         "capitao": {
-            "tipo_navio": tipo_navio,
             "x": 4000.0,
             "y": 4000.0,
             "heading": 0.0,
             "notoriedade": 0,
+            "notoriedade_maxima": 0.0,
             "horas_na_faixa8": 0.0,
             "portos_visitados": [],
         },
@@ -329,6 +330,16 @@ def carregar(slug: str) -> dict:
     return data
 
 
+def _tipo_navio_ativo(d: dict) -> str:
+    """Tipo do navio ATIVO da frota (não o tipo original do capitão, que
+    não existe mais como campo solto — ver frota[frota_indice_ativo])."""
+    frota = d.get("frota", [])
+    idx = d.get("frota_indice_ativo", 0)
+    if 0 <= idx < len(frota):
+        return frota[idx].get("tipo", "?")
+    return "?"
+
+
 def listar_saves_ativos() -> list[dict]:
     saves = []
     for p in sorted(pasta_saves().glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True):
@@ -337,7 +348,7 @@ def listar_saves_ativos() -> list[dict]:
             saves.append({
                 "slug": d.get("slug", p.stem),
                 "nome_capitao": d.get("nome_capitao", p.stem),
-                "tipo_navio": d.get("capitao", {}).get("tipo_navio", "?"),
+                "tipo_navio": _tipo_navio_ativo(d),
                 "atualizado_em": d.get("atualizado_em", ""),
             })
         except (json.JSONDecodeError, KeyError):
@@ -362,6 +373,37 @@ def listar_historico() -> list[dict]:
         except (json.JSONDecodeError, KeyError):
             continue
     return hist
+
+
+def melhor_faixa_notoriedade_alcancada() -> int:
+    """Maior faixa (0-7) de notoriedade já alcançada em QUALQUER capitão,
+    ativo (saves/) ou falecido (historico/) — usada pro desbloqueio de
+    navios na criação de um mundo aberto novo."""
+    from .core.notoriedade import faixa_index
+
+    melhor = 0.0
+    for pasta in (pasta_saves(), pasta_historico()):
+        for p in pasta.glob("*.json"):
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            melhor = max(melhor, d.get("capitao", {}).get("notoriedade_maxima", 0.0))
+    return faixa_index(melhor)
+
+
+def melhor_vitorias_arena() -> int:
+    """Maior número de rodadas vencidas numa única campanha de Arena já
+    finalizada — usada pro desbloqueio de navios ao iniciar uma campanha
+    de Arena nova."""
+    melhor = 0
+    for p in pasta_arena_historico().glob("*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        melhor = max(melhor, d.get("rodadas_vencidas", 0))
+    return melhor
 
 
 def mover_para_historico(slug: str, estatisticas: dict) -> None:

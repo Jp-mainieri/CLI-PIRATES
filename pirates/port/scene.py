@@ -396,7 +396,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
             msg = _fluxo_comprar_navio(stdscr, frota, porto_id, navio_ativo, estado)
 
         elif escolha == 1:
-            msg = _fluxo_trocar_navio(stdscr, frota, porto_id, estado)
+            msg = _fluxo_trocar_navio(stdscr, frota, porto_id, estado, estado_mundo)
 
         elif escolha == 2:  # Renomear
             stdscr.erase()
@@ -422,9 +422,9 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
 
 def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> str:
     tipos = [
-        ("facil",   f"Chalupa    .... {PRECO_NAVIO_NOVO['facil']:.0f} ouro"),
-        ("normal",  f"Bergantim  .... {PRECO_NAVIO_NOVO['normal']:.0f} ouro"),
-        ("dificil", f"Galeao     .... {PRECO_NAVIO_NOVO['dificil']:.0f} ouro"),
+        ("chalupa",   f"Chalupa    .... {PRECO_NAVIO_NOVO['chalupa']:.0f} ouro"),
+        ("brigantim", f"Brigantim  .... {PRECO_NAVIO_NOVO['brigantim']:.0f} ouro"),
+        ("galeao",    f"Galeao     .... {PRECO_NAVIO_NOVO['galeao']:.0f} ouro"),
     ]
     opcoes = [t[1] for t in tipos] + ["[Voltar]"]
     escolha = _menu_simples(stdscr, "COMPRAR NAVIO NOVO", opcoes,
@@ -448,7 +448,7 @@ def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> s
     return m
 
 
-def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
+def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado, estado_mundo) -> str:
     navios_porto = frota.navios_no_porto(porto_id)
     if not navios_porto:
         return "Nenhum outro navio ancorado aqui."
@@ -474,6 +474,7 @@ def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
         if novo is not None:
             estado.jogador = novo.navio
             sincronizar_crew_com_navio_ativo(estado, novo.tipo)
+            estado_mundo.tipo_navio = novo.tipo
         return f"Navio trocado para {frota.ativo().nome if frota.ativo() else '?'}."
     return "Nao foi possivel trocar o navio."
 

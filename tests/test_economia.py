@@ -50,7 +50,7 @@ class TestPrecos:
 class TestMunicaoCombate:
     def _estado_com_porcao(self, polvora=5.0, bolas=5.0):
         """Cria um Estado com porão controlado e inimigo no arco de estibordo."""
-        e = Estado(tipo_navio="facil")
+        e = Estado(tipo_navio="chalupa")
         e.jogador.porao.barris.clear()
         if polvora > 0:
             e.jogador.porao.barris.append(Barril("polvora", polvora))
@@ -103,15 +103,15 @@ class TestMunicaoCombate:
 
 class TestPoraoCombate:
     def test_galeao_tem_mais_capacidade_que_chalupa(self):
-        cap_chalupa = NAVIO_TIPOS["facil"]["porao_capacidade"]
-        cap_galeao = NAVIO_TIPOS["dificil"]["porao_capacidade"]
+        cap_chalupa = NAVIO_TIPOS["chalupa"]["porao_capacidade"]
+        cap_galeao = NAVIO_TIPOS["galeao"]["porao_capacidade"]
         assert cap_galeao > cap_chalupa
 
     def test_estado_jogador_tem_estoque_inicial(self):
-        e = Estado(tipo_navio="normal")
+        e = Estado(tipo_navio="brigantim")
         assert e.jogador.porao.total("polvora") > 0
         assert e.jogador.porao.total("bolas") > 0
 
     def test_inimigo_tem_porao_gerado(self):
-        e = Estado(tipo_navio="normal")
+        e = Estado(tipo_navio="brigantim")
         assert e.inimigo.porao.total("ouro") > 0

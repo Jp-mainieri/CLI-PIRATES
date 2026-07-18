@@ -12,7 +12,7 @@ except ImportError:
 
 from ..constants import (
     TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, ARTE_FUGA_JOGADOR, COMO_JOGAR_TEXTO,
-    DIFICULDADES, NAVIO_TIPOS, PARTES,
+    TIPOS_NAVIO, NAVIO_TIPOS, PARTES,
     COR_VERDE, COR_VERMELHO, COR_AMARELO,
 )
 from ..core.utils import barra
@@ -73,17 +73,24 @@ def tela_como_jogar(stdscr) -> None:
     stdscr.getch()
 
 
-def tela_navio(stdscr) -> str | None:
+def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | None:
     """Tela de tipos de navio (←→ alterna, ENTER escolhe, ESC cancela).
 
-    Serve tanto como vitrine informativa (menu principal, retorno descartado)
-    quanto como seletor real (fluxos de Novo Capitão / Iniciar Campanha, que
-    usam o retorno pra decidir o tipo do navio criado).
+    Serve tanto como vitrine informativa (menu principal, retorno descartado,
+    sem `bloqueios`) quanto como seletor real (fluxos de Novo Capitão /
+    Iniciar Campanha, que usam o retorno pra decidir o tipo do navio criado
+    e passam `bloqueios` pra impedir a escolha de tipos ainda não
+    desbloqueados por progressão).
+
+    Args:
+        bloqueios: Dict tipo->motivo (None se liberado). Quando None, nenhum
+            tipo é bloqueado (uso como vitrine informativa).
 
     Returns:
-        Chave do tipo escolhido (ENTER), ou None se ESC foi pressionado.
+        Chave do tipo escolhido (ENTER, só se não estiver bloqueado), ou
+        None se ESC foi pressionado.
     """
-    idx = DIFICULDADES.index("normal")
+    idx = TIPOS_NAVIO.index("brigantim")
     stdscr.nodelay(False)
     stdscr.timeout(-1)
     while True:
@@ -91,10 +98,14 @@ def tela_navio(stdscr) -> str | None:
         safe_addstr(stdscr, 0, 2, "TIPOS DE NAVIO", _curses.A_BOLD)
         safe_addstr(stdscr, 1, 2, "-" * 44)
 
-        chave = DIFICULDADES[idx]
+        chave = TIPOS_NAVIO[idx]
         p = NAVIO_TIPOS[chave]
+        nivel = TIPOS_NAVIO.index(chave) + 1
+        motivo_bloqueio = bloqueios.get(chave) if bloqueios else None
         safe_addstr(stdscr, 3, 2, f"<  {p['navio'].upper()}  >", _curses.A_BOLD)
-        safe_addstr(stdscr, 4, 2, f"   dificuldade: {chave.upper()}")
+        safe_addstr(stdscr, 4, 2, f"   dificuldade {nivel} para gerenciar o navio")
+        if motivo_bloqueio:
+            safe_addstr(stdscr, 5, 2, f"   BLOQUEADO: {motivo_bloqueio}", _curses.A_BOLD)
         safe_addstr(stdscr, 6, 2, f"   Tripulacao total .... {p['crew_total']}")
         safe_addstr(
             stdscr, 7, 2,
@@ -112,11 +123,13 @@ def tela_navio(stdscr) -> str | None:
 
         ch = stdscr.getch()
         if ch == _curses.KEY_LEFT:
-            idx = (idx - 1) % len(DIFICULDADES)
+            idx = (idx - 1) % len(TIPOS_NAVIO)
         elif ch == _curses.KEY_RIGHT:
-            idx = (idx + 1) % len(DIFICULDADES)
+            idx = (idx + 1) % len(TIPOS_NAVIO)
         elif ch in (_curses.KEY_ENTER, 10, 13):
-            return DIFICULDADES[idx]
+            if motivo_bloqueio:
+                continue
+            return TIPOS_NAVIO[idx]
         elif ch == 27:
             return None
 

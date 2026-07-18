@@ -19,6 +19,8 @@ from pirates.saves import (
     mover_para_historico,
     salvar_resultado_arena,
     listar_arena_historico,
+    melhor_faixa_notoriedade_alcancada,
+    melhor_vitorias_arena,
     VERSAO_SAVE,
 )
 
@@ -40,13 +42,13 @@ def pastas_tmp(monkeypatch, tmp_path):
     return tmp_path
 
 
-def _estado_mundo_fake(tipo_navio: str = "normal", seed: int = 42):
+def _estado_mundo_fake(tipo_navio: str = "brigantim", seed: int = 42):
     """Cria um EstadoMundo mínimo para testes (sem curses)."""
     from pirates.world.state import EstadoMundo
     return EstadoMundo(tipo_navio, seed=seed)
 
 
-def _estado_fake(tipo_navio: str = "normal"):
+def _estado_fake(tipo_navio: str = "brigantim"):
     """Cria um Estado mínimo para testes."""
     from pirates.core.state import Estado
     return Estado(tipo_navio=tipo_navio)
@@ -103,27 +105,27 @@ def test_slug_unico_evita_historico(pastas_tmp):
 # ── criar_novo_save ───────────────────────────────────────────────────────────
 
 def test_criar_novo_save_cria_arquivo():
-    slug, seed = criar_novo_save("Barbanegra", "normal")
+    slug, seed = criar_novo_save("Barbanegra", "brigantim")
     path = saves_mod.pasta_saves() / f"{slug}.json"
     assert path.exists()
 
 
 def test_criar_novo_save_versao_presente():
-    slug, _ = criar_novo_save("Barbanegra", "normal")
+    slug, _ = criar_novo_save("Barbanegra", "brigantim")
     data = json.loads((saves_mod.pasta_saves() / f"{slug}.json").read_text())
     assert data["versao_save"] == VERSAO_SAVE
 
 
 def test_criar_novo_save_retorna_seed():
-    slug, seed = criar_novo_save("Barbanegra", "normal")
+    slug, seed = criar_novo_save("Barbanegra", "brigantim")
     data = json.loads((saves_mod.pasta_saves() / f"{slug}.json").read_text())
     assert data["seed_mundo"] == seed
     assert isinstance(seed, int)
 
 
 def test_criar_dois_capitaes_mesmo_nome():
-    slug1, _ = criar_novo_save("Barbanegra", "normal")
-    slug2, _ = criar_novo_save("Barbanegra", "normal")
+    slug1, _ = criar_novo_save("Barbanegra", "brigantim")
+    slug2, _ = criar_novo_save("Barbanegra", "brigantim")
     assert slug1 != slug2
     assert slug2.endswith("_2")
 
@@ -131,9 +133,9 @@ def test_criar_dois_capitaes_mesmo_nome():
 # ── salvar / carregar roundtrip ───────────────────────────────────────────────
 
 def test_roundtrip_posicao():
-    slug, seed = criar_novo_save("Anne", "normal")
-    estado = _estado_fake("normal")
-    estado_mundo = _estado_mundo_fake("normal", seed)
+    slug, seed = criar_novo_save("Anne", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
     estado_mundo.jogador_x = 1234.5
     estado_mundo.jogador_y = 6789.0
     estado_mundo.jogador_heading = 90.0
@@ -148,9 +150,9 @@ def test_roundtrip_posicao():
 
 def test_roundtrip_porao():
     from pirates.core.porao import Barril
-    slug, seed = criar_novo_save("Anne", "facil")
-    estado = _estado_fake("facil")
-    estado_mundo = _estado_mundo_fake("facil", seed)
+    slug, seed = criar_novo_save("Anne", "chalupa")
+    estado = _estado_fake("chalupa")
+    estado_mundo = _estado_mundo_fake("chalupa", seed)
     estado.jogador.porao.barris = [Barril("polvora", 10.0), Barril("ouro", 50.0)]
 
     salvar(estado, estado_mundo, slug)
@@ -163,9 +165,9 @@ def test_roundtrip_porao():
 
 
 def test_roundtrip_partes_navio():
-    slug, seed = criar_novo_save("Jack", "dificil")
-    estado = _estado_fake("dificil")
-    estado_mundo = _estado_mundo_fake("dificil", seed)
+    slug, seed = criar_novo_save("Jack", "galeao")
+    estado = _estado_fake("galeao")
+    estado_mundo = _estado_mundo_fake("galeao", seed)
     estado.jogador.partes["casco"] = 42.0
     estado.jogador.partes["mastro"] = 77.5
 
@@ -178,9 +180,9 @@ def test_roundtrip_partes_navio():
 
 
 def test_roundtrip_nome_capitao_preservado():
-    slug, seed = criar_novo_save("Calico Jack", "normal")
-    estado = _estado_fake("normal")
-    estado_mundo = _estado_mundo_fake("normal", seed)
+    slug, seed = criar_novo_save("Calico Jack", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
 
     salvar(estado, estado_mundo, slug)
     data = carregar(slug)
@@ -189,12 +191,12 @@ def test_roundtrip_nome_capitao_preservado():
 
 
 def test_roundtrip_criado_em_preservado():
-    slug, seed = criar_novo_save("Rackham", "normal")
+    slug, seed = criar_novo_save("Rackham", "brigantim")
     data_inicial = json.loads((saves_mod.pasta_saves() / f"{slug}.json").read_text())
     criado_em = data_inicial["criado_em"]
 
-    estado = _estado_fake("normal")
-    estado_mundo = _estado_mundo_fake("normal", seed)
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
     salvar(estado, estado_mundo, slug)
 
     data = carregar(slug)
@@ -205,9 +207,9 @@ def test_roundtrip_criado_em_preservado():
 
 def test_restaurar_posicao():
     from pirates.saves import restaurar_estado
-    slug, seed = criar_novo_save("Anne", "normal")
-    estado = _estado_fake("normal")
-    estado_mundo = _estado_mundo_fake("normal", seed)
+    slug, seed = criar_novo_save("Anne", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
     estado_mundo.jogador_x = 999.0
     estado_mundo.jogador_y = 888.0
     salvar(estado, estado_mundo, slug)
@@ -222,9 +224,9 @@ def test_restaurar_posicao():
 
 def test_restaurar_seed_deterministica():
     from pirates.saves import restaurar_estado
-    slug, seed = criar_novo_save("Porto", "normal")
-    estado = _estado_fake("normal")
-    em1 = _estado_mundo_fake("normal", seed)
+    slug, seed = criar_novo_save("Porto", "brigantim")
+    estado = _estado_fake("brigantim")
+    em1 = _estado_mundo_fake("brigantim", seed)
     salvar(estado, em1, slug)
 
     data = carregar(slug)
@@ -238,10 +240,35 @@ def test_restaurar_seed_deterministica():
         assert p1.y == pytest.approx(p2.y)
 
 
+def test_restaurar_notoriedade_maximo_preservado():
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Anne", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
+    estado_mundo.notoriedade = 200.0
+    estado_mundo.notoriedade_maximo = 500.0  # já fugiu depois de ter alcançado mais
+    salvar(estado, estado_mundo, slug)
+
+    data = carregar(slug)
+    config = {"hotkeys": True, "cores": True, "unicode": True, "textura_mar": True, "rastro": True}
+    _, em2 = restaurar_estado(data, config)
+
+    assert em2.notoriedade == pytest.approx(200.0)
+    assert em2.notoriedade_maximo == pytest.approx(500.0)
+
+
+def test_restaurar_nao_tem_mais_campo_tipo_navio_solto():
+    """capitao.tipo_navio foi removido -- o tipo ativo vem so de frota[indice_ativo]."""
+    slug, seed = criar_novo_save("Jack", "galeao")
+    data = carregar(slug)
+    assert "tipo_navio" not in data["capitao"]
+    assert data["frota"][data["frota_indice_ativo"]]["tipo"] == "galeao"
+
+
 # ── mover_para_historico ──────────────────────────────────────────────────────
 
 def test_mover_para_historico_arquivo_migra():
-    slug, _ = criar_novo_save("Morto", "facil")
+    slug, _ = criar_novo_save("Morto", "chalupa")
     assert (saves_mod.pasta_saves() / f"{slug}.json").exists()
 
     mover_para_historico(slug, {"causa_morte": "afundado"})
@@ -251,7 +278,7 @@ def test_mover_para_historico_arquivo_migra():
 
 
 def test_mover_para_historico_estatisticas_preenchidas():
-    slug, _ = criar_novo_save("Morto", "facil")
+    slug, _ = criar_novo_save("Morto", "chalupa")
     mover_para_historico(slug, {"causa_morte": "abordagem", "navios_afundados": 3})
 
     data = json.loads((saves_mod.pasta_historico() / f"{slug}.json").read_text())
@@ -263,7 +290,7 @@ def test_mover_para_historico_estatisticas_preenchidas():
 
 def test_versao_desconhecida_nao_quebra(caplog):
     import logging
-    slug, _ = criar_novo_save("Velho", "normal")
+    slug, _ = criar_novo_save("Velho", "brigantim")
     path = saves_mod.pasta_saves() / f"{slug}.json"
     data = json.loads(path.read_text())
     data["versao_save"] = 99
@@ -279,8 +306,8 @@ def test_versao_desconhecida_nao_quebra(caplog):
 # ── listar saves / histórico ──────────────────────────────────────────────────
 
 def test_listar_saves_ativos():
-    criar_novo_save("Alpha", "normal")
-    criar_novo_save("Beta", "facil")
+    criar_novo_save("Alpha", "brigantim")
+    criar_novo_save("Beta", "chalupa")
     saves = listar_saves_ativos()
     nomes = {s["nome_capitao"] for s in saves}
     assert "Alpha" in nomes
@@ -288,7 +315,7 @@ def test_listar_saves_ativos():
 
 
 def test_listar_historico():
-    slug, _ = criar_novo_save("Finado", "dificil")
+    slug, _ = criar_novo_save("Finado", "galeao")
     mover_para_historico(slug, {"causa_morte": "tempestade"})
     hist = listar_historico()
     assert any(h["nome_capitao"] == "Finado" for h in hist)
@@ -301,31 +328,74 @@ def test_arena_historico_vazio_por_padrao():
 
 
 def test_salvar_resultado_arena_cria_arquivo():
-    salvar_resultado_arena("Barbanegra", "normal", 3, "derrota", 842)
+    salvar_resultado_arena("Barbanegra", "brigantim", 3, "derrota", 842)
     arquivos = list(saves_mod.pasta_arena_historico().glob("*.json"))
     assert len(arquivos) == 1
 
 
 def test_salvar_resultado_arena_campos_preenchidos():
-    salvar_resultado_arena("Barbanegra", "dificil", 5, "fuga_jogador", 1200)
+    salvar_resultado_arena("Barbanegra", "galeao", 5, "fuga_jogador", 1200)
     hist = listar_arena_historico()
     assert len(hist) == 1
     entrada = hist[0]
     assert entrada["nome_capitao"] == "Barbanegra"
-    assert entrada["tipo_navio"] == "dificil"
+    assert entrada["tipo_navio"] == "galeao"
     assert entrada["rodadas_vencidas"] == 5
     assert entrada["causa_fim"] == "fuga_jogador"
     assert entrada["duracao_segundos"] == 1200
 
 
 def test_salvar_multiplas_campanhas_mesmo_nome_nao_colidem():
-    salvar_resultado_arena("Anne", "facil", 1, "derrota", 100)
-    salvar_resultado_arena("Anne", "facil", 2, "derrota", 200)
+    salvar_resultado_arena("Anne", "chalupa", 1, "derrota", 100)
+    salvar_resultado_arena("Anne", "chalupa", 2, "derrota", 200)
     hist = listar_arena_historico()
     assert len(hist) == 2
 
 
 def test_gerar_slug_unico_evita_arena_historico():
-    salvar_resultado_arena("Rackham", "normal", 0, "derrota", 10)
+    salvar_resultado_arena("Rackham", "brigantim", 0, "derrota", 10)
     slug = gerar_slug_unico("Rackham")
     assert slug == "rackham_2"
+
+
+# ── desbloqueio por progressão ─────────────────────────────────────────────
+
+def _marcar_notoriedade_maxima(slug: str, valor: float) -> None:
+    """Ajusta capitao.notoriedade_maxima de um save ativo, direto no JSON."""
+    path = saves_mod.pasta_saves() / f"{slug}.json"
+    data = json.loads(path.read_text())
+    data["capitao"]["notoriedade_maxima"] = valor
+    path.write_text(json.dumps(data))
+
+
+class TestMelhorFaixaNotoriedadeAlcancada:
+    def test_zero_sem_nenhum_save(self):
+        assert melhor_faixa_notoriedade_alcancada() == 0
+
+    def test_considera_save_ativo(self):
+        slug, _ = criar_novo_save("Ativo", "brigantim")
+        _marcar_notoriedade_maxima(slug, 300)  # faixa 2
+        assert melhor_faixa_notoriedade_alcancada() == 2
+
+    def test_considera_capitao_falecido(self):
+        slug, _ = criar_novo_save("Finado", "brigantim")
+        _marcar_notoriedade_maxima(slug, 1500)  # faixa 4
+        mover_para_historico(slug, {"causa_morte": "afundou"})
+        assert melhor_faixa_notoriedade_alcancada() == 4
+
+    def test_usa_o_maior_entre_varios_capitaes(self):
+        slug1, _ = criar_novo_save("Um", "chalupa")
+        _marcar_notoriedade_maxima(slug1, 100)  # faixa 1
+        slug2, _ = criar_novo_save("Dois", "chalupa")
+        _marcar_notoriedade_maxima(slug2, 3000)  # faixa 5
+        assert melhor_faixa_notoriedade_alcancada() == 5
+
+
+class TestMelhorVitoriasArena:
+    def test_zero_sem_nenhuma_campanha(self):
+        assert melhor_vitorias_arena() == 0
+
+    def test_usa_o_maior_entre_varias_campanhas(self):
+        salvar_resultado_arena("A", "chalupa", 5, "derrota", 100)
+        salvar_resultado_arena("B", "chalupa", 12, "derrota", 200)
+        assert melhor_vitorias_arena() == 12

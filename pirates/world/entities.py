@@ -86,7 +86,7 @@ class NavioMundo:
         agua:         Água preservada se já esteve em combate. 0.0 se nunca.
         porao:        Porão preservado entre batalhas (None se nunca combateu).
         loot:         Porão-loot deixado ao afundar (None se já coletado).
-        tipo_navio:   Chave de NAVIO_TIPOS sorteada no spawn ('facil'/'normal'/'dificil').
+        tipo_navio:   Chave de NAVIO_TIPOS sorteada no spawn ('chalupa'/'brigantim'/'galeao').
         elite:        True se este navio é uma variante elite (mais forte, mais loot).
     """
     x: float
@@ -101,5 +101,5 @@ class NavioMundo:
     porao: Porao | None = None
     loot: Porao | None = None
     avoidance_mult: float = 2.0  # personalidade: evita ilha quando dist < raio_max * mult
-    tipo_navio: str = "normal"
+    tipo_navio: str = "brigantim"
     elite: bool = False

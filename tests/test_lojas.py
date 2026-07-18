@@ -180,7 +180,7 @@ class TestComprarNavioLoja:
     def test_compra_cria_navio_na_frota(self):
         frota = Frota()
         n_ativo = _navio_com_ouro(200.0)
-        ok, _ = comprar_navio_loja(frota, "facil", "Minha Chalupa", 0, n_ativo)
+        ok, _ = comprar_navio_loja(frota, "chalupa", "Minha Chalupa", 0, n_ativo)
         assert ok is True
         assert len(frota.navios) == 1
         assert frota.navios[0].nome == "Minha Chalupa"
@@ -188,7 +188,7 @@ class TestComprarNavioLoja:
     def test_compra_falha_ouro_insuficiente(self):
         frota = Frota()
         n_ativo = _navio()
-        ok, msg = comprar_navio_loja(frota, "normal", "Bergantim", 0, n_ativo)
+        ok, msg = comprar_navio_loja(frota, "brigantim", "Brigantim", 0, n_ativo)
         assert ok is False
         assert len(frota.navios) == 0
 
@@ -201,35 +201,35 @@ class TestUpgrades:
     def test_velocidade_giro_aumenta_com_upgrade(self):
         n = _navio_com_ouro(999.0)
         v_antes = n.velocidade_maxima()
-        ok, _ = aplicar_upgrade(n, "facil", "velocidade_giro")
+        ok, _ = aplicar_upgrade(n, "chalupa", "velocidade_giro")
         assert ok is True
         assert n.velocidade_maxima() > v_antes
 
     def test_alcance_canhao_aumenta_com_upgrade(self):
         n = _navio_com_ouro(999.0)
         a_antes = n.alcance_canhao_efetivo()
-        ok, _ = aplicar_upgrade(n, "facil", "alcance_canhao")
+        ok, _ = aplicar_upgrade(n, "chalupa", "alcance_canhao")
         assert ok is True
         assert n.alcance_canhao_efetivo() > a_antes
 
     def test_porao_slot_aumenta_capacidade(self):
         n = _navio_com_ouro(999.0)
         cap_antes = n.porao.capacidade
-        ok, _ = aplicar_upgrade(n, "facil", "porao_slot")
+        ok, _ = aplicar_upgrade(n, "chalupa", "porao_slot")
         assert ok is True
         assert n.porao.capacidade == cap_antes + 1
 
     def test_upgrade_max_bloqueado(self):
         n = _navio_com_ouro(9999.0)
         # facil: max "velocidade_giro" = 1
-        aplicar_upgrade(n, "facil", "velocidade_giro")
-        ok, msg = aplicar_upgrade(n, "facil", "velocidade_giro")
+        aplicar_upgrade(n, "chalupa", "velocidade_giro")
+        ok, msg = aplicar_upgrade(n, "chalupa", "velocidade_giro")
         assert ok is False
         assert "maximo" in msg.lower()
 
     def test_upgrade_falha_sem_ouro(self):
         n = _navio()
-        ok, msg = aplicar_upgrade(n, "normal", "cooldown")
+        ok, msg = aplicar_upgrade(n, "brigantim", "cooldown")
         assert ok is False
         assert "insuficiente" in msg.lower()
 
@@ -238,8 +238,8 @@ class TestUpgrades:
         assert nivel_atual_upgrade(n, "cooldown") == 0
 
     def test_nivel_max_por_tipo(self):
-        assert nivel_max_upgrade("facil", "porao_slot") == 1
-        assert nivel_max_upgrade("dificil", "porao_slot") == 3
+        assert nivel_max_upgrade("chalupa", "porao_slot") == 1
+        assert nivel_max_upgrade("galeao", "porao_slot") == 3
 
 
 def test_capitao_perto_de():

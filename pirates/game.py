@@ -28,7 +28,10 @@ from .constants import (
 from .core.state import Estado, sincronizar_crew_com_navio_ativo
 from .core.ship import criar_canhoes
 from .core.porao import gerar_porao_inimigo, coletar_loot
-from .core.notoriedade import sortear_bonus_elite, pontos_por_afundamento, pontos_perdidos_por_fuga
+from .core.notoriedade import (
+    sortear_bonus_elite, pontos_por_afundamento, pontos_perdidos_por_fuga,
+    bloqueios_mundo, bloqueios_arena,
+)
 from .input.commands import processar_comando, obter_candidatos
 from .input.hotkeys import processar_hotkey
 from .core.simulation import atualizar_simulacao
@@ -37,6 +40,7 @@ from .saves import (
     criar_novo_save, salvar, carregar, restaurar_estado,
     listar_saves_ativos, listar_historico,
     salvar_resultado_arena, listar_arena_historico,
+    melhor_faixa_notoriedade_alcancada, melhor_vitorias_arena,
 )
 from .ui.menus import (
     tela_menu, tela_como_jogar, tela_navio, tela_ajustes, tela_fim,
@@ -86,6 +90,7 @@ def _tentar_respawn(estado, estado_mundo):
     frota.indice_ativo = idx_real
     estado.jogador = novo.navio
     sincronizar_crew_com_navio_ativo(estado, novo.tipo)
+    estado_mundo.tipo_navio = novo.tipo
 
     porto = min(
         estado_mundo.portos,
@@ -124,7 +129,7 @@ def _processar_morte_mundo(stdscr, estado, estado_mundo, slug, causa: str) -> st
             from .saves import mover_para_historico
             mover_para_historico(slug, {
                 "causa_morte": causa,
-                "notoriedade_maxima": getattr(estado_mundo, "notoriedade", 0),
+                "notoriedade_maxima": getattr(estado_mundo, "notoriedade_maximo", 0),
                 "duracao_segundos": int(getattr(estado, "tempo", 0)),
             })
         except Exception:
@@ -664,6 +669,9 @@ def mundo_loop(
                     inimigo_engajado.porao = None
                     pontos = pontos_por_afundamento(inimigo_engajado.tipo_navio, inimigo_engajado.elite)
                     estado_mundo.notoriedade += pontos
+                    estado_mundo.notoriedade_maximo = max(
+                        estado_mundo.notoriedade_maximo, estado_mundo.notoriedade,
+                    )
                     estado.log.append(f"+{pontos:.0f} notoriedade!")
 
                 elif estado.fim == "fuga":
@@ -847,7 +855,8 @@ def _mundo_menu_loop(stdscr, config: dict) -> str:
             nome = tela_novo_capitao(stdscr)
             if nome is None:
                 continue
-            tipo = tela_navio(stdscr)
+            bloqueios = bloqueios_mundo(melhor_faixa_notoriedade_alcancada())
+            tipo = tela_navio(stdscr, bloqueios=bloqueios)
             if tipo is None:
                 continue
             slug, seed = criar_novo_save(nome, tipo)
@@ -874,7 +883,8 @@ def _arena_menu_loop(stdscr, config: dict) -> str:
             nome = tela_novo_capitao(stdscr)
             if nome is None:
                 continue
-            tipo = tela_navio(stdscr)
+            bloqueios = bloqueios_arena(melhor_vitorias_arena())
+            tipo = tela_navio(stdscr, bloqueios=bloqueios)
             if tipo is None:
                 continue
             return _arena_campanha_loop(stdscr, config, nome, tipo)
@@ -944,7 +954,7 @@ def main(stdscr) -> None:
         _curses.init_pair(COR_MAR,      _curses.COLOR_BLUE,    fundo)
         _curses.init_pair(COR_ILHA,     _curses.COLOR_WHITE,  fundo)
 
-    config = {"tipo_navio": "normal", "hotkeys": True, "cores": True, "unicode": True,
+    config = {"tipo_navio": "brigantim", "hotkeys": True, "cores": True, "unicode": True,
               "textura_mar": True, "rastro": True}
     tela_atual = "menu"
 

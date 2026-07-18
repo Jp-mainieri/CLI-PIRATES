@@ -28,12 +28,12 @@ def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
 # ---------------------------------------------------------------------------
 
 UPGRADE_NIVEIS_MAX: dict[str, dict[str, int]] = {
-    "facil":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
-                "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1},
-    "normal":  {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
-                "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2},
-    "dificil": {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
-                "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3},
+    "chalupa":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
+                  "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1},
+    "brigantim": {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
+                  "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2},
+    "galeao":    {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
+                  "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3},
 }
 
 

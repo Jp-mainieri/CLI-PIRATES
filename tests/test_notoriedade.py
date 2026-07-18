@@ -7,6 +7,8 @@ from pirates.core.notoriedade import (
     DISTRIBUICAO_TIPO_POR_FAIXA,
     FAIXA8_ELITE_TETO,
     FRACAO_PERDA_FUGA_JOGADOR,
+    DESBLOQUEIO_MUNDO_FAIXA,
+    DESBLOQUEIO_ARENA_VITORIAS,
     faixa_index,
     titulo,
     icone,
@@ -15,6 +17,8 @@ from pirates.core.notoriedade import (
     sortear_bonus_elite,
     pontos_por_afundamento,
     pontos_perdidos_por_fuga,
+    bloqueios_mundo,
+    bloqueios_arena,
 )
 
 
@@ -82,8 +86,47 @@ class TestSortearTipoNavio:
 
     def test_retorna_chave_valida(self):
         for _ in range(50):
-            assert sortear_tipo_navio(0) in ("facil", "normal", "dificil")
-            assert sortear_tipo_navio(12000) in ("facil", "normal", "dificil")
+            assert sortear_tipo_navio(0) in ("chalupa", "brigantim", "galeao")
+            assert sortear_tipo_navio(12000) in ("chalupa", "brigantim", "galeao")
+
+
+class TestBloqueiosMundo:
+    def test_chalupa_nunca_bloqueada(self):
+        assert bloqueios_mundo(0)["chalupa"] is None
+        assert bloqueios_mundo(7)["chalupa"] is None
+
+    def test_brigantim_bloqueada_abaixo_do_requisito(self):
+        exigido = DESBLOQUEIO_MUNDO_FAIXA["brigantim"]
+        assert bloqueios_mundo(exigido - 1)["brigantim"] is not None
+        assert bloqueios_mundo(exigido)["brigantim"] is None
+
+    def test_galeao_bloqueada_abaixo_do_requisito(self):
+        exigido = DESBLOQUEIO_MUNDO_FAIXA["galeao"]
+        assert bloqueios_mundo(exigido - 1)["galeao"] is not None
+        assert bloqueios_mundo(exigido)["galeao"] is None
+
+    def test_faixa_alta_libera_tudo(self):
+        bloqueios = bloqueios_mundo(7)
+        assert all(motivo is None for motivo in bloqueios.values())
+
+
+class TestBloqueiosArena:
+    def test_chalupa_nunca_bloqueada(self):
+        assert bloqueios_arena(0)["chalupa"] is None
+
+    def test_brigantim_bloqueada_abaixo_do_requisito(self):
+        exigido = DESBLOQUEIO_ARENA_VITORIAS["brigantim"]
+        assert bloqueios_arena(exigido - 1)["brigantim"] is not None
+        assert bloqueios_arena(exigido)["brigantim"] is None
+
+    def test_galeao_bloqueada_abaixo_do_requisito(self):
+        exigido = DESBLOQUEIO_ARENA_VITORIAS["galeao"]
+        assert bloqueios_arena(exigido - 1)["galeao"] is not None
+        assert bloqueios_arena(exigido)["galeao"] is None
+
+    def test_muitas_vitorias_libera_tudo(self):
+        bloqueios = bloqueios_arena(999)
+        assert all(motivo is None for motivo in bloqueios.values())
 
 
 class TestSortearBonusElite:
@@ -101,22 +144,22 @@ class TestSortearBonusElite:
 
 class TestPontosPorAfundamento:
     def test_pontos_normais_por_tipo(self):
-        assert pontos_por_afundamento("facil", elite=False) == 10.0
-        assert pontos_por_afundamento("normal", elite=False) == 25.0
-        assert pontos_por_afundamento("dificil", elite=False) == 50.0
+        assert pontos_por_afundamento("chalupa", elite=False) == 10.0
+        assert pontos_por_afundamento("brigantim", elite=False) == 25.0
+        assert pontos_por_afundamento("galeao", elite=False) == 50.0
 
     def test_chalupa_elite(self):
-        assert pontos_por_afundamento("facil", elite=True) == pytest.approx(55.0)
+        assert pontos_por_afundamento("chalupa", elite=True) == pytest.approx(55.0)
 
     def test_formula_elite_generica(self):
-        assert pontos_por_afundamento("dificil", elite=True) == pytest.approx(
+        assert pontos_por_afundamento("galeao", elite=True) == pytest.approx(
             50 * 2.5 + 30.0
         )
 
 
 class TestPontosPerdidosPorFuga:
     def test_e_uma_fracao_dos_pontos_de_afundamento(self):
-        for tipo in ("facil", "normal", "dificil"):
+        for tipo in ("chalupa", "brigantim", "galeao"):
             for elite in (False, True):
                 assert pontos_perdidos_por_fuga(tipo, elite) == pytest.approx(
                     pontos_por_afundamento(tipo, elite) * FRACAO_PERDA_FUGA_JOGADOR
