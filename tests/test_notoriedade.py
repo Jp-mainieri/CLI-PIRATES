@@ -173,11 +173,11 @@ class TestMultOuroPorFaixa:
 
 class TestGoldBasePorTipo:
     def test_chaves_batem_com_tipos_de_navio(self):
-        assert set(GOLD_BASE_POR_TIPO) == {"facil", "normal", "dificil"}
+        assert set(GOLD_BASE_POR_TIPO) == {"chalupa", "brigantim", "galeao"}
 
     def test_minimo_menor_que_maximo_e_escala_por_tipo(self):
         minimos = []
-        for tipo in ("facil", "normal", "dificil"):
+        for tipo in ("chalupa", "brigantim", "galeao"):
             minimo, maximo = GOLD_BASE_POR_TIPO[tipo]
             assert minimo < maximo
             minimos.append(minimo)

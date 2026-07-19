@@ -144,12 +144,12 @@ class TestEstoqueInicialJogador:
 class TestGerarPorao:
     def test_sempre_tem_barril_de_ouro(self):
         for _ in range(20):
-            p = gerar_porao_inimigo(6, "normal", 0.0, elite=False)
+            p = gerar_porao_inimigo(6, "brigantim", 0.0, elite=False)
             assert p.total("ouro") > 0
 
     def test_sempre_tem_pelo_menos_1_polvora_bola_e_tabua(self):
         for _ in range(20):
-            p = gerar_porao_inimigo(6, "normal", 0.0, elite=False)
+            p = gerar_porao_inimigo(6, "brigantim", 0.0, elite=False)
             assert p.total("polvora") > 0
             assert p.total("bolas") > 0
             assert p.total("tabuas") > 0
@@ -157,14 +157,14 @@ class TestGerarPorao:
     def test_barris_nao_excedem_capacidade(self):
         cap = 9
         for _ in range(20):
-            p = gerar_porao_inimigo(cap, "normal", 0.0, elite=False)
+            p = gerar_porao_inimigo(cap, "brigantim", 0.0, elite=False)
             assert len(p.barris) <= cap
 
     def test_polvora_bolas_sao_inteiros(self):
         # Ouro nao entra mais aqui: MULT_OURO_POR_FAIXA e fracionario, entao
         # o total sorteado (randint * mult) pode ser fracionario por design.
         for _ in range(50):
-            p = gerar_porao_inimigo(9, "normal", 0.0, elite=False)
+            p = gerar_porao_inimigo(9, "brigantim", 0.0, elite=False)
             for b in p.barris:
                 if b.tipo in ("polvora", "bolas"):
                     assert b.quantidade == int(b.quantidade), (b.tipo, b.quantidade)
@@ -173,7 +173,7 @@ class TestGerarPorao:
         random.seed(7)
         valores = []
         for _ in range(200):
-            p = gerar_porao_inimigo(9, "normal", 0.0, elite=False)
+            p = gerar_porao_inimigo(9, "brigantim", 0.0, elite=False)
             valores.extend(b.quantidade for b in p.barris if b.tipo == "tabuas")
         assert any(v != int(v) for v in valores)
 
@@ -181,10 +181,10 @@ class TestGerarPorao:
         from pirates.core.notoriedade import NOTORIEDADE_FAIXAS
 
         random.seed(123)
-        faixa0 = [gerar_porao_inimigo(9, "normal", 0.0) for _ in range(200)]
+        faixa0 = [gerar_porao_inimigo(9, "brigantim", 0.0) for _ in range(200)]
         random.seed(123)
         pontos_faixa7 = NOTORIEDADE_FAIXAS[7]["minimo"]
-        faixa7 = [gerar_porao_inimigo(9, "normal", pontos_faixa7) for _ in range(200)]
+        faixa7 = [gerar_porao_inimigo(9, "brigantim", pontos_faixa7) for _ in range(200)]
 
         media_faixa0 = sum(p.total("ouro") for p in faixa0) / len(faixa0)
         media_faixa7 = sum(p.total("ouro") for p in faixa7) / len(faixa7)
@@ -192,9 +192,9 @@ class TestGerarPorao:
 
     def test_ouro_escala_com_tipo_de_navio(self):
         random.seed(99)
-        facil = [gerar_porao_inimigo(6, "facil", 0.0) for _ in range(200)]
+        facil = [gerar_porao_inimigo(6, "chalupa", 0.0) for _ in range(200)]
         random.seed(99)
-        dificil = [gerar_porao_inimigo(14, "dificil", 0.0) for _ in range(200)]
+        dificil = [gerar_porao_inimigo(14, "galeao", 0.0) for _ in range(200)]
 
         media_facil = sum(p.total("ouro") for p in facil) / len(facil)
         media_dificil = sum(p.total("ouro") for p in dificil) / len(dificil)
@@ -206,7 +206,7 @@ class TestGerarPorao:
         pontos_faixa7 = NOTORIEDADE_FAIXAS[7]["minimo"]
         houve_overflow = False
         for _ in range(100):
-            p = gerar_porao_inimigo(20, "dificil", pontos_faixa7)
+            p = gerar_porao_inimigo(20, "galeao", pontos_faixa7)
             barris_ouro = [b for b in p.barris if b.tipo == "ouro"]
             for b in barris_ouro:
                 assert b.quantidade <= CAPACIDADE_BARRIL_OURO + 1e-6
@@ -217,19 +217,19 @@ class TestGerarPorao:
 
 class TestGerarPoraoElite:
     def test_capacidade_30_por_cento_maior(self):
-        p = gerar_porao_inimigo(10, "normal", 0.0, elite=True)
+        p = gerar_porao_inimigo(10, "brigantim", 0.0, elite=True)
         assert p.capacidade == round(10 * 1.3)
 
     def test_nenhum_slot_vazio(self):
         for _ in range(20):
-            p = gerar_porao_inimigo(9, "normal", 0.0, elite=True)
+            p = gerar_porao_inimigo(9, "brigantim", 0.0, elite=True)
             assert len(p.barris) == p.capacidade
 
     def test_conteudo_medio_mais_cheio_que_normal(self):
         random.seed(42)
-        normais = [gerar_porao_inimigo(9, "normal", 0.0, elite=False) for _ in range(200)]
+        normais = [gerar_porao_inimigo(9, "brigantim", 0.0, elite=False) for _ in range(200)]
         random.seed(42)
-        elites = [gerar_porao_inimigo(9, "normal", 0.0, elite=True) for _ in range(200)]
+        elites = [gerar_porao_inimigo(9, "brigantim", 0.0, elite=True) for _ in range(200)]
         media_normal = sum(b.quantidade for p in normais for b in p.barris if b.tipo != "ouro") / sum(
             len(p.barris) - 1 for p in normais
         )

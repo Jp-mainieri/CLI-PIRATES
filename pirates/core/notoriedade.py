@@ -33,7 +33,7 @@ DESBLOQUEIO_ARENA_VITORIAS = {"brigantim": 10, "galeao": 30}
 
 # (min, max) do sorteio de ouro base por tipo de navio, antes do
 # multiplicador MULT_OURO_POR_FAIXA.
-GOLD_BASE_POR_TIPO = {"facil": (5, 20), "normal": (12, 35), "dificil": (20, 50)}
+GOLD_BASE_POR_TIPO = {"chalupa": (5, 20), "brigantim": (12, 35), "galeao": (20, 50)}
 
 MULT_ELITE_PONTOS = 2.5
 BONUS_ELITE_PONTOS = 30.0
