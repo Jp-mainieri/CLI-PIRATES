@@ -28,6 +28,8 @@ class EstadoMundo:
         portos:               Lista de Porto fixos no mundo.
         mapa_mundo_visivel:   Toggle de exibição do painel MAPA MUNDO.
         loot_pendente:        Porão com loot que não coube ao coletar (Tier 3b consome).
+        notoriedade_maximo:   Maior notoriedade já alcançada nesta partida (só cresce,
+                              nunca cai com fuga — usado pra desbloqueio de navios).
     """
 
     def __init__(self, tipo_navio: str, seed: int | None = None) -> None:
@@ -37,6 +39,7 @@ class EstadoMundo:
         self.seed_mundo: int = seed
         self._rng = random.Random(seed)
         self.notoriedade: float = 0.0
+        self.notoriedade_maximo: float = 0.0
         self.horas_na_faixa8: float = 0.0
         self.portos_visitados: list[int] = []
         self.jogador_x: float = MUNDO_TAMANHO / 2

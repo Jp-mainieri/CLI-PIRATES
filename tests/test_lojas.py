@@ -11,9 +11,11 @@ from pirates.port.lojas import (
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade,
     nivel_atual_upgrade, nivel_max_upgrade, comprar_item_topo,
+    transferir_barril_frota,
 )
 from pirates.constants import (
     PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PARTES, PRECO_ITENS_TOPO,
+    PRECO_TRANSFERENCIA_FROTA,
     PRECO_NAVIO_NOVO, PRECO_UPGRADE,
 )
 
@@ -181,7 +183,7 @@ class TestComprarNavioLoja:
     def test_compra_cria_navio_na_frota(self):
         frota = Frota()
         n_ativo = _navio_com_ouro(200.0)
-        ok, _ = comprar_navio_loja(frota, "facil", "Minha Chalupa", 0, n_ativo)
+        ok, _ = comprar_navio_loja(frota, "chalupa", "Minha Chalupa", 0, n_ativo)
         assert ok is True
         assert len(frota.navios) == 1
         assert frota.navios[0].nome == "Minha Chalupa"
@@ -189,7 +191,7 @@ class TestComprarNavioLoja:
     def test_compra_falha_ouro_insuficiente(self):
         frota = Frota()
         n_ativo = _navio()
-        ok, msg = comprar_navio_loja(frota, "normal", "Bergantim", 0, n_ativo)
+        ok, msg = comprar_navio_loja(frota, "brigantim", "Brigantim", 0, n_ativo)
         assert ok is False
         assert len(frota.navios) == 0
 
@@ -220,35 +222,35 @@ class TestUpgrades:
     def test_velocidade_giro_aumenta_com_upgrade(self):
         n = _navio_com_ouro(999.0)
         v_antes = n.velocidade_maxima()
-        ok, _ = aplicar_upgrade(n, "facil", "velocidade_giro")
+        ok, _ = aplicar_upgrade(n, "chalupa", "velocidade_giro")
         assert ok is True
         assert n.velocidade_maxima() > v_antes
 
     def test_alcance_canhao_aumenta_com_upgrade(self):
         n = _navio_com_ouro(999.0)
         a_antes = n.alcance_canhao_efetivo()
-        ok, _ = aplicar_upgrade(n, "facil", "alcance_canhao")
+        ok, _ = aplicar_upgrade(n, "chalupa", "alcance_canhao")
         assert ok is True
         assert n.alcance_canhao_efetivo() > a_antes
 
     def test_porao_slot_aumenta_capacidade(self):
         n = _navio_com_ouro(999.0)
         cap_antes = n.porao.capacidade
-        ok, _ = aplicar_upgrade(n, "facil", "porao_slot")
+        ok, _ = aplicar_upgrade(n, "chalupa", "porao_slot")
         assert ok is True
         assert n.porao.capacidade == cap_antes + 1
 
     def test_upgrade_max_bloqueado(self):
         n = _navio_com_ouro(9999.0)
         # facil: max "velocidade_giro" = 1
-        aplicar_upgrade(n, "facil", "velocidade_giro")
-        ok, msg = aplicar_upgrade(n, "facil", "velocidade_giro")
+        aplicar_upgrade(n, "chalupa", "velocidade_giro")
+        ok, msg = aplicar_upgrade(n, "chalupa", "velocidade_giro")
         assert ok is False
         assert "maximo" in msg.lower()
 
     def test_upgrade_falha_sem_ouro(self):
         n = _navio()
-        ok, msg = aplicar_upgrade(n, "normal", "cooldown")
+        ok, msg = aplicar_upgrade(n, "brigantim", "cooldown")
         assert ok is False
         assert "insuficiente" in msg.lower()
 
@@ -257,8 +259,8 @@ class TestUpgrades:
         assert nivel_atual_upgrade(n, "cooldown") == 0
 
     def test_nivel_max_por_tipo(self):
-        assert nivel_max_upgrade("facil", "porao_slot") == 1
-        assert nivel_max_upgrade("dificil", "porao_slot") == 3
+        assert nivel_max_upgrade("chalupa", "porao_slot") == 1
+        assert nivel_max_upgrade("galeao", "porao_slot") == 3
 
     def test_taxa_capacidade_barril_ouro_e_1_30_nao_1_5(self):
         preco_casco = preco_upgrade_nivel("casco_max", 1)
@@ -355,3 +357,74 @@ class TestComprarItemTopo:
         ok, msg = comprar_item_topo(n, "item_fantasma", faixa_notoriedade=7)
         assert ok is False
         assert "nao existe" in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Transferir carga entre navios da frota
+# ---------------------------------------------------------------------------
+
+class TestTransferirBarrilFrota:
+    def test_transferir_recurso_comum_debita_origem(self):
+        origem = _navio_com_ouro(qtd=100.0)
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio()
+        idx = len(origem.porao.barris) - 1  # barril de polvora
+        ok, m = transferir_barril_frota(origem, destino, idx)
+        assert ok is True
+        assert destino.porao.total("polvora") == pytest.approx(25.0)
+        assert origem.porao.total("ouro") == pytest.approx(100.0 - PRECO_TRANSFERENCIA_FROTA)
+
+    def test_transferir_recurso_comum_cai_pro_destino_se_origem_sem_ouro(self):
+        origem = _navio()  # sem ouro
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio_com_ouro(qtd=100.0)
+        idx = 0
+        ok, m = transferir_barril_frota(origem, destino, idx)
+        assert ok is True
+        assert destino.porao.total("polvora") == pytest.approx(25.0)
+        assert destino.porao.total("ouro") == pytest.approx(100.0 - PRECO_TRANSFERENCIA_FROTA)
+
+    def test_transferir_recurso_comum_falha_sem_ouro_nos_dois_lados(self):
+        origem = _navio()
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert len(origem.porao.barris) == 1  # nada mudou
+        assert len(destino.porao.barris) == 0
+
+    def test_transferir_ouro_taxa_sai_do_proprio_barril(self):
+        origem = _navio_com_ouro(qtd=50.0)
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is True
+        assert destino.porao.total("ouro") == pytest.approx(50.0 - PRECO_TRANSFERENCIA_FROTA)
+        assert origem.porao.total("ouro") == 0.0
+
+    def test_transferir_ouro_falha_se_barril_nao_cobre_taxa(self):
+        origem = _navio_com_ouro(qtd=2.0)  # menos que PRECO_TRANSFERENCIA_FROTA
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert origem.porao.total("ouro") == pytest.approx(2.0)  # nada mudou
+
+    def test_transferir_ouro_exato_da_taxa_esvazia_sem_criar_barril_no_destino(self):
+        origem = _navio_com_ouro(qtd=PRECO_TRANSFERENCIA_FROTA)
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is True
+        assert len(destino.porao.barris) == 0
+        assert len(origem.porao.barris) == 0
+
+    def test_transferir_falha_se_destino_sem_slot_livre(self):
+        origem = _navio_com_ouro(qtd=50.0)
+        destino = _navio(cap=0)  # zero slots
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert len(origem.porao.barris) == 1  # nada mudou
+
+    def test_transferir_indice_invalido(self):
+        origem = _navio()
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 5)
+        assert ok is False

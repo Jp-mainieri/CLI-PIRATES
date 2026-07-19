@@ -14,10 +14,12 @@ from .lojas import (
     preco_upgrade_nivel, nivel_atual_upgrade, nivel_max_upgrade,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade, comprar_item_topo,
+    transferir_barril_frota,
     UPGRADE_NIVEIS_MAX,
 )
 from ..constants import (
     PRECO_NAVIO_NOVO, PRECO_BARRIL_NOVO, PRECO_RENOMEAR,
+    PRECO_TRANSFERENCIA_FROTA,
     NAVIO_TIPOS, SIMB_CAPITAO, POLL_MS,
     COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR, COR_MAR,
     PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
@@ -291,6 +293,48 @@ def _selecionar_barril(stdscr, navio, tipo: str, estado) -> int | None:
             return barris_tipo[cursor][0]
 
 
+def _selecionar_barril_qualquer_tipo(stdscr, navio, estado) -> int | None:
+    """Inventário interativo: seleciona qualquer barril do navio (sem
+    filtro de tipo). Retorna índice real ou None."""
+    barris = list(enumerate(navio.porao.barris))
+    if not barris:
+        return None
+    from ..core.porao import capacidade_barril
+    from ..ui.colors import cor_recurso
+    cores = estado.cores_ativo and _curses is not None
+    cursor = 0
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        safe_addstr(stdscr, 0, 0, "-" * min(max_x - 1, 78))
+        safe_addstr(stdscr, 1, 2, "SELECIONAR BARRIL PARA TRANSFERIR", _curses.A_BOLD)
+        safe_addstr(stdscr, 2, 0, "-" * min(max_x - 1, 78))
+        row = 4
+        for ci, (i, b) in enumerate(barris):
+            cap_b = capacidade_barril(b.tipo)
+            prefixo = " > " if ci == cursor else "   "
+            sel_attr = _curses.A_REVERSE if ci == cursor else 0
+            pct = b.quantidade / cap_b if cap_b > 0 else 0.0
+            n_h = int(round(pct * 10))
+            barra_str = "#" * n_h + "-" * (10 - n_h)
+            linha = f"{prefixo}{i+1:2d}.  {b.tipo:7s}  {b.quantidade:4.0f} / {cap_b:2.0f}u  [{barra_str}]"
+            cor = cor_recurso(cores, b.tipo)
+            safe_addstr(stdscr, row, 0, linha, sel_attr | cor if not sel_attr else sel_attr)
+            row += 1
+        safe_addstr(stdscr, max_y - 2, 0,
+                    "CIMA/BAIXO: navegar   ENTER/ESPACO: selecionar   ESC: cancelar")
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == 27:
+            return None
+        elif ch == _curses.KEY_UP:
+            cursor = max(0, cursor - 1)
+        elif ch == _curses.KEY_DOWN:
+            cursor = min(len(barris) - 1, cursor + 1)
+        elif ch in (ord(' '), _curses.KEY_ENTER, 10, 13):
+            return barris[cursor][0]
+
+
 def _loja_recurso(stdscr, navio, tipo: str, estado) -> None:
     """Sub-loop da loja de recurso (pólvora/bolas/tábuas)."""
     nome_exibido = {"polvora": "POLVORA", "bolas": "BOLAS", "tabuas": "TABUAS"}.get(tipo, tipo.upper())
@@ -377,6 +421,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
         opcoes = [
             "Comprar navio novo ......................................",
             "Trocar de navio ativo (frota) ...........................",
+            f"Transferir carga entre navios (frota) .................. {PRECO_TRANSFERENCIA_FROTA:.0f} ouro",
             f"Renomear navio atual .................................... {PRECO_RENOMEAR:.1f} ouro",
             "Upgrades do navio atual .................................",
             "Itens de topo ............................................",
@@ -396,9 +441,12 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
             msg = _fluxo_comprar_navio(stdscr, frota, porto_id, navio_ativo, estado)
 
         elif escolha == 1:
-            msg = _fluxo_trocar_navio(stdscr, frota, porto_id, estado)
+            msg = _fluxo_trocar_navio(stdscr, frota, porto_id, estado, estado_mundo)
 
-        elif escolha == 2:  # Renomear
+        elif escolha == 2:
+            msg = _fluxo_transferir_carga(stdscr, frota, porto_id, estado)
+
+        elif escolha == 3:  # Renomear
             stdscr.erase()
             max_y, max_x = stdscr.getmaxyx()
             safe_addstr(stdscr, 1, 2, "RENOMEAR NAVIO", _curses.A_BOLD)
@@ -413,18 +461,18 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
             else:
                 msg = "Cancelado."
 
-        elif escolha == 3:
+        elif escolha == 4:
             _loja_upgrades(stdscr, navio_ativo, tipo_navio_atual, estado)
 
-        elif escolha == 4:
+        elif escolha == 5:
             _loja_itens_topo(stdscr, navio_ativo, estado_mundo, estado)
 
 
 def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> str:
     tipos = [
-        ("facil",   f"Chalupa    .... {PRECO_NAVIO_NOVO['facil']:.0f} ouro"),
-        ("normal",  f"Bergantim  .... {PRECO_NAVIO_NOVO['normal']:.0f} ouro"),
-        ("dificil", f"Galeao     .... {PRECO_NAVIO_NOVO['dificil']:.0f} ouro"),
+        ("chalupa",   f"Chalupa    .... {PRECO_NAVIO_NOVO['chalupa']:.0f} ouro"),
+        ("brigantim", f"Brigantim  .... {PRECO_NAVIO_NOVO['brigantim']:.0f} ouro"),
+        ("galeao",    f"Galeao     .... {PRECO_NAVIO_NOVO['galeao']:.0f} ouro"),
     ]
     opcoes = [t[1] for t in tipos] + ["[Voltar]"]
     escolha = _menu_simples(stdscr, "COMPRAR NAVIO NOVO", opcoes,
@@ -448,7 +496,7 @@ def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> s
     return m
 
 
-def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
+def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado, estado_mundo) -> str:
     navios_porto = frota.navios_no_porto(porto_id)
     if not navios_porto:
         return "Nenhum outro navio ancorado aqui."
@@ -474,8 +522,46 @@ def _fluxo_trocar_navio(stdscr, frota, porto_id: int, estado) -> str:
         if novo is not None:
             estado.jogador = novo.navio
             sincronizar_crew_com_navio_ativo(estado, novo.tipo)
+            estado_mundo.tipo_navio = novo.tipo
         return f"Navio trocado para {frota.ativo().nome if frota.ativo() else '?'}."
     return "Nao foi possivel trocar o navio."
+
+
+def _fluxo_transferir_carga(stdscr, frota, porto_id: int, estado) -> str:
+    navio_ativo = estado.jogador
+    navios_porto = frota.navios_no_porto(porto_id)
+    if not navios_porto:
+        return "Nenhum outro navio ancorado aqui pra transferir carga."
+
+    opcoes = [
+        f"{np_obj.nome} ({NAVIO_TIPOS.get(np_obj.tipo, {}).get('navio', '?')})"
+        for np_obj in navios_porto
+    ]
+    opcoes.append("[Voltar]")
+    escolha = _menu_simples(stdscr, "TRANSFERIR CARGA — ESCOLHA O OUTRO NAVIO", opcoes,
+                            "CIMA/BAIXO: navegar  ESPACO: escolher  ESC: voltar", estado)
+    if escolha in (-1, len(opcoes) - 1):
+        return "Cancelado."
+    outro_nome = navios_porto[escolha].nome
+    outro_navio = navios_porto[escolha].navio
+
+    opcoes_dir = [
+        f"Enviar para {outro_nome} (do navio ativo)",
+        f"Receber de {outro_nome} (para o navio ativo)",
+        "[Voltar]",
+    ]
+    dir_escolha = _menu_simples(stdscr, "DIRECAO DA TRANSFERENCIA", opcoes_dir,
+                                "CIMA/BAIXO: navegar  ESPACO: escolher  ESC: voltar", estado)
+    if dir_escolha in (-1, 2):
+        return "Cancelado."
+    origem, destino = (navio_ativo, outro_navio) if dir_escolha == 0 else (outro_navio, navio_ativo)
+
+    idx = _selecionar_barril_qualquer_tipo(stdscr, origem, estado)
+    if idx is None:
+        return "Nenhum barril selecionado."
+
+    ok, m = transferir_barril_frota(origem, destino, idx)
+    return m
 
 
 def _loja_upgrades(stdscr, navio, tipo_navio: str, estado) -> None:

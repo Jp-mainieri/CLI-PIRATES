@@ -5,7 +5,7 @@ from pirates.core.state import Estado
 from pirates.ai.enemy import atualizar_estado_fuga, atualizar_ia_tripulacao
 
 
-def _estado(tipo="normal"):
+def _estado(tipo="brigantim"):
     return Estado(tipo_navio=tipo)
 
 
@@ -62,7 +62,7 @@ class TestAtualizarEstadoFuga:
 
 class TestAtualizarIaTripulacaoModoFuga:
     def test_fuga_desarma_todos_canhoes(self):
-        e = _estado("normal")
+        e = _estado("brigantim")
         e.inimigo_em_fuga = True
         for lado in ('estibordo', 'bombordo'):
             for c in e.inimigo.canhoes[lado]:
@@ -75,7 +75,7 @@ class TestAtualizarIaTripulacaoModoFuga:
                 assert c.dist_alvo is None
 
     def test_normal_pode_armar_canhoes(self):
-        e = _estado("normal")
+        e = _estado("brigantim")
         e.inimigo_em_fuga = False
         atualizar_ia_tripulacao(e)
         total_armados = sum(

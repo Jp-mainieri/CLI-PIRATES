@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ..constants import (
     PRECO_BARRIL_NOVO, PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
+    PRECO_TRANSFERENCIA_FROTA,
     NAVIO_TIPOS, PARTES, PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
     TAXA_CRESCIMENTO_UPGRADE,
 )
@@ -34,13 +35,13 @@ def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
 # ---------------------------------------------------------------------------
 
 UPGRADE_NIVEIS_MAX: dict[str, dict[str, int]] = {
-    "facil":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
+    "chalupa":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
                 "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1,
                 "capacidade_barril_ouro": 4},
-    "normal":  {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
+    "brigantim": {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
                 "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2,
                 "capacidade_barril_ouro": 8},
-    "dificil": {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
+    "galeao":    {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
                 "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3,
                 "capacidade_barril_ouro": 16},
 }
@@ -166,6 +167,44 @@ def renomear_navio_loja(frota, indice: int, novo_nome: str, navio_ativo) -> tupl
         navio_ativo.porao.adicionar("ouro", preco, capacidade=capacidade_barril_ouro_efetiva(navio_ativo))
         return False, "Indice de navio invalido."
     return True, f"Navio renomeado para '{novo_nome}' por {preco:.0f} ouro."
+
+
+def transferir_barril_frota(origem, destino, indice_barril: int) -> tuple[bool, str]:
+    """Transfere um barril inteiro do porão de `origem` pro de `destino`.
+
+    Cobra PRECO_TRANSFERENCIA_FROTA de ouro:
+      - Barril de ouro: a taxa sai do próprio barril sendo movido.
+      - Qualquer outro recurso: tenta debitar de `origem`, senão de
+        `destino`.
+    Falha atomicamente (sem alterar nada) se: índice inválido, destino sem
+    slot livre, ou nenhum dos dois lados cobre a taxa.
+    """
+    p_origem = origem.porao
+    if not (0 <= indice_barril < len(p_origem.barris)):
+        return False, "Barril nao encontrado."
+    barril = p_origem.barris[indice_barril]
+
+    if destino.porao.slots_livres() <= 0:
+        return False, "Porao de destino lotado — sem slots livres."
+
+    preco = PRECO_TRANSFERENCIA_FROTA
+    pago_do_proprio_barril = False
+    if barril.tipo == "ouro":
+        if barril.quantidade < preco - 1e-9:
+            return False, f"Barril de ouro nao cobre a taxa (precisa {preco:.0f} ouro)."
+        pago_do_proprio_barril = True
+    else:
+        if not _debitar_ouro(origem, preco) and not _debitar_ouro(destino, preco):
+            return False, f"Nenhum dos navios tem ouro para a taxa ({preco:.0f})."
+
+    p_origem.barris.pop(indice_barril)
+    if pago_do_proprio_barril:
+        barril.quantidade -= preco
+    if barril.vazio:
+        return True, f"Barril de ouro esvaziado pela taxa de transferencia ({preco:.0f} ouro)."
+
+    destino.porao.barris.append(barril)
+    return True, f"Barril de {barril.tipo} transferido por {preco:.0f} ouro."
 
 
 # ---------------------------------------------------------------------------

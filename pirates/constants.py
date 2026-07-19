@@ -273,11 +273,11 @@ COR_ILHA = 7      # amarelo (terra/areia)
 # Tipos de navio / dificuldade
 # ---------------------------------------------------------------------------
 
-DIFICULDADES = ["facil", "normal", "dificil"]
+TIPOS_NAVIO = ["chalupa", "brigantim", "galeao"]
 """Chaves válidas para NAVIO_TIPOS, na ordem do menu de seleção."""
 
 NAVIO_TIPOS = {
-    "facil": {
+    "chalupa": {
         "navio": "Chalupa",
         "crew_total": 2,
         "canhoes_lado": 1,
@@ -290,8 +290,8 @@ NAVIO_TIPOS = {
         "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
     },
-    "normal": {
-        "navio": "Bergantim",
+    "brigantim": {
+        "navio": "Brigantim",
         "crew_total": 3,
         "canhoes_lado": 2,
         "num_velas": 3,
@@ -300,10 +300,10 @@ NAVIO_TIPOS = {
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
-        "reparo_mult": 1.0,     # Bergantim — velocidade de reparo média
+        "reparo_mult": 1.0,     # Brigantim — velocidade de reparo média
         "porao_capacidade": 9,
     },
-    "dificil": {
+    "galeao": {
         "navio": "Galeao",
         "crew_total": 7,
         "canhoes_lado": 3,
@@ -338,13 +338,18 @@ PRECO_VENDA_BARRIL_CHEIO = 3.0
 PRECO_REPARO_POR_PONTO_DANO = 0.5
 """Ouro por ponto percentual de dano reparado no porto."""
 
-PRECO_NAVIO_NOVO = {"facil": 70, "normal": 150, "dificil": 300}
+PRECO_NAVIO_NOVO = {"chalupa": 50, "brigantim": 100, "galeao": 200}
 """Preço BASE de compra de um navio novo, por tipo (antes do multiplicador
 de frota — ver comprar_navio_loja, que escala por quantos navios daquele
 tipo o jogador já possui)."""
 
 PRECO_RENOMEAR = 20.0
 """Ouro para renomear um navio."""
+
+PRECO_TRANSFERENCIA_FROTA = 5.0
+"""Ouro cobrado por transferência de um barril entre navios da frota.
+Se o barril transferido é de ouro, a taxa sai do próprio barril; senão,
+tenta debitar do navio de origem e, se não tiver, do navio de destino."""
 
 PRECO_UPGRADE = {
     "casco_max":              60.0,   # +10 HP máx. casco
@@ -431,9 +436,9 @@ COMO_JOGAR_TEXTO = [
     "aberto de 8km x 8km, enfrenta inimigos, coleta loot e administra",
     "recursos (polvora, bolas, tabuas, ouro) no porao do seu navio.",
     "",
-    "NAVIOS   Chalupa (facil): 2 trip, 1 canhao/lado, 6 slots porao",
-    "         Bergantim (medio): 3 trip, 2 canhoes/lado, 9 slots",
-    "         Galeao (dificil): 7 trip, 3 canhoes/lado, 14 slots",
+    "NAVIOS   Chalupa (dificuldade 1): 2 trip, 1 canhao/lado, 6 slots porao",
+    "         Brigantim (dificuldade 2): 3 trip, 2 canhoes/lado, 9 slots",
+    "         Galeao (dificuldade 3): 7 trip, 3 canhoes/lado, 14 slots",
     "",
     "MUNDO ABERTO",
     "  M              alterna mapa de navegacao / mapa mundo (8km)",

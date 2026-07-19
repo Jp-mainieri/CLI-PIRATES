@@ -74,7 +74,7 @@ class TestAtualizarPosicaoToroidal:
 
 class TestAtualizarIaMundo:
     def test_patrulha_nao_muda_pra_fugindo_fora_do_alcance(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 0.0
         em.jogador_y = 0.0
         # Coloca inimigo bem longe
@@ -88,7 +88,7 @@ class TestAtualizarIaMundo:
             assert n.status == "patrulha"
 
     def test_fugindo_dentro_do_alcance_muda_heading(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 4000.0
         em.jogador_y = 4000.0
         navio = em.inimigos[0]
@@ -103,7 +103,7 @@ class TestAtualizarIaMundo:
 
 class TestMundoParaArena:
     def test_offset_zero_quando_inimigo_no_mesmo_lugar(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 1000.0
         em.jogador_y = 2000.0
         navio = NavioMundo(x=1000.0, y=2000.0)
@@ -112,7 +112,7 @@ class TestMundoParaArena:
         assert dy == pytest.approx(0.0)
 
     def test_offset_simples(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 1000.0
         em.jogador_y = 1000.0
         navio = NavioMundo(x=1300.0, y=1400.0)
@@ -123,7 +123,7 @@ class TestMundoParaArena:
 
 class TestArenaParaMundo:
     def test_round_trip(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 1500.0
         em.jogador_y = 2500.0
         navio = NavioMundo(x=1800.0, y=2900.0)
@@ -133,7 +133,7 @@ class TestArenaParaMundo:
         assert wy == pytest.approx(navio.y)
 
     def test_round_trip_wrap(self):
-        em = EstadoMundo("normal")
+        em = EstadoMundo("brigantim")
         em.jogador_x = 100.0
         em.jogador_y = 100.0
         # Inimigo na borda oposta — menor caminho vai pelo wrap

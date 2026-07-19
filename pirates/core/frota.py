@@ -13,7 +13,7 @@ class NavioPossuido:
     Attributes:
         nome:           Nome único escolhido pelo jogador.
         navio:          Instância completa de Navio (porão, dano, upgrades).
-        tipo:           Chave do tipo ('facil'/'normal'/'dificil').
+        tipo:           Chave do tipo ('chalupa'/'brigantim'/'galeao').
         porto_ancorado: Índice do porto onde está parado (None se ativo).
     """
     nome: str

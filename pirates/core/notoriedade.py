@@ -21,7 +21,15 @@ NOTORIEDADE_FAIXAS: list[dict] = [
     {"nome": "Lenda Viva",             "minimo": 12000, "ascii": "W", "unicode": "♛"},
 ]
 
-PONTOS_POR_TIPO = {"facil": 10, "normal": 25, "dificil": 50}  # chaves = NAVIO_TIPOS
+PONTOS_POR_TIPO = {"chalupa": 10, "brigantim": 25, "galeao": 50}  # chaves = NAVIO_TIPOS
+
+# faixa minima de notoriedade (0-7) exigida pra criar um mundo aberto NOVO
+# com esse tipo de navio (nao afeta compra no porto, so criacao de mundo)
+DESBLOQUEIO_MUNDO_FAIXA = {"brigantim": 2, "galeao": 4}
+
+# vitorias minimas numa unica campanha de Arena exigidas pra iniciar uma
+# campanha NOVA com esse tipo de navio (nao afeta compra no porto)
+DESBLOQUEIO_ARENA_VITORIAS = {"brigantim": 10, "galeao": 30}
 
 # (min, max) do sorteio de ouro base por tipo de navio, antes do
 # multiplicador MULT_OURO_POR_FAIXA.
@@ -99,9 +107,35 @@ def chance_elite(pontos: float, horas_na_faixa8: float = 0.0) -> float:
 
 
 def sortear_tipo_navio(pontos: float) -> str:
-    chaves = ("facil", "normal", "dificil")
+    chaves = ("chalupa", "brigantim", "galeao")
     pesos = DISTRIBUICAO_TIPO_POR_FAIXA[faixa_index(pontos)]
     return random.choices(chaves, weights=pesos, k=1)[0]
+
+
+def bloqueios_mundo(melhor_faixa: int) -> dict[str, str | None]:
+    """Tipo->motivo de bloqueio (None se liberado) pra criar um mundo aberto
+    NOVO, dado a maior faixa de notoriedade ja alcancada em qualquer capitao."""
+    bloqueios: dict[str, str | None] = {}
+    for tipo in ("chalupa", "brigantim", "galeao"):
+        exigido = DESBLOQUEIO_MUNDO_FAIXA.get(tipo)
+        if exigido is None or melhor_faixa >= exigido:
+            bloqueios[tipo] = None
+        else:
+            bloqueios[tipo] = f"requer faixa {exigido} de notoriedade (atual: {melhor_faixa})"
+    return bloqueios
+
+
+def bloqueios_arena(melhor_vitorias: int) -> dict[str, str | None]:
+    """Tipo->motivo de bloqueio (None se liberado) pra iniciar uma campanha
+    de Arena NOVA, dado o maior numero de vitorias numa campanha passada."""
+    bloqueios: dict[str, str | None] = {}
+    for tipo in ("chalupa", "brigantim", "galeao"):
+        exigido = DESBLOQUEIO_ARENA_VITORIAS.get(tipo)
+        if exigido is None or melhor_vitorias >= exigido:
+            bloqueios[tipo] = None
+        else:
+            bloqueios[tipo] = f"requer {exigido} vitorias em uma campanha de Arena (atual: {melhor_vitorias})"
+    return bloqueios
 
 
 def sortear_bonus_elite(pontos: float) -> dict[str, float]:

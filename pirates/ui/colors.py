@@ -94,11 +94,11 @@ def cor_tripulacao_livre(estado) -> int:
 
 
 def cor_tipo_navio(estado) -> int:
-    """Cor do nome do navio no cabeçalho: verde (Chalupa), amarelo (Bergantim), vermelho (Galeão)."""
+    """Cor do nome do navio no cabeçalho: verde (Chalupa), amarelo (Brigantim), vermelho (Galeão)."""
     if _curses is None:
         return 0
     if estado.cores_ativo:
-        mapa = {'facil': COR_VERDE, 'normal': COR_AMARELO, 'dificil': COR_VERMELHO}
+        mapa = {'chalupa': COR_VERDE, 'brigantim': COR_AMARELO, 'galeao': COR_VERMELHO}
         cor = mapa.get(estado.tipo_navio, COR_JOGADOR)
         return _curses.color_pair(cor) | _curses.A_BOLD
     return _curses.A_BOLD
