@@ -39,35 +39,35 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
     j = estado.jogador
     return [
         (
-            f"CASCO [{barra(j.partes['casco'], 10)}] {j.partes['casco']:5.1f}%",
+            f"CASCO  [{barra(j.partes['casco'], 10)}] {j.partes['casco']:5.1f}%",
             cor_valor(estado, j.partes['casco']),
         ),
         (
-            f"MASTRO[{barra(j.partes['mastro'], 10)}] {j.partes['mastro']:5.1f}%",
+            f"MASTRO [{barra(j.partes['mastro'], 10)}] {j.partes['mastro']:5.1f}%",
             cor_valor(estado, j.partes['mastro']),
         ),
         (
-            f"VELA  [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%",
+            f"VELA   [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%",
             cor_valor(estado, j.partes['vela']),
         ),
         (
-            f"RODA  [{barra(j.partes['roda'], 10)}] {j.partes['roda']:5.1f}%",
+            f"RODA   [{barra(j.partes['roda'], 10)}] {j.partes['roda']:5.1f}%",
             cor_valor(estado, j.partes['roda']),
         ),
         (
-            f"AGUA  [{barra(j.agua, 10)}] {j.agua:5.1f}%",
+            f"AGUA   [{barra(j.agua, 10)}] {j.agua:5.1f}%",
             cor_valor(estado, j.agua, pior_se_alto=True),
         ),
         (
-            f"MORAL [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%",
+            f"MORAL  [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%",
             cor_valor(estado, j.moral_atual),
         ),
         (
-            f"VELAS [{barra(j.nivel_vela / 3 * 100, 10)}] {j.nivel_vela / 3 * 100:3.0f}%",
+            f"VELAS  [{barra(j.nivel_vela / 3 * 100, 10)}] {j.nivel_vela / 3 * 100:3.0f}%",
             0,
         ),
         (
-            f"VENTO [{_seta_hud(estado, estado.vento_direcao)} "
+            f"VENTO  [{_seta_hud(estado, abs(estado.vento_direcao-180))} "
             f"{direcao_para_heading(estado.vento_direcao)} "
             f"{estado.vento_intensidade:4.1f}] | "
             f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}",
@@ -90,9 +90,9 @@ def _linha_rumo(estado, j) -> tuple[str, int]:
     ang = angulo_relativo_vento(j.heading, estado.vento_direcao)
     zona = zona_vento(ang)
     texto = (
-        f"RUMO [{_seta_hud(estado, j.heading)} "
+        f"RUMO   [{_seta_hud(estado, j.heading)} "
         f"{direcao_para_heading(j.heading)} "
-        f"{j.heading:5.1f} -> {j.heading_alvo:5.1f}] ({zona.replace('_', ' ')})"
+        f"{j.heading:5.1f} {f'-> {j.heading_alvo:5.1f}' if j.heading != j.heading_alvo else ''}] ({zona.replace('_', ' ')})"
     )
     attr = 0
     if estado.cores_ativo and _curses is not None:
