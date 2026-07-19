@@ -62,15 +62,45 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
             f"MORAL [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%",
             cor_valor(estado, j.moral_atual),
         ),
-        (f"RUMO {j.heading:5.1f} -> {j.heading_alvo:5.1f}", 0),
-        (f"VEL  {j.velocidade:4.1f} / {j.velocidade_maxima():4.1f}", 0),
         (
-            f"VENTO {direcao_para_heading(estado.vento_direcao)} "
-            f"{estado.vento_intensidade:4.1f} "
-            f"({zona_vento(angulo_relativo_vento(j.heading, estado.vento_direcao)).replace('_', ' ')})",
+            f"VELAS [{barra(j.nivel_vela / 3 * 100, 10)}] {j.nivel_vela / 3 * 100:3.0f}%",
             0,
         ),
+        (
+            f"VENTO [{_seta_hud(estado, estado.vento_direcao)} "
+            f"{direcao_para_heading(estado.vento_direcao)} "
+            f"{estado.vento_intensidade:4.1f}] | "
+            f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}",
+            0,
+        ),
+        _linha_rumo(estado, j),
     ]
+
+
+def _seta_hud(estado, heading: float) -> str:
+    """Seta de direção (unicode/ascii conforme preferência) pra um heading."""
+    unicode_on = getattr(estado, 'graficos_unicode', False)
+    return (seta_unicode_para_heading(heading) if unicode_on
+            else seta_ascii_para_heading(heading))
+
+
+def _linha_rumo(estado, j) -> tuple[str, int]:
+    """Linha RUMO com zona de vento e cor condicional (verde=favoravel,
+    vermelho=zona morta)."""
+    ang = angulo_relativo_vento(j.heading, estado.vento_direcao)
+    zona = zona_vento(ang)
+    texto = (
+        f"RUMO [{_seta_hud(estado, j.heading)} "
+        f"{direcao_para_heading(j.heading)} "
+        f"{j.heading:5.1f} -> {j.heading_alvo:5.1f}] ({zona.replace('_', ' ')})"
+    )
+    attr = 0
+    if estado.cores_ativo and _curses is not None:
+        if zona == 'zona_morta':
+            attr = _curses.color_pair(COR_VERMELHO)
+        elif j.eficiencia_vento_atual >= 1.0:
+            attr = _curses.color_pair(COR_VERDE)
+    return (texto, attr)
 
 
 def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
@@ -228,7 +258,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
     tipo = getattr(inimigo, 'tipo_nome', '').lower()
     if 'galeao' in tipo or 'galeão' in tipo:
         icones = ("<[-(|||]>", "<[|||]>", "<|||>", "ooo", "...")
-    elif 'bergantim' in tipo:
+    elif 'brigantim' in tipo:
         icones = ("<[-(||]>", "<[||]>", "<||>", "oo", "..")
     else:
         icones = ("<[-(|]>", "<[|]>", "<|>", "o", ".")
@@ -716,7 +746,7 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             dx -= math.copysign(MUNDO_TAMANHO, dx)
         if abs(dy) > MUNDO_TAMANHO / 2:
             dy -= math.copysign(MUNDO_TAMANHO, dy)
-        tipo_nome = NAVIO_TIPOS.get(estado_mundo.tipo_navio, {}).get('navio', 'Chalupa')
+        tipo_nome = NAVIO_TIPOS.get(melhor_navio.tipo_navio, {}).get('navio', 'Chalupa')
         inimigo_vista = SimpleNamespace(
             afundado=False,
             x=jx + dx,

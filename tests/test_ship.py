@@ -197,3 +197,66 @@ class TestMoral:
         n.moral_atual = 100.0
         n.atualizar_moral(dt=10000.0)
         assert 0.0 <= n.moral_atual <= 100.0
+
+
+class TestMoralCrashRecursos:
+    def _navio_estocado(self):
+        n = Navio("Teste", x=0, y=0, heading=0, porao_capacidade=6)
+        n.porao.adicionar("polvora", 10.0)
+        n.porao.adicionar("bolas", 10.0)
+        n.porao.adicionar("tabuas", 10.0)
+        n.moral_atual = 100.0
+        n.atualizar_moral(dt=0.1)  # estabelece baseline sem disparar
+        return n
+
+    @pytest.mark.parametrize("tipo", ["polvora", "bolas", "tabuas"])
+    def test_zerar_recurso_trava_moral_no_teto(self, tipo):
+        from pirates.constants import MORAL_CRASH_RECURSOS_TETO
+        n = self._navio_estocado()
+        n.porao.consumir(tipo, 999.0)
+        n.atualizar_moral(dt=0.1)
+        assert n.moral_atual <= MORAL_CRASH_RECURSOS_TETO
+
+    def test_nao_retrigera_enquanto_continua_zerado(self):
+        from pirates.constants import MORAL_CRASH_RECURSOS_DURACAO_SEG
+        n = self._navio_estocado()
+        n.porao.consumir("polvora", 999.0)
+        n.atualizar_moral(dt=0.1)
+        restante_apos_disparo = n.moral_lock_restante
+        assert restante_apos_disparo == pytest.approx(MORAL_CRASH_RECURSOS_DURACAO_SEG - 0.1)
+        n.atualizar_moral(dt=0.1)
+        # decrementou normalmente, não resetou pro valor cheio de novo
+        assert n.moral_lock_restante == pytest.approx(MORAL_CRASH_RECURSOS_DURACAO_SEG - 0.2)
+
+    def test_moral_libera_apos_duracao_do_travamento(self):
+        from pirates.constants import MORAL_CRASH_RECURSOS_TETO, MORAL_CRASH_RECURSOS_DURACAO_SEG
+        n = self._navio_estocado()
+        n.porao.consumir("polvora", 999.0)
+        n.atualizar_moral(dt=0.1)
+        assert n.moral_atual <= MORAL_CRASH_RECURSOS_TETO
+        # avança em ticks normais (0.5s, como o jogo real) além da duração do travamento
+        tempo_restante = MORAL_CRASH_RECURSOS_DURACAO_SEG + 2.0
+        while tempo_restante > 0:
+            n.atualizar_moral(dt=0.5)
+            tempo_restante -= 0.5
+        assert n.moral_lock_restante == 0.0
+        assert n.moral_atual > MORAL_CRASH_RECURSOS_TETO
+
+    def test_dispara_de_novo_apos_reabastecer_e_zerar(self):
+        n = self._navio_estocado()
+        n.porao.consumir("bolas", 999.0)
+        n.atualizar_moral(dt=0.1)
+        primeiro_disparo = n.moral_lock_restante
+        assert primeiro_disparo > 0.0
+
+        n.porao.adicionar("bolas", 5.0)
+        n.atualizar_moral(dt=0.1)  # recurso voltou a existir, limpa o estado
+        n.porao.consumir("bolas", 999.0)
+        n.atualizar_moral(dt=0.1)
+        assert n.moral_lock_restante > 0.0
+
+    def test_porao_vazio_desde_o_inicio_nao_dispara_no_primeiro_tick(self):
+        n = Navio("Teste", x=0, y=0, heading=0)  # porao_capacidade=0 (vazio)
+        n.moral_atual = 100.0
+        n.atualizar_moral(dt=0.1)
+        assert n.moral_lock_restante == 0.0

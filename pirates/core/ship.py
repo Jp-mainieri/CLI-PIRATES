@@ -16,6 +16,7 @@ from ..constants import (
     MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
     MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO,
     MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
+    MORAL_CRASH_RECURSOS_TETO, MORAL_CRASH_RECURSOS_DURACAO_SEG,
     BASE_ADERENCIA, VELOCIDADE_REFERENCIA_ADERENCIA, PESO_REFERENCIA_ADERENCIA,
 )
 from .utils import clamp
@@ -175,6 +176,8 @@ class Navio:
         self.fator_intensidade_vento_atual: float = 1.0
         self.peso_casco = peso_casco
         self.velocidade_lateral: float = 0.0
+        self._recursos_criticos_zerados: bool | None = None
+        self.moral_lock_restante: float = 0.0
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -363,12 +366,29 @@ class Navio:
         ) / 100.0
         return clamp(alvo, 0.0, 100.0)
 
+    def _recursos_criticos_zerados_agora(self) -> bool:
+        """True se pólvora, bolas ou tábuas estiverem em 0 no porão agora."""
+        return any(
+            self.porao.total(t) <= 0 for t in ('polvora', 'bolas', 'tabuas')
+        )
+
     def atualizar_moral(self, dt: float) -> None:
         """Avança a moral para mais perto da moral-alvo pelo intervalo *dt*.
 
         Queda é proporcional a MORAL_QUEDA_TAXA_SEG; recuperação usa uma
         curva exponencial amortecida (igual a REPARO_K mas para a moral).
+
+        Se pólvora, bolas ou tábuas zerarem (transição de >0 para 0), a
+        moral trava temporariamente num teto baixo (MORAL_CRASH_RECURSOS_TETO)
+        por MORAL_CRASH_RECURSOS_DURACAO_SEG segundos — um solavanco, não um
+        travamento permanente nem um evento de um tick só.
         """
+        zerado_agora = self._recursos_criticos_zerados_agora()
+        if zerado_agora and self._recursos_criticos_zerados is False:
+            self.moral_lock_restante = MORAL_CRASH_RECURSOS_DURACAO_SEG
+            self.moral_atual = min(self.moral_atual, MORAL_CRASH_RECURSOS_TETO)
+        self._recursos_criticos_zerados = zerado_agora
+
         alvo = self.moral_alvo()
         if self.moral_atual > alvo:
             self.moral_atual = max(alvo, self.moral_atual - MORAL_QUEDA_TAXA_SEG * dt)
@@ -380,6 +400,10 @@ class Navio:
                 self.moral_atual + MORAL_RECUP_BASE_SEG * fator * dt,
             )
         self.moral_atual = clamp(self.moral_atual, 0.0, 100.0)
+
+        if self.moral_lock_restante > 0:
+            self.moral_lock_restante = max(0.0, self.moral_lock_restante - dt)
+            self.moral_atual = min(self.moral_atual, MORAL_CRASH_RECURSOS_TETO)
 
     def registrar_acerto_moral(self) -> None:
         """Adiciona um bonus de moral por acerto bem-sucedido."""

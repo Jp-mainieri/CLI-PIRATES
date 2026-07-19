@@ -180,6 +180,14 @@ MORAL_MULT_COMBALIDO = 0.60
 MORAL_MULT_PANICO = 0.30
 """Multiplicador quando moral ≤ 0 (pânico total)."""
 
+MORAL_CRASH_RECURSOS_TETO = 15.0
+"""Teto de moral imposto temporariamente quando pólvora, bolas ou tábuas
+zeram. Moral não sobe acima disso enquanto o travamento estiver ativo."""
+
+MORAL_CRASH_RECURSOS_DURACAO_SEG = 20.0
+"""Duração (segundos) do travamento de moral após pólvora/bolas/tábuas
+zerarem. Passado esse tempo, a moral volta a seguir moral_alvo() livremente."""
+
 # ---------------------------------------------------------------------------
 # Fuga do inimigo
 # ---------------------------------------------------------------------------
@@ -532,6 +540,16 @@ COMO_JOGAR_TEXTO = [
     "NAVIOS   Chalupa (dificuldade 1): 2 trip, 1 canhao/lado, 6 slots porao",
     "         Brigantim (dificuldade 2): 3 trip, 2 canhoes/lado, 9 slots",
     "         Galeao (dificuldade 3): 7 trip, 3 canhoes/lado, 14 slots",
+    "",
+    "VENTO",
+    "  Direcao e intensidade mudam lentamente com o tempo (ver HUD: VENTO).",
+    "  O angulo do casco em relacao ao vento define 4 zonas: zona morta,",
+    "  bolina, traves e popa - cada uma multiplica velocidade maxima e",
+    "  aceleracao (o multiplicador varia por tipo, veja 'Tipos de Navio'",
+    "  pra saber a zona ideal do seu).",
+    "  Vento fraco reduz o teto de velocidade; vento forte (rajada) aumenta.",
+    "  Virar o leme bruscamente e vento de traves geram deriva lateral -",
+    "  o navio desliza de lado, corrigida aos poucos pela aderencia do casco.",
     "",
     "MUNDO ABERTO",
     "  M              alterna mapa de navegacao / mapa mundo (8km)",

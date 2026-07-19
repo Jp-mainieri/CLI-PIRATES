@@ -118,7 +118,20 @@ def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | 
         safe_addstr(stdscr, 11, 2,
                     f"   Taxa de giro ......... {p['giro_graus_seg']:.0f} graus/s")
         safe_addstr(stdscr, 12, 2, f"   Capacidade do porao .. {p['porao_capacidade']} slots")
-        safe_addstr(stdscr, 14, 2, "SETA ESQUERDA/DIREITA muda | ENTER escolhe | ESC volta")
+        zona_label = {
+            'zona_morta': 'Zona Morta', 'bolina': 'Bolina',
+            'traves': 'Traves', 'popa': 'Popa',
+        }
+        melhor_zona, melhor_mult = max(p['eficiencia_vento'].items(), key=lambda kv: kv[1])
+        safe_addstr(
+            stdscr, 13, 2,
+            f"   Vento ideal .......... {zona_label[melhor_zona]} ({melhor_mult*100:.0f}% vel.)",
+        )
+        safe_addstr(
+            stdscr, 14, 2,
+            f"   Zona morta (evite) ... {p['eficiencia_vento']['zona_morta']*100:.0f}% vel.",
+        )
+        safe_addstr(stdscr, 16, 2, "SETA ESQUERDA/DIREITA muda | ENTER escolhe | ESC volta")
         stdscr.refresh()
 
         ch = stdscr.getch()
