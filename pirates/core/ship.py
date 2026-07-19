@@ -20,6 +20,7 @@ from ..constants import (
 )
 from .utils import clamp
 from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
+from .vento import empuxo_lateral_vento
 
 
 class Canhao:
@@ -223,6 +224,8 @@ class Navio:
     def atualizar_movimento(
         self, dt: float, eficiencia_vento: float = 1.0,
         fator_intensidade_vento: float = 1.0,
+        angulo_relativo_vento_atual: float = 90.0,
+        intensidade_vento_atual: float = 0.0,
     ) -> None:
         """Aplica física de giro, propulsão e deriva lateral para o intervalo
         de tempo *dt*.
@@ -234,6 +237,12 @@ class Navio:
             fator_intensidade_vento: Multiplicador de teto de velocidade pela
                 curva de intensidade do vento (0.5 a 1.3, suave), calculado
                 externamente. Não afeta aceleração.
+            angulo_relativo_vento_atual: Ângulo relativo (0-180) entre o rumo
+                do navio e a direção do vento, usado só pro empuxo lateral de
+                través (doc09_deriva.md §5) – não confundir com o cálculo de
+                eficiencia_vento, que já foi resolvido externamente.
+            intensidade_vento_atual: Intensidade do vento em nós, usada só
+                pro empuxo lateral de través.
         """
         if self.afundado:
             return
@@ -260,6 +269,12 @@ class Navio:
         # Deriva lateral (doc09_deriva.md): parte da velocidade de avanço
         # "escapa" como lateral ao virar o leme, depois decai por aderência.
         self.velocidade_lateral += self.velocidade * math.sin(math.radians(delta_heading))
+
+        # ...e por empuxo de vento de través (doc09_deriva.md §5).
+        self.velocidade_lateral += empuxo_lateral_vento(
+            self.num_velas, intensidade_vento_atual, angulo_relativo_vento_atual,
+        ) * dt
+
         forca_correcao = self._forca_correcao_deriva()
         fracao_removida = min(1.0, forca_correcao * dt)
         self.velocidade_lateral *= (1.0 - fracao_removida)

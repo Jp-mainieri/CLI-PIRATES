@@ -115,6 +115,11 @@ PESO_REFERENCIA_ADERENCIA = 500.0
 """Peso de referência (kg) usado no fator de aderência por peso – igual
 ao peso_casco do Bergantim, tratado como o ponto neutro (fator_peso = 1.0)."""
 
+COEFICIENTE_EMPUXO_LATERAL = 0.05
+"""Coeficiente do empuxo lateral de vento de través sobre velocidade
+lateral, em (unidades/s) por (nó × num_velas). Placeholder – não
+calibrado."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
