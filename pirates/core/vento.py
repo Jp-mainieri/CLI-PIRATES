@@ -12,6 +12,9 @@ import random
 from ..constants import (
     NAVIO_TIPOS,
     VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX,
+    VENTO_INTENSIDADE_LIMITE_FRACA, VENTO_INTENSIDADE_LIMITE_MODERADA,
+    VENTO_MULT_INTENSIDADE_CALMARIA, VENTO_MULT_INTENSIDADE_PLENA,
+    VENTO_MULT_INTENSIDADE_MAXIMA,
     VENTO_DERIVA_DIRECAO_GRAUS_SEG, VENTO_DERIVA_INTENSIDADE_SEG,
     VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
     VENTO_ZONAS_ANGULO_MEIO,
@@ -58,6 +61,34 @@ def eficiencia_vento(tipo_navio: str, angulo_relativo: float) -> float:
             return tabela[a_key] + t * (tabela[b_key] - tabela[a_key])
 
     return tabela["popa"]  # inalcançável, guarda de segurança
+
+
+def fator_intensidade_vento(intensidade: float) -> float:
+    """Multiplicador de teto de velocidade máxima pela intensidade do
+    vento (doc08_vento.md seção 6), com transição suave (interpolação
+    linear), sem degraus: sobe de calmaria (0.5) até potência plena (1.0)
+    entre 0 e VENTO_INTENSIDADE_LIMITE_FRACA nós; platô em potência plena
+    entre VENTO_INTENSIDADE_LIMITE_FRACA e VENTO_INTENSIDADE_LIMITE_MODERADA
+    nós; sobe de novo até o teto de rajada (1.3) entre
+    VENTO_INTENSIDADE_LIMITE_MODERADA e VENTO_INTENSIDADE_MAX nós. Não
+    afeta aceleração nem giro – só o teto de velocidade máxima."""
+    i = max(VENTO_INTENSIDADE_MIN, min(VENTO_INTENSIDADE_MAX, intensidade))
+
+    if i <= VENTO_INTENSIDADE_LIMITE_FRACA:
+        t = i / VENTO_INTENSIDADE_LIMITE_FRACA
+        return VENTO_MULT_INTENSIDADE_CALMARIA + t * (
+            VENTO_MULT_INTENSIDADE_PLENA - VENTO_MULT_INTENSIDADE_CALMARIA
+        )
+
+    if i <= VENTO_INTENSIDADE_LIMITE_MODERADA:
+        return VENTO_MULT_INTENSIDADE_PLENA
+
+    t = (i - VENTO_INTENSIDADE_LIMITE_MODERADA) / (
+        VENTO_INTENSIDADE_MAX - VENTO_INTENSIDADE_LIMITE_MODERADA
+    )
+    return VENTO_MULT_INTENSIDADE_PLENA + t * (
+        VENTO_MULT_INTENSIDADE_MAXIMA - VENTO_MULT_INTENSIDADE_PLENA
+    )
 
 
 def _sortear_alvo(direcao_atual: float) -> tuple[float, float, float]:

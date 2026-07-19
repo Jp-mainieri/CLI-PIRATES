@@ -169,6 +169,7 @@ class Navio:
             "zona_morta": 1.0, "bolina": 1.0, "traves": 1.0, "popa": 1.0,
         }
         self.eficiencia_vento_atual: float = 1.0
+        self.fator_intensidade_vento_atual: float = 1.0
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -189,6 +190,7 @@ class Navio:
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
         base = self.velocidade_max_base * (1.0 + self.bonus_fixo_vela)
         base *= self.eficiencia_vento_atual
+        base *= self.fator_intensidade_vento_atual
         base *= (1.0 + self.upgrades.get('velocidade_giro', 0.0))
         return base * fator_vela * fator_dano
 
@@ -205,18 +207,25 @@ class Navio:
         """
         return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
 
-    def atualizar_movimento(self, dt: float, eficiencia_vento: float = 1.0) -> None:
+    def atualizar_movimento(
+        self, dt: float, eficiencia_vento: float = 1.0,
+        fator_intensidade_vento: float = 1.0,
+    ) -> None:
         """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
 
         Args:
             dt: Delta de tempo em segundos desde o último tick.
             eficiencia_vento: Eficiência de vento (0.0+) pro ângulo relativo
                 atual do navio, calculada externamente (ver pirates/core/vento.py).
+            fator_intensidade_vento: Multiplicador de teto de velocidade pela
+                curva de intensidade do vento (0.5 a 1.3, suave), calculado
+                externamente. Não afeta aceleração.
         """
         if self.afundado:
             return
 
         self.eficiencia_vento_atual = eficiencia_vento
+        self.fator_intensidade_vento_atual = fator_intensidade_vento
 
         diff = (self.heading_alvo - self.heading + 540) % 360 - 180
         giro_max = self.taxa_giro() * dt

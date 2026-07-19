@@ -5,6 +5,7 @@ import pytest
 from pirates.core.ship import Navio
 from pirates.core.vento import (
     angulo_relativo_vento, zona_vento, eficiencia_vento, atualizar_vento,
+    fator_intensidade_vento,
 )
 from pirates.constants import NAVIO_TIPOS
 
@@ -99,6 +100,23 @@ class TestAtualizarVento:
         assert estado.vento_intensidade == pytest.approx(15.0)
 
 
+class TestFatorIntensidadeVento:
+    def test_ancoras_exatas(self):
+        assert fator_intensidade_vento(0.0) == pytest.approx(0.5)
+        assert fator_intensidade_vento(5.0) == pytest.approx(1.0)
+        assert fator_intensidade_vento(15.0) == pytest.approx(1.0)
+        assert fator_intensidade_vento(25.0) == pytest.approx(1.3)
+
+    def test_interpolacao_subida_calmaria(self):
+        assert fator_intensidade_vento(2.5) == pytest.approx(0.75)
+
+    def test_interpolacao_subida_rajada(self):
+        assert fator_intensidade_vento(20.0) == pytest.approx(1.15)
+
+    def test_plato_potencia_plena(self):
+        assert fator_intensidade_vento(10.0) == pytest.approx(1.0)
+
+
 class TestIntegracaoNavio:
     def test_velocidade_maxima_varia_com_eficiencia_vento(self):
         n = Navio("Teste", 0, 0, 0, velocidade_max_base=10.0)
@@ -107,6 +125,14 @@ class TestIntegracaoNavio:
         n.eficiencia_vento_atual = 0.5
         vmax_reduzida = n.velocidade_maxima()
         assert vmax_reduzida == pytest.approx(vmax_normal * 0.5)
+
+    def test_velocidade_maxima_varia_com_fator_intensidade_vento(self):
+        n = Navio("Teste", 0, 0, 0, velocidade_max_base=10.0)
+        n.fator_intensidade_vento_atual = 1.0
+        vmax_normal = n.velocidade_maxima()
+        n.fator_intensidade_vento_atual = 1.3
+        vmax_rajada = n.velocidade_maxima()
+        assert vmax_rajada == pytest.approx(vmax_normal * 1.3)
 
     def test_taxa_giro_nao_depende_de_vento(self):
         n = Navio(

@@ -58,11 +58,23 @@ ACEL_VEL_SEG = 3.0
 # Vento (doc08_vento.md)
 # ---------------------------------------------------------------------------
 
-VENTO_INTENSIDADE_MIN = 4.0
-VENTO_INTENSIDADE_MAX = 20.0
-"""Piso/teto de intensidade de vento. Placeholder – não calibrado, e a
-intensidade ainda não afeta velocidade (ver nota de escopo no prompt de
-implementação)."""
+VENTO_INTENSIDADE_MIN = 0.0
+VENTO_INTENSIDADE_MAX = 25.0
+"""Piso/teto de intensidade de vento, em nós."""
+
+VENTO_INTENSIDADE_LIMITE_FRACA = 5.0
+VENTO_INTENSIDADE_LIMITE_MODERADA = 15.0
+"""Limites da curva de intensidade: até LIMITE_FRACA, sobe de calmaria até
+potência plena; entre os dois, platô de potência plena; acima de
+LIMITE_MODERADA, sobe até o teto de rajada em VENTO_INTENSIDADE_MAX."""
+
+VENTO_MULT_INTENSIDADE_CALMARIA = 0.5
+VENTO_MULT_INTENSIDADE_PLENA = 1.0
+VENTO_MULT_INTENSIDADE_MAXIMA = 1.3
+"""Multiplicadores-âncora de velocidade máxima pela curva de intensidade:
+0.5 em 0 nós (calmaria), 1.0 do início do platô (5 nós) até o fim dele
+(15 nós), 1.3 no teto de rajada (25 nós). Curva suave, sem degraus –
+interpolação linear entre âncoras (ver fator_intensidade_vento)."""
 
 VENTO_DERIVA_DIRECAO_GRAUS_SEG = 0.5
 """Velocidade de deriva da direção do vento em direção ao alvo sorteado,
