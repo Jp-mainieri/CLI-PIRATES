@@ -344,6 +344,11 @@ PRECO_NAVIO_NOVO = {"chalupa": 50, "brigantim": 100, "galeao": 200}
 PRECO_RENOMEAR = 20.0
 """Ouro para renomear um navio."""
 
+PRECO_TRANSFERENCIA_FROTA = 5.0
+"""Ouro cobrado por transferência de um barril entre navios da frota.
+Se o barril transferido é de ouro, a taxa sai do próprio barril; senão,
+tenta debitar do navio de origem e, se não tiver, do navio de destino."""
+
 PRECO_UPGRADE = {
     "casco_max":        40.0,   # +10 HP máx. casco
     "cooldown":         60.0,   # -10% cooldown canhão

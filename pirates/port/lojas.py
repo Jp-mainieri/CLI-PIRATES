@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ..constants import (
     PRECO_BARRIL_NOVO, PRECO_NAVIO_NOVO, PRECO_RENOMEAR, PRECO_UPGRADE,
+    PRECO_TRANSFERENCIA_FROTA,
     NAVIO_TIPOS, PARTES, PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
 )
 from ..core.porao import (
@@ -152,6 +153,44 @@ def renomear_navio_loja(frota, indice: int, novo_nome: str, navio_ativo) -> tupl
         navio_ativo.porao.adicionar("ouro", preco)
         return False, "Indice de navio invalido."
     return True, f"Navio renomeado para '{novo_nome}' por {preco:.0f} ouro."
+
+
+def transferir_barril_frota(origem, destino, indice_barril: int) -> tuple[bool, str]:
+    """Transfere um barril inteiro do porão de `origem` pro de `destino`.
+
+    Cobra PRECO_TRANSFERENCIA_FROTA de ouro:
+      - Barril de ouro: a taxa sai do próprio barril sendo movido.
+      - Qualquer outro recurso: tenta debitar de `origem`, senão de
+        `destino`.
+    Falha atomicamente (sem alterar nada) se: índice inválido, destino sem
+    slot livre, ou nenhum dos dois lados cobre a taxa.
+    """
+    p_origem = origem.porao
+    if not (0 <= indice_barril < len(p_origem.barris)):
+        return False, "Barril nao encontrado."
+    barril = p_origem.barris[indice_barril]
+
+    if destino.porao.slots_livres() <= 0:
+        return False, "Porao de destino lotado — sem slots livres."
+
+    preco = PRECO_TRANSFERENCIA_FROTA
+    pago_do_proprio_barril = False
+    if barril.tipo == "ouro":
+        if barril.quantidade < preco - 1e-9:
+            return False, f"Barril de ouro nao cobre a taxa (precisa {preco:.0f} ouro)."
+        pago_do_proprio_barril = True
+    else:
+        if not _debitar_ouro(origem, preco) and not _debitar_ouro(destino, preco):
+            return False, f"Nenhum dos navios tem ouro para a taxa ({preco:.0f})."
+
+    p_origem.barris.pop(indice_barril)
+    if pago_do_proprio_barril:
+        barril.quantidade -= preco
+    if barril.vazio:
+        return True, f"Barril de ouro esvaziado pela taxa de transferencia ({preco:.0f} ouro)."
+
+    destino.porao.barris.append(barril)
+    return True, f"Barril de {barril.tipo} transferido por {preco:.0f} ouro."
 
 
 # ---------------------------------------------------------------------------

@@ -11,9 +11,11 @@ from pirates.port.lojas import (
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade,
     nivel_atual_upgrade, nivel_max_upgrade, comprar_item_topo,
+    transferir_barril_frota,
 )
 from pirates.constants import (
     PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PARTES, PRECO_ITENS_TOPO,
+    PRECO_TRANSFERENCIA_FROTA,
 )
 
 
@@ -300,3 +302,74 @@ class TestComprarItemTopo:
         ok, msg = comprar_item_topo(n, "item_fantasma", faixa_notoriedade=7)
         assert ok is False
         assert "nao existe" in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Transferir carga entre navios da frota
+# ---------------------------------------------------------------------------
+
+class TestTransferirBarrilFrota:
+    def test_transferir_recurso_comum_debita_origem(self):
+        origem = _navio_com_ouro(qtd=100.0)
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio()
+        idx = len(origem.porao.barris) - 1  # barril de polvora
+        ok, m = transferir_barril_frota(origem, destino, idx)
+        assert ok is True
+        assert destino.porao.total("polvora") == pytest.approx(25.0)
+        assert origem.porao.total("ouro") == pytest.approx(100.0 - PRECO_TRANSFERENCIA_FROTA)
+
+    def test_transferir_recurso_comum_cai_pro_destino_se_origem_sem_ouro(self):
+        origem = _navio()  # sem ouro
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio_com_ouro(qtd=100.0)
+        idx = 0
+        ok, m = transferir_barril_frota(origem, destino, idx)
+        assert ok is True
+        assert destino.porao.total("polvora") == pytest.approx(25.0)
+        assert destino.porao.total("ouro") == pytest.approx(100.0 - PRECO_TRANSFERENCIA_FROTA)
+
+    def test_transferir_recurso_comum_falha_sem_ouro_nos_dois_lados(self):
+        origem = _navio()
+        origem.porao.barris.append(Barril("polvora", 25.0))
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert len(origem.porao.barris) == 1  # nada mudou
+        assert len(destino.porao.barris) == 0
+
+    def test_transferir_ouro_taxa_sai_do_proprio_barril(self):
+        origem = _navio_com_ouro(qtd=50.0)
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is True
+        assert destino.porao.total("ouro") == pytest.approx(50.0 - PRECO_TRANSFERENCIA_FROTA)
+        assert origem.porao.total("ouro") == 0.0
+
+    def test_transferir_ouro_falha_se_barril_nao_cobre_taxa(self):
+        origem = _navio_com_ouro(qtd=2.0)  # menos que PRECO_TRANSFERENCIA_FROTA
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert origem.porao.total("ouro") == pytest.approx(2.0)  # nada mudou
+
+    def test_transferir_ouro_exato_da_taxa_esvazia_sem_criar_barril_no_destino(self):
+        origem = _navio_com_ouro(qtd=PRECO_TRANSFERENCIA_FROTA)
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is True
+        assert len(destino.porao.barris) == 0
+        assert len(origem.porao.barris) == 0
+
+    def test_transferir_falha_se_destino_sem_slot_livre(self):
+        origem = _navio_com_ouro(qtd=50.0)
+        destino = _navio(cap=0)  # zero slots
+        ok, m = transferir_barril_frota(origem, destino, 0)
+        assert ok is False
+        assert len(origem.porao.barris) == 1  # nada mudou
+
+    def test_transferir_indice_invalido(self):
+        origem = _navio()
+        destino = _navio()
+        ok, m = transferir_barril_frota(origem, destino, 5)
+        assert ok is False
