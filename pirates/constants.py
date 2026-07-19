@@ -391,7 +391,7 @@ NAVIO_TIPOS = {
             "zona_morta": 0.208,
             "bolina": 0.40,
             "traves": 0.675,
-            "popa": 1.10,
+            "popa": 1.05,
         },
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
