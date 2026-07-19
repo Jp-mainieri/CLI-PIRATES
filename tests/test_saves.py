@@ -156,7 +156,7 @@ def test_roundtrip_porao():
     salvar(estado, estado_mundo, slug)
     data = carregar(slug)
 
-    porao = data["navio"]["porao"]
+    porao = data["frota"][data["frota_indice_ativo"]]["navio"]["porao"]
     assert len(porao) == 2
     assert porao[0] == {"tipo": "polvora", "quantidade": 10.0}
     assert porao[1] == {"tipo": "ouro", "quantidade": 50.0}
@@ -172,8 +172,9 @@ def test_roundtrip_partes_navio():
     salvar(estado, estado_mundo, slug)
     data = carregar(slug)
 
-    assert data["navio"]["partes"]["casco"] == pytest.approx(42.0)
-    assert data["navio"]["partes"]["mastro"] == pytest.approx(77.5)
+    navio_ativo = data["frota"][data["frota_indice_ativo"]]["navio"]
+    assert navio_ativo["partes"]["casco"] == pytest.approx(42.0)
+    assert navio_ativo["partes"]["mastro"] == pytest.approx(77.5)
 
 
 def test_roundtrip_nome_capitao_preservado():

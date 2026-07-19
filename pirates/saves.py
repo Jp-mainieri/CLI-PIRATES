@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .core.state import Estado
     from .world.state import EstadoMundo
 
-VERSAO_SAVE = 1
+VERSAO_SAVE = 2
 _logger = logging.getLogger(__name__)
 
 
@@ -127,7 +127,6 @@ def estado_para_dict(
     nome_capitao: str,
     criado_em: str,
 ) -> dict:
-    navio = estado.jogador
     return {
         "versao_save": VERSAO_SAVE,
         "slug": slug,
@@ -151,7 +150,6 @@ def estado_para_dict(
             "horas_na_faixa8": getattr(estado_mundo, "horas_na_faixa8", 0.0),
             "portos_visitados": list(getattr(estado_mundo, "portos_visitados", [])),
         },
-        "navio": _navio_para_dict(navio),
         "frota": [
             {
                 "nome": np_.nome,
@@ -178,7 +176,7 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     from .core.state import Estado, sincronizar_crew_com_navio_ativo
     from .world.state import EstadoMundo
     from .core.frota import Frota, NavioPossuido
-    from .core.ship import Navio, Canhao
+    from .core.ship import Navio, criar_canhoes
     from .constants import NAVIO_TIPOS
 
     tipo_navio = data["capitao"]["tipo_navio"]
@@ -194,47 +192,35 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
         rastro_ativo=prefs.get("rastro_ativo", config.get("rastro", True)),
     )
 
-    navio_data = data["navio"]
-    _aplicar_navio_dict(estado.jogador, navio_data)
-
     heading = data["capitao"]["heading"]
+
+    frota = Frota()
+    for entry in data["frota"]:
+        tipo_n = entry.get("tipo", tipo_navio)
+        p = NAVIO_TIPOS.get(tipo_n, NAVIO_TIPOS[tipo_navio])
+        navio_n = Navio(
+            entry["navio"]["nome"], x=0.0, y=0.0, heading=heading,
+            velocidade_max_base=p["velocidade_max_base"],
+            giro_graus_seg=p["giro_graus_seg"],
+            reparo_mult=p["reparo_mult"],
+            porao_capacidade=p["porao_capacidade"],
+        )
+        navio_n.tipo_nome = p["navio"]
+        navio_n.num_velas = p["num_velas"]
+        navio_n.canhoes = criar_canhoes(p["canhoes_lado"])
+        _aplicar_navio_dict(navio_n, entry["navio"])
+        frota.navios.append(NavioPossuido(
+            nome=entry["nome"], navio=navio_n, tipo=tipo_n,
+            porto_ancorado=entry.get("porto_ancorado"),
+        ))
+    frota.indice_ativo = data["frota_indice_ativo"]
+    estado.frota = frota
+    ativo = frota.ativo()
+    estado.jogador = ativo.navio
     estado.jogador.heading = heading
     estado.jogador.heading_alvo = heading
 
-    tipo_navio_ativo = tipo_navio
-
-    frota_data = data.get("frota") or []
-    if frota_data:
-        frota = Frota()
-        for entry in frota_data:
-            tipo_n = entry.get("tipo", tipo_navio)
-            p = NAVIO_TIPOS.get(tipo_n, NAVIO_TIPOS[tipo_navio])
-            navio_n = Navio(
-                entry["navio"]["nome"], x=0.0, y=0.0, heading=heading,
-                velocidade_max_base=p["velocidade_max_base"],
-                giro_graus_seg=p["giro_graus_seg"],
-                reparo_mult=p["reparo_mult"],
-                porao_capacidade=p["porao_capacidade"],
-            )
-            navio_n.tipo_nome = p["navio"]
-            navio_n.num_velas = p["num_velas"]
-            navio_n.canhoes = {
-                'bombordo':  [Canhao('bombordo', i + 1) for i in range(p["canhoes_lado"])],
-                'estibordo': [Canhao('estibordo', i + 1) for i in range(p["canhoes_lado"])],
-            }
-            _aplicar_navio_dict(navio_n, entry["navio"])
-            frota.navios.append(NavioPossuido(
-                nome=entry["nome"], navio=navio_n, tipo=tipo_n,
-                porto_ancorado=entry.get("porto_ancorado"),
-            ))
-        frota.indice_ativo = data.get("frota_indice_ativo", 0)
-        estado.frota = frota
-        ativo = frota.ativo()
-        if ativo is not None:
-            estado.jogador = ativo.navio
-            tipo_navio_ativo = ativo.tipo
-
-    sincronizar_crew_com_navio_ativo(estado, tipo_navio_ativo)
+    sincronizar_crew_com_navio_ativo(estado, ativo.tipo)
 
     estado_mundo = EstadoMundo(tipo_navio, seed=seed)
     cap = data["capitao"]
@@ -286,21 +272,27 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "horas_na_faixa8": 0.0,
             "portos_visitados": [],
         },
-        "navio": {
-            "nome": "Seu Navio",
-            "partes": {"casco": 100.0, "mastro": 100.0, "vela": 100.0, "roda": 100.0},
-            "agua": 0.0,
-            "moral_atual": 100.0,
-            "nivel_vela": 1,
-            "alcance_canhao": 550.0,
-            "upgrades": {},
-            "upgrade_niveis": {},
-            "itens_topo": {},
-            "porao_capacidade": NAVIO_TIPOS[tipo_navio]["porao_capacidade"],
-            "porao": [],
-        },
-        "frota": [],
-        "frota_indice_ativo": -1,
+        "frota": [
+            {
+                "nome": "Seu Navio",
+                "tipo": tipo_navio,
+                "porto_ancorado": None,
+                "navio": {
+                    "nome": "Seu Navio",
+                    "partes": {"casco": 100.0, "mastro": 100.0, "vela": 100.0, "roda": 100.0},
+                    "agua": 0.0,
+                    "moral_atual": 100.0,
+                    "nivel_vela": 1,
+                    "alcance_canhao": 550.0,
+                    "upgrades": {},
+                    "upgrade_niveis": {},
+                    "itens_topo": {},
+                    "porao_capacidade": NAVIO_TIPOS[tipo_navio]["porao_capacidade"],
+                    "porao": [],
+                },
+            },
+        ],
+        "frota_indice_ativo": 0,
         "estatisticas_finais": {
             "causa_morte": None,
             "notoriedade_maxima": 0,

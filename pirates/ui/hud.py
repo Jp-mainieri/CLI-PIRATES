@@ -800,7 +800,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 else:
                     attr = (_curses.color_pair(COR_JOGADOR)
                             if (estado.cores_ativo and _curses) else 0)
-                overlays_por_linha[row].append((max(0, col - 1), '[x]', attr))
+                overlays_por_linha[row].append((max(0, col - 1), 'x', attr))
             elif navio.status == "fugindo":
                 glifo, attr = 'e', cor_navio(estado, e_jogador=False)
                 grid[row][col] = glifo
@@ -816,7 +816,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
         grid[row][col] = '*'
         attr = (_curses.color_pair(COR_VERMELHO)
                 if (estado.cores_ativo and _curses) else 0)
-        overlays_por_linha[row].append((max(0, col - 1), '[*]', attr))
+        overlays_por_linha[row].append((max(0, col - 1), '*', attr))
 
     # W/E nos lados da linha central
     mid = GRID_H // 2

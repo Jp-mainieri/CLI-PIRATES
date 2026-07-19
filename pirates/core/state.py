@@ -13,7 +13,7 @@ from ..constants import (
     PARTES, NAVIO_TIPOS,
     FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
 )
-from .ship import Navio, Canhao
+from .ship import Navio, criar_canhoes
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
 from .frota import Frota
 
@@ -93,10 +93,7 @@ class Estado:
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
-        self.jogador.canhoes = {
-            'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
-            'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
-        }
+        self.jogador.canhoes = criar_canhoes(self.canhoes_lado)
         self.jogador.porao = estoque_inicial_jogador(cap)
 
         # O inimigo usa o mesmo perfil do jogador (simetria total).
@@ -109,11 +106,8 @@ class Estado:
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas
-        self.inimigo.canhoes = {
-            'bombordo':  [Canhao('bombordo',  i + 1) for i in range(self.canhoes_lado)],
-            'estibordo': [Canhao('estibordo', i + 1) for i in range(self.canhoes_lado)],
-        }
         self.inimigo.porao = gerar_porao_inimigo(cap, self.tipo_navio, 0.0)
+        self.inimigo.canhoes = criar_canhoes(self.canhoes_lado)
         self.inimigo_crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.inimigo_crew_bomba: int = 0
 
@@ -155,6 +149,11 @@ class Estado:
         self.zoom_mudou_em: float = -999.0
         self.modo_adm: bool = False
         self.frota: Frota = Frota()
+        self.frota.adicionar(
+            nome=self.jogador.nome, navio=self.jogador,
+            tipo=self.tipo_navio, porto_id=None,
+        )
+        self.frota.indice_ativo = 0
         self.ia_island_avoidance_mult: float = random.uniform(1.5, 3.0)
         self.ilhas_arena: list = []
         self.em_colisao_ilha_inimigo: bool = False
@@ -178,17 +177,23 @@ class Estado:
 
 
 def sincronizar_crew_com_navio_ativo(estado: Estado, tipo_navio_ativo: str) -> None:
-    """Recalcula crew_total/tripulante_ids a partir do tipo do navio ativo e do
+    """Recalcula crew_total/tripulante_ids/canhao_ids a partir do navio ativo e do
     nível de upgrade 'tripulante_extra' desse navio específico.
 
     Chamar sempre que estado.jogador passar a apontar para outro Navio (troca
-    de navio na frota, ou restauração de save) — crew_total é um campo de
-    Estado, não de Navio, então não acompanha a troca automaticamente.
+    de navio na frota, ou restauração de save) — crew_total/canhao_ids são
+    campos de Estado, não de Navio, então não acompanham a troca automaticamente.
     """
     base = NAVIO_TIPOS[tipo_navio_ativo]["crew_total"]
     extra = estado.jogador.upgrade_niveis.get("tripulante_extra", 0)
     estado.crew_total = base + extra
     estado.tripulante_ids = [f"T{i+1}" for i in range(estado.crew_total)]
+
+    canhoes_lado = len(estado.jogador.canhoes.get('bombordo', []))
+    estado.canhoes_lado = canhoes_lado
+    estado.canhao_ids = [
+        f"{l}{i}" for l in ("E", "B") for i in range(1, canhoes_lado + 1)
+    ]
 
 
 # ---------------------------------------------------------------------------
