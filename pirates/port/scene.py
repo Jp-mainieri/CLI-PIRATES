@@ -567,14 +567,15 @@ def _fluxo_transferir_carga(stdscr, frota, porto_id: int, estado) -> str:
 def _loja_upgrades(stdscr, navio, tipo_navio: str, estado) -> None:
     """Sub-loop de upgrades do navio."""
     CHAVES = ["casco_max", "cooldown", "porao_slot", "tripulante_extra",
-              "velocidade_giro", "alcance_canhao"]
+              "velocidade_giro", "alcance_canhao", "capacidade_barril_ouro"]
     LABELS = {
-        "casco_max":        "+10 HP max de casco",
-        "cooldown":         "-10% cooldown de canhao",
-        "porao_slot":       "+1 slot de porao",
-        "tripulante_extra": "+1 tripulante extra",
-        "velocidade_giro":  "+10% velocidade/giro",
-        "alcance_canhao":   "+50m alcance de canhao",
+        "casco_max":              "+10 HP max de casco",
+        "cooldown":               "-10% cooldown de canhao",
+        "porao_slot":             "+1 slot de porao",
+        "tripulante_extra":       "+1 tripulante extra",
+        "velocidade_giro":        "+10% velocidade/giro",
+        "alcance_canhao":         "+50m alcance de canhao",
+        "capacidade_barril_ouro": "+10 capacidade barril de ouro",
     }
     msg = ""
     while True:

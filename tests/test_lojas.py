@@ -198,20 +198,20 @@ class TestComprarNavioLoja:
     def test_segunda_compra_do_mesmo_tipo_custa_1_4x_mais(self):
         frota = Frota()
         n_ativo = _navio_com_ouro(99999.0)
-        ok1, msg1 = comprar_navio_loja(frota, "facil", "Chalupa 1", 0, n_ativo)
-        ok2, msg2 = comprar_navio_loja(frota, "facil", "Chalupa 2", 0, n_ativo)
+        ok1, msg1 = comprar_navio_loja(frota, "chalupa", "Chalupa 1", 0, n_ativo)
+        ok2, msg2 = comprar_navio_loja(frota, "chalupa", "Chalupa 2", 0, n_ativo)
         assert ok1 is True and ok2 is True
-        preco_base = PRECO_NAVIO_NOVO["facil"]
+        preco_base = PRECO_NAVIO_NOVO["chalupa"]
         assert f"{preco_base:.0f}" in msg1
         assert f"{preco_base * 1.4:.0f}" in msg2
 
     def test_comprar_tipos_diferentes_nao_afeta_preco_um_do_outro(self):
         frota = Frota()
         n_ativo = _navio_com_ouro(99999.0)
-        comprar_navio_loja(frota, "facil", "Chalupa", 0, n_ativo)
-        ok, msg = comprar_navio_loja(frota, "dificil", "Galeao", 0, n_ativo)
+        comprar_navio_loja(frota, "chalupa", "Chalupa", 0, n_ativo)
+        ok, msg = comprar_navio_loja(frota, "galeao", "Galeao", 0, n_ativo)
         assert ok is True
-        assert f"{PRECO_NAVIO_NOVO['dificil']:.0f}" in msg
+        assert f"{PRECO_NAVIO_NOVO['galeao']:.0f}" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +272,7 @@ class TestUpgrades:
 
     def test_capacidade_barril_ouro_aumenta_upgrade_navio(self):
         n = _navio_com_ouro(999999.0)
-        ok, _ = aplicar_upgrade(n, "facil", "capacidade_barril_ouro")
+        ok, _ = aplicar_upgrade(n, "chalupa", "capacidade_barril_ouro")
         assert ok is True
         assert n.upgrades["capacidade_barril_ouro"] == pytest.approx(10.0)
 
@@ -280,13 +280,13 @@ class TestUpgrades:
         n = _navio_com_ouro(999999.0)
         barril_ouro = n.porao.barris[-1]
         assert barril_ouro.capacidade == pytest.approx(CAPACIDADE_BARRIL_OURO)
-        aplicar_upgrade(n, "facil", "capacidade_barril_ouro")
+        aplicar_upgrade(n, "chalupa", "capacidade_barril_ouro")
         assert barril_ouro.capacidade == pytest.approx(CAPACIDADE_BARRIL_OURO + 10.0)
 
     @pytest.mark.parametrize("tipo,custo_esperado", [
-        ("facil", 309.35),
-        ("normal", 1192.9),
-        ("dificil", 10923.5),
+        ("chalupa", 309.35),
+        ("brigantim", 1192.9),
+        ("galeao", 10923.5),
     ])
     def test_custo_total_ate_o_teto_de_capacidade_barril_ouro(self, tipo, custo_esperado):
         n = _navio_com_ouro(999999.0)
