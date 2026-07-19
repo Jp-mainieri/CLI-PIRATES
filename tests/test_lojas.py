@@ -3,7 +3,7 @@
 import pytest
 
 from pirates.core.ship import Navio
-from pirates.core.porao import Barril, Porao, CAPACIDADE_BARRIL
+from pirates.core.porao import Barril, Porao, CAPACIDADE_BARRIL, CAPACIDADE_BARRIL_OURO
 from pirates.core.frota import Frota
 from pirates.core.porao import preco_reabastecer, preco_venda, preco_reparo
 from pirates.port.lojas import (
@@ -14,6 +14,7 @@ from pirates.port.lojas import (
 )
 from pirates.constants import (
     PRECO_BARRIL_NOVO, PRECO_VENDA_BARRIL_CHEIO, PARTES, PRECO_ITENS_TOPO,
+    PRECO_NAVIO_NOVO, PRECO_UPGRADE,
 )
 
 
@@ -192,6 +193,24 @@ class TestComprarNavioLoja:
         assert ok is False
         assert len(frota.navios) == 0
 
+    def test_segunda_compra_do_mesmo_tipo_custa_1_4x_mais(self):
+        frota = Frota()
+        n_ativo = _navio_com_ouro(99999.0)
+        ok1, msg1 = comprar_navio_loja(frota, "facil", "Chalupa 1", 0, n_ativo)
+        ok2, msg2 = comprar_navio_loja(frota, "facil", "Chalupa 2", 0, n_ativo)
+        assert ok1 is True and ok2 is True
+        preco_base = PRECO_NAVIO_NOVO["facil"]
+        assert f"{preco_base:.0f}" in msg1
+        assert f"{preco_base * 1.4:.0f}" in msg2
+
+    def test_comprar_tipos_diferentes_nao_afeta_preco_um_do_outro(self):
+        frota = Frota()
+        n_ativo = _navio_com_ouro(99999.0)
+        comprar_navio_loja(frota, "facil", "Chalupa", 0, n_ativo)
+        ok, msg = comprar_navio_loja(frota, "dificil", "Galeao", 0, n_ativo)
+        assert ok is True
+        assert f"{PRECO_NAVIO_NOVO['dificil']:.0f}" in msg
+
 
 # ---------------------------------------------------------------------------
 # Upgrades
@@ -240,6 +259,42 @@ class TestUpgrades:
     def test_nivel_max_por_tipo(self):
         assert nivel_max_upgrade("facil", "porao_slot") == 1
         assert nivel_max_upgrade("dificil", "porao_slot") == 3
+
+    def test_taxa_capacidade_barril_ouro_e_1_30_nao_1_5(self):
+        preco_casco = preco_upgrade_nivel("casco_max", 1)
+        preco_barril = preco_upgrade_nivel("capacidade_barril_ouro", 1)
+        base_casco = PRECO_UPGRADE["casco_max"]
+        base_barril = PRECO_UPGRADE["capacidade_barril_ouro"]
+        assert preco_casco == pytest.approx(base_casco * 1.5)
+        assert preco_barril == pytest.approx(base_barril * 1.30)
+
+    def test_capacidade_barril_ouro_aumenta_upgrade_navio(self):
+        n = _navio_com_ouro(999999.0)
+        ok, _ = aplicar_upgrade(n, "facil", "capacidade_barril_ouro")
+        assert ok is True
+        assert n.upgrades["capacidade_barril_ouro"] == pytest.approx(10.0)
+
+    def test_capacidade_barril_ouro_e_retroativa_em_barris_existentes(self):
+        n = _navio_com_ouro(999999.0)
+        barril_ouro = n.porao.barris[-1]
+        assert barril_ouro.capacidade == pytest.approx(CAPACIDADE_BARRIL_OURO)
+        aplicar_upgrade(n, "facil", "capacidade_barril_ouro")
+        assert barril_ouro.capacidade == pytest.approx(CAPACIDADE_BARRIL_OURO + 10.0)
+
+    @pytest.mark.parametrize("tipo,custo_esperado", [
+        ("facil", 309.35),
+        ("normal", 1192.9),
+        ("dificil", 10923.5),
+    ])
+    def test_custo_total_ate_o_teto_de_capacidade_barril_ouro(self, tipo, custo_esperado):
+        n = _navio_com_ouro(999999.0)
+        custo_total = 0.0
+        while nivel_atual_upgrade(n, "capacidade_barril_ouro") < nivel_max_upgrade(tipo, "capacidade_barril_ouro"):
+            preco = preco_upgrade_nivel("capacidade_barril_ouro", nivel_atual_upgrade(n, "capacidade_barril_ouro"))
+            ok, _ = aplicar_upgrade(n, tipo, "capacidade_barril_ouro")
+            assert ok is True
+            custo_total += preco
+        assert custo_total == pytest.approx(custo_esperado, rel=1e-2)
 
 
 def test_capitao_perto_de():
