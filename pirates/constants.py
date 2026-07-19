@@ -54,6 +54,72 @@ GIRO_GRAUS_SEG_PADRAO = 9.0
 ACEL_VEL_SEG = 3.0
 """Aceleração/desaceleração do navio, em unidades por segundo²."""
 
+# ---------------------------------------------------------------------------
+# Vento (doc08_vento.md)
+# ---------------------------------------------------------------------------
+
+VENTO_INTENSIDADE_MIN = 0.0
+VENTO_INTENSIDADE_MAX = 25.0
+"""Piso/teto de intensidade de vento, em nós."""
+
+VENTO_INTENSIDADE_LIMITE_FRACA = 5.0
+VENTO_INTENSIDADE_LIMITE_MODERADA = 15.0
+"""Limites da curva de intensidade: até LIMITE_FRACA, sobe de calmaria até
+potência plena; entre os dois, platô de potência plena; acima de
+LIMITE_MODERADA, sobe até o teto de rajada em VENTO_INTENSIDADE_MAX."""
+
+VENTO_MULT_INTENSIDADE_CALMARIA = 0.5
+VENTO_MULT_INTENSIDADE_PLENA = 1.0
+VENTO_MULT_INTENSIDADE_MAXIMA = 1.3
+"""Multiplicadores-âncora de velocidade máxima pela curva de intensidade:
+0.5 em 0 nós (calmaria), 1.0 do início do platô (5 nós) até o fim dele
+(15 nós), 1.3 no teto de rajada (25 nós). Curva suave, sem degraus –
+interpolação linear entre âncoras (ver fator_intensidade_vento)."""
+
+VENTO_DERIVA_DIRECAO_GRAUS_SEG = 0.1
+"""Velocidade de deriva da direção do vento em direção ao alvo sorteado,
+em graus/segundo. Placeholder – não calibrado."""
+
+VENTO_DERIVA_INTENSIDADE_SEG = 0.05
+"""Velocidade de deriva da intensidade do vento em direção ao alvo
+sorteado, por segundo. Placeholder – não calibrado."""
+
+VENTO_RESORTEIO_MIN_SEG = 300.0
+VENTO_RESORTEIO_MAX_SEG = 600.0
+"""Intervalo (min, max) em segundos entre resorteios do alvo de deriva do
+vento. Placeholder – não calibrado."""
+
+VENTO_ZONAS_ANGULO_MEIO = {
+    "zona_morta": 22.5,
+    "bolina": 67.5,
+    "traves": 112.5,
+    "popa": 157.5,
+}
+"""Ângulo relativo (0°=proa) representado pelo valor de eficiência de cada
+zona, usado como ponto-chave pra interpolação linear (ver pirates/core/vento.py)."""
+
+# ---------------------------------------------------------------------------
+# Deriva lateral (doc09_deriva.md)
+# ---------------------------------------------------------------------------
+
+BASE_ADERENCIA = 3.0
+"""Coeficiente base da força de correção de deriva lateral, em 1/segundo.
+Placeholder – não calibrado, mesma ordem de grandeza de ACEL_VEL_SEG."""
+
+VELOCIDADE_REFERENCIA_ADERENCIA = 10.0
+"""Velocidade de referência (unidades/s) usada no fator de aderência por
+velocidade: quanto mais rápido o navio, mais aderência (fator_velocidade
+= 1 + vel_atual / VELOCIDADE_REFERENCIA_ADERENCIA)."""
+
+PESO_REFERENCIA_ADERENCIA = 500.0
+"""Peso de referência (kg) usado no fator de aderência por peso – igual
+ao peso_casco do Bergantim, tratado como o ponto neutro (fator_peso = 1.0)."""
+
+COEFICIENTE_EMPUXO_LATERAL = 0.05
+"""Coeficiente do empuxo lateral de vento de través sobre velocidade
+lateral, em (unidades/s) por (nó × num_velas). Placeholder – não
+calibrado."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
@@ -113,6 +179,14 @@ MORAL_MULT_COMBALIDO = 0.60
 
 MORAL_MULT_PANICO = 0.30
 """Multiplicador quando moral ≤ 0 (pânico total)."""
+
+MORAL_CRASH_RECURSOS_TETO = 15.0
+"""Teto de moral imposto temporariamente quando pólvora, bolas ou tábuas
+zeram. Moral não sobe acima disso enquanto o travamento estiver ativo."""
+
+MORAL_CRASH_RECURSOS_DURACAO_SEG = 20.0
+"""Duração (segundos) do travamento de moral após pólvora/bolas/tábuas
+zerarem. Passado esse tempo, a moral volta a seguir moral_alvo() livremente."""
 
 # ---------------------------------------------------------------------------
 # Fuga do inimigo
@@ -283,12 +357,21 @@ NAVIO_TIPOS = {
         "canhoes_lado": 1,
         "num_velas": 1,
         "velocidade_max_base": 8.0,
-        "giro_graus_seg": 14.0,
+        "giro_graus_seg": 45.0,
+        "bonus_fixo_vela": 0.20,
+        "bonus_curva_vela": 0.225,
+        "eficiencia_vento": {
+            "zona_morta": 0.85,
+            "bolina": 1.00,
+            "traves": 0.90,
+            "popa": 0.70,
+        },
         "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
         "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
+        "peso_casco": 200.0,
     },
     "brigantim": {
         "navio": "Brigantim",
@@ -296,25 +379,43 @@ NAVIO_TIPOS = {
         "canhoes_lado": 2,
         "num_velas": 3,
         "velocidade_max_base": 11.0,
-        "giro_graus_seg": 9.0,
+        "giro_graus_seg": 25.0,
+        "bonus_fixo_vela": 0.35,
+        "bonus_curva_vela": 0.125,
+        "eficiencia_vento": {
+            "zona_morta": 0.333,
+            "bolina": 0.567,
+            "traves": 0.833,
+            "popa": 0.933,
+        },
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,     # Brigantim — velocidade de reparo média
         "porao_capacidade": 9,
+        "peso_casco": 500.0,
     },
     "galeao": {
         "navio": "Galeao",
         "crew_total": 7,
         "canhoes_lado": 3,
         "num_velas": 7,
-        "velocidade_max_base": 13.0,
-        "giro_graus_seg": 6.0,
+        "velocidade_max_base": 14.0,
+        "giro_graus_seg": 12.0,
+        "bonus_fixo_vela": 0.292,
+        "bonus_curva_vela": 0.071,
+        "eficiencia_vento": {
+            "zona_morta": 0.208,
+            "bolina": 0.40,
+            "traves": 0.675,
+            "popa": 1.10,
+        },
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
         "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
+        "peso_casco": 1100.0,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador
@@ -439,6 +540,16 @@ COMO_JOGAR_TEXTO = [
     "NAVIOS   Chalupa (dificuldade 1): 2 trip, 1 canhao/lado, 6 slots porao",
     "         Brigantim (dificuldade 2): 3 trip, 2 canhoes/lado, 9 slots",
     "         Galeao (dificuldade 3): 7 trip, 3 canhoes/lado, 14 slots",
+    "",
+    "VENTO",
+    "  Direcao e intensidade mudam lentamente com o tempo (ver HUD: VENTO).",
+    "  O angulo do casco em relacao ao vento define 4 zonas: zona morta,",
+    "  bolina, traves e popa - cada uma multiplica velocidade maxima e",
+    "  aceleracao (o multiplicador varia por tipo, veja 'Tipos de Navio'",
+    "  pra saber a zona ideal do seu).",
+    "  Vento fraco reduz o teto de velocidade; vento forte (rajada) aumenta.",
+    "  Virar o leme bruscamente e vento de traves geram deriva lateral -",
+    "  o navio desliza de lado, corrigida aos poucos pela aderencia do casco.",
     "",
     "MUNDO ABERTO",
     "  M              alterna mapa de navegacao / mapa mundo (8km)",

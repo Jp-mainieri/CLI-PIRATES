@@ -12,6 +12,8 @@ from collections import deque
 from ..constants import (
     PARTES, NAVIO_TIPOS,
     FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
+    VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX,
+    VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
 )
 from .ship import Navio, criar_canhoes
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
@@ -90,6 +92,10 @@ class Estado:
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
             porao_capacidade=cap,
+            bonus_fixo_vela=params["bonus_fixo_vela"],
+            bonus_curva_vela=params["bonus_curva_vela"],
+            eficiencia_vento_tabela=params["eficiencia_vento"],
+            peso_casco=params["peso_casco"],
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
@@ -103,6 +109,10 @@ class Estado:
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
             porao_capacidade=cap,
+            bonus_fixo_vela=params["bonus_fixo_vela"],
+            bonus_curva_vela=params["bonus_curva_vela"],
+            eficiencia_vento_tabela=params["eficiencia_vento"],
+            peso_casco=params["peso_casco"],
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas
@@ -157,6 +167,17 @@ class Estado:
         self.ia_island_avoidance_mult: float = random.uniform(1.5, 3.0)
         self.ilhas_arena: list = []
         self.em_colisao_ilha_inimigo: bool = False
+
+        self.vento_direcao: float = random.uniform(0.0, 360.0)
+        self.vento_direcao_alvo: float = self.vento_direcao
+        self.vento_intensidade: float = random.uniform(
+            VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX
+        )
+        self.vento_intensidade_alvo: float = self.vento_intensidade
+        self.vento_proximo_resorteio_em: float = random.uniform(
+            VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG
+        )
+        self.vento_zona_anterior_jogador: str | None = None
 
         self.log.append(
             f"Bem-vindo ao conves do {params['navio']}, capitao. "

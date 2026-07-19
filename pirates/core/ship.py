@@ -16,9 +16,12 @@ from ..constants import (
     MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
     MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO,
     MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
+    MORAL_CRASH_RECURSOS_TETO, MORAL_CRASH_RECURSOS_DURACAO_SEG,
+    BASE_ADERENCIA, VELOCIDADE_REFERENCIA_ADERENCIA, PESO_REFERENCIA_ADERENCIA,
 )
 from .utils import clamp
 from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
+from .vento import empuxo_lateral_vento
 
 
 class Canhao:
@@ -137,6 +140,10 @@ class Navio:
         giro_graus_seg: float = GIRO_GRAUS_SEG_PADRAO,
         reparo_mult: float = 1.0,
         porao_capacidade: int = 0,
+        bonus_fixo_vela: float = 0.0,
+        bonus_curva_vela: float = 0.0,
+        eficiencia_vento_tabela: dict | None = None,
+        peso_casco: float = 500.0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -160,22 +167,49 @@ class Navio:
         self.upgrades: dict[str, float] = {}
         self.upgrade_niveis: dict[str, int] = {}
         self.itens_topo: dict[str, bool] = {}
+        self.bonus_fixo_vela = bonus_fixo_vela
+        self.bonus_curva_vela = bonus_curva_vela
+        self.eficiencia_vento_tabela = eficiencia_vento_tabela or {
+            "zona_morta": 1.0, "bolina": 1.0, "traves": 1.0, "popa": 1.0,
+        }
+        self.eficiencia_vento_atual: float = 1.0
+        self.fator_intensidade_vento_atual: float = 1.0
+        self.peso_casco = peso_casco
+        self.velocidade_lateral: float = 0.0
+        self._recursos_criticos_zerados: bool | None = None
+        self.moral_lock_restante: float = 0.0
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
         return not self.afundado
 
     def taxa_giro(self) -> float:
-        """Taxa de giro efetiva, reduzida proporcionalmente ao dano da roda do leme."""
-        return self.giro_graus_seg * max(0.0, self.partes['roda'] / 100)
+        """Taxa de giro efetiva: giro_base × bônus de curva da vela, reduzida
+        proporcionalmente ao dano da roda do leme. Não depende do vento
+        (doc08_vento.md seção 3)."""
+        base = self.giro_graus_seg * (1.0 + self.bonus_curva_vela)
+        return base * max(0.0, self.partes['roda'] / 100)
 
     def velocidade_maxima(self) -> float:
-        """Velocidade máxima alcançável com o nível de vela e dano atuais.
-        Aplica bônus de upgrade 'velocidade_giro' (fração multiplicativa)."""
+        """Velocidade máxima alcançável com o nível de vela, dano e vento atuais.
+        Aplica bônus de upgrade 'velocidade_giro' e o bônus fixo de vela, além
+        da eficiência de vento do ângulo relativo atual (doc08_vento.md)."""
         fator_vela = self.nivel_vela / 3
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
-        base = self.velocidade_max_base * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
+        base = self.velocidade_max_base * (1.0 + self.bonus_fixo_vela)
+        base *= self.eficiencia_vento_atual
+        base *= self.fator_intensidade_vento_atual
+        base *= (1.0 + self.upgrades.get('velocidade_giro', 0.0))
         return base * fator_vela * fator_dano
+
+    def _forca_correcao_deriva(self) -> float:
+        """Força de correção (aderência) da deriva lateral, em 1/segundo.
+        Sobe com a velocidade atual (mais aderência em alta velocidade) e cai
+        com o peso do casco (navios pesados corrigem mais devagar, deslizam
+        mais – doc09_deriva.md)."""
+        fator_velocidade = 1.0 + self.velocidade / VELOCIDADE_REFERENCIA_ADERENCIA
+        fator_peso = self.peso_casco / PESO_REFERENCIA_ADERENCIA
+        return BASE_ADERENCIA * fator_velocidade / fator_peso
 
     def alcance_canhao_efetivo(self) -> float:
         """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
@@ -190,32 +224,74 @@ class Navio:
         """
         return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
 
-    def atualizar_movimento(self, dt: float) -> None:
-        """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
+    def atualizar_movimento(
+        self, dt: float, eficiencia_vento: float = 1.0,
+        fator_intensidade_vento: float = 1.0,
+        angulo_relativo_vento_atual: float = 90.0,
+        intensidade_vento_atual: float = 0.0,
+    ) -> None:
+        """Aplica física de giro, propulsão e deriva lateral para o intervalo
+        de tempo *dt*.
 
         Args:
             dt: Delta de tempo em segundos desde o último tick.
+            eficiencia_vento: Eficiência de vento (0.0+) pro ângulo relativo
+                atual do navio, calculada externamente (ver pirates/core/vento.py).
+            fator_intensidade_vento: Multiplicador de teto de velocidade pela
+                curva de intensidade do vento (0.5 a 1.3, suave), calculado
+                externamente. Não afeta aceleração.
+            angulo_relativo_vento_atual: Ângulo relativo (0-180) entre o rumo
+                do navio e a direção do vento, usado só pro empuxo lateral de
+                través (doc09_deriva.md §5) – não confundir com o cálculo de
+                eficiencia_vento, que já foi resolvido externamente.
+            intensidade_vento_atual: Intensidade do vento em nós, usada só
+                pro empuxo lateral de través.
         """
         if self.afundado:
             return
 
+        self.eficiencia_vento_atual = eficiencia_vento
+        self.fator_intensidade_vento_atual = fator_intensidade_vento
+
         diff = (self.heading_alvo - self.heading + 540) % 360 - 180
         giro_max = self.taxa_giro() * dt
         if abs(diff) <= giro_max:
+            delta_heading = diff
             self.heading = self.heading_alvo
         else:
-            self.heading = (self.heading + (giro_max if diff > 0 else -giro_max)) % 360
+            delta_heading = giro_max if diff > 0 else -giro_max
+            self.heading = (self.heading + delta_heading) % 360
 
         vmax = self.velocidade_maxima()
-        acel = ACEL_VEL_SEG * dt
+        acel = ACEL_VEL_SEG * dt * eficiencia_vento
         if self.velocidade < vmax:
             self.velocidade = min(vmax, self.velocidade + acel)
         else:
             self.velocidade = max(vmax, self.velocidade - acel)
 
+        # Deriva lateral (doc09_deriva.md): parte da velocidade de avanço
+        # "escapa" como lateral ao virar o leme, depois decai por aderência.
+        self.velocidade_lateral += self.velocidade * math.sin(math.radians(delta_heading))
+
+        # ...e por empuxo de vento de través (doc09_deriva.md §5).
+        self.velocidade_lateral += empuxo_lateral_vento(
+            self.num_velas, intensidade_vento_atual, angulo_relativo_vento_atual,
+        ) * dt
+
+        forca_correcao = self._forca_correcao_deriva()
+        fracao_removida = min(1.0, forca_correcao * dt)
+        self.velocidade_lateral *= (1.0 - fracao_removida)
+
         rad = math.radians(self.heading)
-        self.x += math.sin(rad) * self.velocidade * dt
-        self.y += math.cos(rad) * self.velocidade * dt
+        rad_lateral = math.radians(self.heading + 90.0)
+        self.x += (
+            math.sin(rad) * self.velocidade
+            + math.sin(rad_lateral) * self.velocidade_lateral
+        ) * dt
+        self.y += (
+            math.cos(rad) * self.velocidade
+            + math.cos(rad_lateral) * self.velocidade_lateral
+        ) * dt
         self.x = clamp(self.x, -MAPA_TAMANHO, MAPA_TAMANHO)
         self.y = clamp(self.y, -MAPA_TAMANHO, MAPA_TAMANHO)
 
@@ -290,12 +366,29 @@ class Navio:
         ) / 100.0
         return clamp(alvo, 0.0, 100.0)
 
+    def _recursos_criticos_zerados_agora(self) -> bool:
+        """True se pólvora, bolas ou tábuas estiverem em 0 no porão agora."""
+        return any(
+            self.porao.total(t) <= 0 for t in ('polvora', 'bolas', 'tabuas')
+        )
+
     def atualizar_moral(self, dt: float) -> None:
         """Avança a moral para mais perto da moral-alvo pelo intervalo *dt*.
 
         Queda é proporcional a MORAL_QUEDA_TAXA_SEG; recuperação usa uma
         curva exponencial amortecida (igual a REPARO_K mas para a moral).
+
+        Se pólvora, bolas ou tábuas zerarem (transição de >0 para 0), a
+        moral trava temporariamente num teto baixo (MORAL_CRASH_RECURSOS_TETO)
+        por MORAL_CRASH_RECURSOS_DURACAO_SEG segundos — um solavanco, não um
+        travamento permanente nem um evento de um tick só.
         """
+        zerado_agora = self._recursos_criticos_zerados_agora()
+        if zerado_agora and self._recursos_criticos_zerados is False:
+            self.moral_lock_restante = MORAL_CRASH_RECURSOS_DURACAO_SEG
+            self.moral_atual = min(self.moral_atual, MORAL_CRASH_RECURSOS_TETO)
+        self._recursos_criticos_zerados = zerado_agora
+
         alvo = self.moral_alvo()
         if self.moral_atual > alvo:
             self.moral_atual = max(alvo, self.moral_atual - MORAL_QUEDA_TAXA_SEG * dt)
@@ -307,6 +400,10 @@ class Navio:
                 self.moral_atual + MORAL_RECUP_BASE_SEG * fator * dt,
             )
         self.moral_atual = clamp(self.moral_atual, 0.0, 100.0)
+
+        if self.moral_lock_restante > 0:
+            self.moral_lock_restante = max(0.0, self.moral_lock_restante - dt)
+            self.moral_atual = min(self.moral_atual, MORAL_CRASH_RECURSOS_TETO)
 
     def registrar_acerto_moral(self) -> None:
         """Adiciona um bonus de moral por acerto bem-sucedido."""
