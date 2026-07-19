@@ -456,7 +456,7 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
     p = navio.porao
     slots = len(p.barris)
     cap = p.capacidade
-    linhas: list[tuple[str, int]] = [(f"PORAO ({slots}/{cap} slots)", 0)]
+    linhas: list[tuple[str, int]] = [(f"({slots}/{cap} slots)", 0)]
     for tipo in TIPOS_CARGA:
         barris_tipo = [b for b in p.barris if b.tipo == tipo]
         n_barris = len(barris_tipo)
