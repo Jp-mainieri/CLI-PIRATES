@@ -137,6 +137,9 @@ class Navio:
         giro_graus_seg: float = GIRO_GRAUS_SEG_PADRAO,
         reparo_mult: float = 1.0,
         porao_capacidade: int = 0,
+        bonus_fixo_vela: float = 0.0,
+        bonus_curva_vela: float = 0.0,
+        eficiencia_vento_tabela: dict | None = None,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -160,21 +163,33 @@ class Navio:
         self.upgrades: dict[str, float] = {}
         self.upgrade_niveis: dict[str, int] = {}
         self.itens_topo: dict[str, bool] = {}
+        self.bonus_fixo_vela = bonus_fixo_vela
+        self.bonus_curva_vela = bonus_curva_vela
+        self.eficiencia_vento_tabela = eficiencia_vento_tabela or {
+            "zona_morta": 1.0, "bolina": 1.0, "traves": 1.0, "popa": 1.0,
+        }
+        self.eficiencia_vento_atual: float = 1.0
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
         return not self.afundado
 
     def taxa_giro(self) -> float:
-        """Taxa de giro efetiva, reduzida proporcionalmente ao dano da roda do leme."""
-        return self.giro_graus_seg * max(0.0, self.partes['roda'] / 100)
+        """Taxa de giro efetiva: giro_base × bônus de curva da vela, reduzida
+        proporcionalmente ao dano da roda do leme. Não depende do vento
+        (doc08_vento.md seção 3)."""
+        base = self.giro_graus_seg * (1.0 + self.bonus_curva_vela)
+        return base * max(0.0, self.partes['roda'] / 100)
 
     def velocidade_maxima(self) -> float:
-        """Velocidade máxima alcançável com o nível de vela e dano atuais.
-        Aplica bônus de upgrade 'velocidade_giro' (fração multiplicativa)."""
+        """Velocidade máxima alcançável com o nível de vela, dano e vento atuais.
+        Aplica bônus de upgrade 'velocidade_giro' e o bônus fixo de vela, além
+        da eficiência de vento do ângulo relativo atual (doc08_vento.md)."""
         fator_vela = self.nivel_vela / 3
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
-        base = self.velocidade_max_base * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
+        base = self.velocidade_max_base * (1.0 + self.bonus_fixo_vela)
+        base *= self.eficiencia_vento_atual
+        base *= (1.0 + self.upgrades.get('velocidade_giro', 0.0))
         return base * fator_vela * fator_dano
 
     def alcance_canhao_efetivo(self) -> float:
@@ -190,14 +205,18 @@ class Navio:
         """
         return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
 
-    def atualizar_movimento(self, dt: float) -> None:
+    def atualizar_movimento(self, dt: float, eficiencia_vento: float = 1.0) -> None:
         """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
 
         Args:
             dt: Delta de tempo em segundos desde o último tick.
+            eficiencia_vento: Eficiência de vento (0.0+) pro ângulo relativo
+                atual do navio, calculada externamente (ver pirates/core/vento.py).
         """
         if self.afundado:
             return
+
+        self.eficiencia_vento_atual = eficiencia_vento
 
         diff = (self.heading_alvo - self.heading + 540) % 360 - 180
         giro_max = self.taxa_giro() * dt
@@ -207,7 +226,7 @@ class Navio:
             self.heading = (self.heading + (giro_max if diff > 0 else -giro_max)) % 360
 
         vmax = self.velocidade_maxima()
-        acel = ACEL_VEL_SEG * dt
+        acel = ACEL_VEL_SEG * dt * eficiencia_vento
         if self.velocidade < vmax:
             self.velocidade = min(vmax, self.velocidade + acel)
         else:

@@ -54,6 +54,38 @@ GIRO_GRAUS_SEG_PADRAO = 9.0
 ACEL_VEL_SEG = 3.0
 """Aceleração/desaceleração do navio, em unidades por segundo²."""
 
+# ---------------------------------------------------------------------------
+# Vento (doc08_vento.md)
+# ---------------------------------------------------------------------------
+
+VENTO_INTENSIDADE_MIN = 4.0
+VENTO_INTENSIDADE_MAX = 20.0
+"""Piso/teto de intensidade de vento. Placeholder – não calibrado, e a
+intensidade ainda não afeta velocidade (ver nota de escopo no prompt de
+implementação)."""
+
+VENTO_DERIVA_DIRECAO_GRAUS_SEG = 0.5
+"""Velocidade de deriva da direção do vento em direção ao alvo sorteado,
+em graus/segundo. Placeholder – não calibrado."""
+
+VENTO_DERIVA_INTENSIDADE_SEG = 0.3
+"""Velocidade de deriva da intensidade do vento em direção ao alvo
+sorteado, por segundo. Placeholder – não calibrado."""
+
+VENTO_RESORTEIO_MIN_SEG = 45.0
+VENTO_RESORTEIO_MAX_SEG = 120.0
+"""Intervalo (min, max) em segundos entre resorteios do alvo de deriva do
+vento. Placeholder – não calibrado."""
+
+VENTO_ZONAS_ANGULO_MEIO = {
+    "zona_morta": 22.5,
+    "bolina": 67.5,
+    "traves": 112.5,
+    "popa": 157.5,
+}
+"""Ângulo relativo (0°=proa) representado pelo valor de eficiência de cada
+zona, usado como ponto-chave pra interpolação linear (ver pirates/core/vento.py)."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
@@ -283,7 +315,15 @@ NAVIO_TIPOS = {
         "canhoes_lado": 1,
         "num_velas": 1,
         "velocidade_max_base": 8.0,
-        "giro_graus_seg": 14.0,
+        "giro_graus_seg": 45.0,
+        "bonus_fixo_vela": 0.20,
+        "bonus_curva_vela": 0.225,
+        "eficiencia_vento": {
+            "zona_morta": 0.85,
+            "bolina": 1.00,
+            "traves": 0.90,
+            "popa": 0.70,
+        },
         "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
@@ -296,7 +336,15 @@ NAVIO_TIPOS = {
         "canhoes_lado": 2,
         "num_velas": 3,
         "velocidade_max_base": 11.0,
-        "giro_graus_seg": 9.0,
+        "giro_graus_seg": 25.0,
+        "bonus_fixo_vela": 0.35,
+        "bonus_curva_vela": 0.125,
+        "eficiencia_vento": {
+            "zona_morta": 0.333,
+            "bolina": 0.567,
+            "traves": 0.833,
+            "popa": 0.933,
+        },
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
@@ -308,8 +356,16 @@ NAVIO_TIPOS = {
         "crew_total": 7,
         "canhoes_lado": 3,
         "num_velas": 7,
-        "velocidade_max_base": 13.0,
-        "giro_graus_seg": 6.0,
+        "velocidade_max_base": 14.0,
+        "giro_graus_seg": 12.0,
+        "bonus_fixo_vela": 0.292,
+        "bonus_curva_vela": 0.071,
+        "eficiencia_vento": {
+            "zona_morta": 0.208,
+            "bolina": 0.40,
+            "traves": 0.675,
+            "popa": 1.10,
+        },
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,

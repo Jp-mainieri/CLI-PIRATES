@@ -17,9 +17,13 @@ from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
 )
-from ..core.utils import barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading
+from ..core.utils import (
+    barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading,
+    direcao_para_heading,
+)
 from ..core.combat import distancia, rumo_para
 from ..core.state import montar_tripulacao
+from ..core.vento import angulo_relativo_vento, zona_vento
 from .colors import (
     cor_valor, cor_cooldown, cor_mar, cor_navio, cor_norte, cor_tarefa, cor_recurso,
 )
@@ -60,6 +64,12 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
         ),
         (f"RUMO {j.heading:5.1f} -> {j.heading_alvo:5.1f}", 0),
         (f"VEL  {j.velocidade:4.1f} / {j.velocidade_maxima():4.1f}", 0),
+        (
+            f"VENTO {direcao_para_heading(estado.vento_direcao)} "
+            f"{estado.vento_intensidade:4.1f} "
+            f"({zona_vento(angulo_relativo_vento(j.heading, estado.vento_direcao)).replace('_', ' ')})",
+            0,
+        ),
     ]
 
 

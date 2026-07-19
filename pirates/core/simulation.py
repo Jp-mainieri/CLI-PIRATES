@@ -12,6 +12,7 @@ from ..ai.enemy import (
     atualizar_estado_fuga,
 )
 from ..constants import ALCANCE_FUGA_ESCAPE, TEMPO_FUGA_ESCAPE_SEG
+from .vento import atualizar_vento, angulo_relativo_vento, zona_vento, eficiencia_vento
 
 
 def _atualizar_zoom(estado: Estado) -> None:
@@ -63,8 +64,23 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
     if not jogador.afundado:
         disparar_canhoes_navio(estado, inimigo, jogador)
 
-    jogador.atualizar_movimento(dt)
-    inimigo.atualizar_movimento(dt)
+    atualizar_vento(estado, dt)
+
+    ang_jogador = angulo_relativo_vento(jogador.heading, estado.vento_direcao)
+    eff_jogador = eficiencia_vento(estado.tipo_navio, ang_jogador)
+    jogador.atualizar_movimento(dt, eff_jogador)
+
+    ang_inimigo = angulo_relativo_vento(inimigo.heading, estado.vento_direcao)
+    eff_inimigo = eficiencia_vento(estado.inimigo_tipo_navio, ang_inimigo)
+    inimigo.atualizar_movimento(dt, eff_inimigo)
+
+    zona_jogador = zona_vento(ang_jogador)
+    if (
+        estado.vento_zona_anterior_jogador is not None
+        and zona_jogador != estado.vento_zona_anterior_jogador
+    ):
+        estado.log.append(f"Vento: mudou para {zona_jogador.replace('_', ' ')}")
+    estado.vento_zona_anterior_jogador = zona_jogador
 
     _atualizar_zoom(estado)
 
