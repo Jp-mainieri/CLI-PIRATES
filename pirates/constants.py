@@ -76,16 +76,16 @@ VENTO_MULT_INTENSIDADE_MAXIMA = 1.3
 (15 nós), 1.3 no teto de rajada (25 nós). Curva suave, sem degraus –
 interpolação linear entre âncoras (ver fator_intensidade_vento)."""
 
-VENTO_DERIVA_DIRECAO_GRAUS_SEG = 0.5
+VENTO_DERIVA_DIRECAO_GRAUS_SEG = 0.1
 """Velocidade de deriva da direção do vento em direção ao alvo sorteado,
 em graus/segundo. Placeholder – não calibrado."""
 
-VENTO_DERIVA_INTENSIDADE_SEG = 0.3
+VENTO_DERIVA_INTENSIDADE_SEG = 0.05
 """Velocidade de deriva da intensidade do vento em direção ao alvo
 sorteado, por segundo. Placeholder – não calibrado."""
 
-VENTO_RESORTEIO_MIN_SEG = 45.0
-VENTO_RESORTEIO_MAX_SEG = 120.0
+VENTO_RESORTEIO_MIN_SEG = 300.0
+VENTO_RESORTEIO_MAX_SEG = 600.0
 """Intervalo (min, max) em segundos entre resorteios do alvo de deriva do
 vento. Placeholder – não calibrado."""
 

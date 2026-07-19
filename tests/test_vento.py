@@ -74,29 +74,29 @@ class TestEficienciaVento:
 
 class TestAtualizarVento:
     def test_direcao_converge_ao_alvo(self):
-        estado = Estadinho(direcao=0.0)
+        estado = Estadinho(direcao=0.0, resorteio=1e9)
         estado.vento_direcao_alvo = 10.0
-        for _ in range(100):
-            atualizar_vento(estado, dt=0.5)
+        for _ in range(2000):
+            atualizar_vento(estado, dt=1.0)
         assert estado.vento_direcao == pytest.approx(10.0)
 
     def test_direcao_nao_ultrapassa_alvo(self):
-        estado = Estadinho(direcao=0.0)
+        estado = Estadinho(direcao=0.0, resorteio=1e9)
         estado.vento_direcao_alvo = 10.0
-        atualizar_vento(estado, dt=100.0)
+        atualizar_vento(estado, dt=1e6)
         assert estado.vento_direcao == pytest.approx(10.0)
 
     def test_intensidade_converge_ao_alvo(self):
-        estado = Estadinho(intensidade=5.0)
+        estado = Estadinho(intensidade=5.0, resorteio=1e9)
         estado.vento_intensidade_alvo = 15.0
-        for _ in range(100):
-            atualizar_vento(estado, dt=0.5)
+        for _ in range(2000):
+            atualizar_vento(estado, dt=1.0)
         assert estado.vento_intensidade == pytest.approx(15.0)
 
     def test_intensidade_nao_ultrapassa_alvo(self):
-        estado = Estadinho(intensidade=5.0)
+        estado = Estadinho(intensidade=5.0, resorteio=1e9)
         estado.vento_intensidade_alvo = 15.0
-        atualizar_vento(estado, dt=100.0)
+        atualizar_vento(estado, dt=1e6)
         assert estado.vento_intensidade == pytest.approx(15.0)
 
 
