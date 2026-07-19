@@ -469,10 +469,14 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
 
 
 def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> str:
+    def _preco_atual(tipo: str) -> float:
+        navios_do_tipo = sum(1 for n in frota.navios if n.tipo == tipo)
+        return float(PRECO_NAVIO_NOVO[tipo]) * (1.4 ** navios_do_tipo)
+
     tipos = [
-        ("chalupa",   f"Chalupa    .... {PRECO_NAVIO_NOVO['chalupa']:.0f} ouro"),
-        ("brigantim", f"Brigantim  .... {PRECO_NAVIO_NOVO['brigantim']:.0f} ouro"),
-        ("galeao",    f"Galeao     .... {PRECO_NAVIO_NOVO['galeao']:.0f} ouro"),
+        ("chalupa",   f"Chalupa    .... {_preco_atual('chalupa'):.0f} ouro"),
+        ("brigantim", f"Brigantim  .... {_preco_atual('brigantim'):.0f} ouro"),
+        ("galeao",    f"Galeao     .... {_preco_atual('galeao'):.0f} ouro"),
     ]
     opcoes = [t[1] for t in tipos] + ["[Voltar]"]
     escolha = _menu_simples(stdscr, "COMPRAR NAVIO NOVO", opcoes,
@@ -480,7 +484,7 @@ def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> s
     if escolha in (-1, len(opcoes) - 1):
         return "Cancelado."
     tipo_escolhido, _ = tipos[escolha]
-    preco = float(PRECO_NAVIO_NOVO[tipo_escolhido])
+    preco = _preco_atual(tipo_escolhido)
     if navio_ativo.porao.total("ouro") < preco:
         return f"Ouro insuficiente (precisa {preco:.0f})."
     stdscr.erase()
