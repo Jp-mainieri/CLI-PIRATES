@@ -98,6 +98,21 @@ VENTO_ZONAS_ANGULO_MEIO = {
 """Ângulo relativo (0°=proa) representado pelo valor de eficiência de cada
 zona, usado como ponto-chave pra interpolação linear (ver pirates/core/vento.py)."""
 
+IA_VENTO_MARGEM_SAIDA_GRAUS = 5.0
+"""Buffer além do limite de 45° da zona morta que a IA tenta alcançar ao
+corrigir o rumo, pra evitar oscilar entrando/saindo da zona morta a cada
+tick. Placeholder – não calibrado."""
+
+IA_VENTO_CORRECAO_MAX_GRAUS = 40.0
+"""Correção máxima de rumo (graus) que a IA aplica pra sair da zona morta
+em combate normal (aproximar/afastar/circular). Placeholder – não
+calibrado."""
+
+IA_VENTO_CORRECAO_MAX_FUGA_GRAUS = 70.0
+"""Correção máxima de rumo (graus) em modo fuga – maior que em combate
+normal, porque velocidade importa mais que manter a direção exata oposta
+ao jogador quando fugindo. Placeholder – não calibrado."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
