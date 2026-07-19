@@ -98,6 +98,23 @@ VENTO_ZONAS_ANGULO_MEIO = {
 """Ângulo relativo (0°=proa) representado pelo valor de eficiência de cada
 zona, usado como ponto-chave pra interpolação linear (ver pirates/core/vento.py)."""
 
+# ---------------------------------------------------------------------------
+# Deriva lateral (doc09_deriva.md)
+# ---------------------------------------------------------------------------
+
+BASE_ADERENCIA = 3.0
+"""Coeficiente base da força de correção de deriva lateral, em 1/segundo.
+Placeholder – não calibrado, mesma ordem de grandeza de ACEL_VEL_SEG."""
+
+VELOCIDADE_REFERENCIA_ADERENCIA = 10.0
+"""Velocidade de referência (unidades/s) usada no fator de aderência por
+velocidade: quanto mais rápido o navio, mais aderência (fator_velocidade
+= 1 + vel_atual / VELOCIDADE_REFERENCIA_ADERENCIA)."""
+
+PESO_REFERENCIA_ADERENCIA = 500.0
+"""Peso de referência (kg) usado no fator de aderência por peso – igual
+ao peso_casco do Bergantim, tratado como o ponto neutro (fator_peso = 1.0)."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
@@ -341,6 +358,7 @@ NAVIO_TIPOS = {
         "min_crew_canhao": 1,
         "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
+        "peso_casco": 200.0,
     },
     "brigantim": {
         "navio": "Brigantim",
@@ -362,6 +380,7 @@ NAVIO_TIPOS = {
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,     # Brigantim — velocidade de reparo média
         "porao_capacidade": 9,
+        "peso_casco": 500.0,
     },
     "galeao": {
         "navio": "Galeao",
@@ -383,6 +402,7 @@ NAVIO_TIPOS = {
         "min_crew_canhao": 2,
         "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
+        "peso_casco": 1100.0,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador

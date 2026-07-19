@@ -16,6 +16,7 @@ from ..constants import (
     MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
     MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO,
     MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
+    BASE_ADERENCIA, VELOCIDADE_REFERENCIA_ADERENCIA, PESO_REFERENCIA_ADERENCIA,
 )
 from .utils import clamp
 from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
@@ -140,6 +141,7 @@ class Navio:
         bonus_fixo_vela: float = 0.0,
         bonus_curva_vela: float = 0.0,
         eficiencia_vento_tabela: dict | None = None,
+        peso_casco: float = 500.0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -170,6 +172,8 @@ class Navio:
         }
         self.eficiencia_vento_atual: float = 1.0
         self.fator_intensidade_vento_atual: float = 1.0
+        self.peso_casco = peso_casco
+        self.velocidade_lateral: float = 0.0
 
     def vivo(self) -> bool:
         """Retorna True enquanto o navio não afundou."""
@@ -194,6 +198,15 @@ class Navio:
         base *= (1.0 + self.upgrades.get('velocidade_giro', 0.0))
         return base * fator_vela * fator_dano
 
+    def _forca_correcao_deriva(self) -> float:
+        """Força de correção (aderência) da deriva lateral, em 1/segundo.
+        Sobe com a velocidade atual (mais aderência em alta velocidade) e cai
+        com o peso do casco (navios pesados corrigem mais devagar, deslizam
+        mais – doc09_deriva.md)."""
+        fator_velocidade = 1.0 + self.velocidade / VELOCIDADE_REFERENCIA_ADERENCIA
+        fator_peso = self.peso_casco / PESO_REFERENCIA_ADERENCIA
+        return BASE_ADERENCIA * fator_velocidade / fator_peso
+
     def alcance_canhao_efetivo(self) -> float:
         """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
         return self.alcance_canhao + self.upgrades.get('alcance_canhao', 0.0)
@@ -211,7 +224,8 @@ class Navio:
         self, dt: float, eficiencia_vento: float = 1.0,
         fator_intensidade_vento: float = 1.0,
     ) -> None:
-        """Aplica física de giro e propulsão para o intervalo de tempo *dt*.
+        """Aplica física de giro, propulsão e deriva lateral para o intervalo
+        de tempo *dt*.
 
         Args:
             dt: Delta de tempo em segundos desde o último tick.
@@ -230,9 +244,11 @@ class Navio:
         diff = (self.heading_alvo - self.heading + 540) % 360 - 180
         giro_max = self.taxa_giro() * dt
         if abs(diff) <= giro_max:
+            delta_heading = diff
             self.heading = self.heading_alvo
         else:
-            self.heading = (self.heading + (giro_max if diff > 0 else -giro_max)) % 360
+            delta_heading = giro_max if diff > 0 else -giro_max
+            self.heading = (self.heading + delta_heading) % 360
 
         vmax = self.velocidade_maxima()
         acel = ACEL_VEL_SEG * dt * eficiencia_vento
@@ -241,9 +257,23 @@ class Navio:
         else:
             self.velocidade = max(vmax, self.velocidade - acel)
 
+        # Deriva lateral (doc09_deriva.md): parte da velocidade de avanço
+        # "escapa" como lateral ao virar o leme, depois decai por aderência.
+        self.velocidade_lateral += self.velocidade * math.sin(math.radians(delta_heading))
+        forca_correcao = self._forca_correcao_deriva()
+        fracao_removida = min(1.0, forca_correcao * dt)
+        self.velocidade_lateral *= (1.0 - fracao_removida)
+
         rad = math.radians(self.heading)
-        self.x += math.sin(rad) * self.velocidade * dt
-        self.y += math.cos(rad) * self.velocidade * dt
+        rad_lateral = math.radians(self.heading + 90.0)
+        self.x += (
+            math.sin(rad) * self.velocidade
+            + math.sin(rad_lateral) * self.velocidade_lateral
+        ) * dt
+        self.y += (
+            math.cos(rad) * self.velocidade
+            + math.cos(rad_lateral) * self.velocidade_lateral
+        ) * dt
         self.x = clamp(self.x, -MAPA_TAMANHO, MAPA_TAMANHO)
         self.y = clamp(self.y, -MAPA_TAMANHO, MAPA_TAMANHO)
 
