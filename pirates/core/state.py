@@ -95,6 +95,7 @@ class Estado:
             bonus_fixo_vela=params["bonus_fixo_vela"],
             bonus_curva_vela=params["bonus_curva_vela"],
             eficiencia_vento_tabela=params["eficiencia_vento"],
+            peso_casco=params["peso_casco"],
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
@@ -111,6 +112,7 @@ class Estado:
             bonus_fixo_vela=params["bonus_fixo_vela"],
             bonus_curva_vela=params["bonus_curva_vela"],
             eficiencia_vento_tabela=params["eficiencia_vento"],
+            peso_casco=params["peso_casco"],
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas

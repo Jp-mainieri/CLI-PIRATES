@@ -7,6 +7,7 @@ resorteado periodicamente. A eficiência de vento por navio é derivada do
 loadout de vela fixo de cada tipo (ver NAVIO_TIPOS['eficiencia_vento']).
 """
 
+import math
 import random
 
 from ..constants import (
@@ -18,6 +19,7 @@ from ..constants import (
     VENTO_DERIVA_DIRECAO_GRAUS_SEG, VENTO_DERIVA_INTENSIDADE_SEG,
     VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
     VENTO_ZONAS_ANGULO_MEIO,
+    COEFICIENTE_EMPUXO_LATERAL,
 )
 
 _ZONA_ORDEM = ["zona_morta", "bolina", "traves", "popa"]
@@ -28,6 +30,18 @@ def angulo_relativo_vento(heading_navio: float, vento_direcao: float) -> float:
     vento sopra. 0° = vento vindo direto da proa (contra); 180° = vento
     vindo direto da popa (a favor)."""
     return abs((heading_navio - vento_direcao + 540) % 360 - 180)
+
+
+def empuxo_lateral_vento(
+    num_velas: int, intensidade_vento: float, angulo_relativo: float,
+) -> float:
+    """Taxa de empuxo lateral (unidades/s²) do vento de través sobre o
+    navio, via sin(ângulo relativo): zero em zona morta/popa (0°/180°),
+    máximo em través (90°). doc09_deriva.md seção 5."""
+    return (
+        COEFICIENTE_EMPUXO_LATERAL * intensidade_vento * num_velas
+        * math.sin(math.radians(angulo_relativo))
+    )
 
 
 def zona_vento(angulo_relativo: float) -> str:

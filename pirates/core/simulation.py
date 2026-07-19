@@ -72,11 +72,11 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
 
     ang_jogador = angulo_relativo_vento(jogador.heading, estado.vento_direcao)
     eff_jogador = eficiencia_vento(estado.tipo_navio, ang_jogador)
-    jogador.atualizar_movimento(dt, eff_jogador, fator_int)
+    jogador.atualizar_movimento(dt, eff_jogador, fator_int, ang_jogador, estado.vento_intensidade)
 
     ang_inimigo = angulo_relativo_vento(inimigo.heading, estado.vento_direcao)
     eff_inimigo = eficiencia_vento(estado.inimigo_tipo_navio, ang_inimigo)
-    inimigo.atualizar_movimento(dt, eff_inimigo, fator_int)
+    inimigo.atualizar_movimento(dt, eff_inimigo, fator_int, ang_inimigo, estado.vento_intensidade)
 
     zona_jogador = zona_vento(ang_jogador)
     if (
