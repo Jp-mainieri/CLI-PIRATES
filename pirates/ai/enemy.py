@@ -9,9 +9,14 @@ de tripulação e mira de forma reativa ao estado atual do combate.
 import math
 import random
 
-from ..constants import PARTES, NAVIO_TIPOS
+from ..constants import (
+    PARTES, NAVIO_TIPOS,
+    IA_VENTO_MARGEM_SAIDA_GRAUS, IA_VENTO_CORRECAO_MAX_GRAUS,
+    IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
+)
 from ..core.utils import clamp
 from ..core.combat import distancia, rumo_para, dentro_do_arco
+from ..core.vento import angulo_relativo_vento
 
 
 def atualizar_estado_fuga(estado) -> None:
@@ -31,6 +36,32 @@ def atualizar_estado_fuga(estado) -> None:
         estado.inimigo_em_fuga = False
         estado.tempo_fuga_longe = 0.0
         estado.log.append("O navio inimigo recupera a moral e volta a lutar!")
+
+
+def _ajustar_heading_vento(
+    heading_alvo: float, vento_direcao: float, correcao_max: float,
+) -> float:
+    """Ajusta *heading_alvo* pra se afastar da zona morta de vento (0-45°
+    de ângulo relativo), sem exceder *correcao_max* graus de correção.
+
+    A correção é parcial: se o heading original está bem no meio da zona
+    morta e correcao_max não é suficiente pra sair completamente, aplica
+    o máximo permitido em vez de não fazer nada (doc08_vento.md seção 8).
+    """
+    ang = angulo_relativo_vento(heading_alvo, vento_direcao)
+    if ang > 45.0:
+        return heading_alvo
+
+    alvo_saida = 45.0 + IA_VENTO_MARGEM_SAIDA_GRAUS
+    correcao = min(alvo_saida - ang, correcao_max)
+    if correcao <= 0:
+        return heading_alvo
+
+    candidato_mais = (heading_alvo + correcao) % 360
+    candidato_menos = (heading_alvo - correcao) % 360
+    ang_mais = angulo_relativo_vento(candidato_mais, vento_direcao)
+    ang_menos = angulo_relativo_vento(candidato_menos, vento_direcao)
+    return candidato_mais if ang_mais >= ang_menos else candidato_menos
 
 
 def atualizar_ia_movimento(estado, dt: float) -> None:
@@ -57,6 +88,10 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     if estado.inimigo_em_fuga:
         inimigo.heading_alvo = (r + 180) % 360
         inimigo.nivel_vela = 3
+        inimigo.heading_alvo = _ajustar_heading_vento(
+            inimigo.heading_alvo, estado.vento_direcao,
+            IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
+        )
         return
 
     if d > 280:
@@ -68,6 +103,11 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
         inimigo.heading_alvo = (r + 90) % 360
         inimigo.nivel_vela = 2
+
+    inimigo.heading_alvo = _ajustar_heading_vento(
+        inimigo.heading_alvo, estado.vento_direcao,
+        IA_VENTO_CORRECAO_MAX_GRAUS,
+    )
 
     # Evasão de ilhas em combate (personalidade via ia_island_avoidance_mult)
     for ilha in getattr(estado, 'ilhas_arena', []):

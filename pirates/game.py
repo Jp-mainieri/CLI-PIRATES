@@ -52,6 +52,9 @@ from .world.simulation import (
     atualizar_ia_mundo, atualizar_jogador_mundo,
     mundo_para_arena, arena_para_mundo,
 )
+from .core.vento import (
+    atualizar_vento, angulo_relativo_vento, eficiencia_vento, fator_intensidade_vento,
+)
 from .port.scene import porto_loop
 
 
@@ -448,7 +451,14 @@ def mundo_loop(
             estado_mundo.jogador_heading_alvo = estado.jogador.heading_alvo
             estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
 
-            atualizar_jogador_mundo(estado_mundo, params, dt)
+            atualizar_vento(estado, dt)
+            ang_jogador = angulo_relativo_vento(estado.jogador.heading, estado.vento_direcao)
+            eff_jogador = eficiencia_vento(estado.tipo_navio, ang_jogador)
+            fator_int = fator_intensidade_vento(estado.vento_intensidade)
+            estado.jogador.eficiencia_vento_atual = eff_jogador
+            estado.jogador.fator_intensidade_vento_atual = fator_int
+
+            atualizar_jogador_mundo(estado_mundo, params, dt, eff_jogador, fator_int)
 
             # --- Colisão com ilha (navegação) ---
             from .world.entities import eh_solido_ilha as _esi_nav
@@ -496,7 +506,7 @@ def mundo_loop(
                 estado_mundo.rastro_jogador.append(
                     (estado_mundo.jogador_x, estado_mundo.jogador_y)
                 )
-            atualizar_ia_mundo(estado_mundo, dt)
+            atualizar_ia_mundo(estado_mundo, dt, estado.vento_direcao, fator_int)
 
             # Sync heading/velocidade de volta pro navio (usado na bussola e HUD)
             estado.jogador.heading = estado_mundo.jogador_heading

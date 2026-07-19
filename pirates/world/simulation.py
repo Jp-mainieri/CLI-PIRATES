@@ -8,6 +8,7 @@ from ..constants import (
 )
 from .entities import NavioMundo
 from .state import EstadoMundo
+from ..core.vento import angulo_relativo_vento, eficiencia_vento as _eficiencia_vento
 
 
 # ---------------------------------------------------------------------------
@@ -34,11 +35,16 @@ def atualizar_posicao_toroidal(
     velocidade_max: float,
     giro_graus_seg: float,
     dt: float,
+    eficiencia_vento: float = 1.0,
+    fator_intensidade_vento: float = 1.0,
 ) -> tuple[float, float, float, float]:
     """Aplica física de giro + propulsão com wraparound toroidal.
 
     Idêntica à física de Navio.atualizar_movimento, mas com
     ``% MUNDO_TAMANHO`` no lugar do clamp(-MAPA_TAMANHO, MAPA_TAMANHO).
+    Aceita os mesmos fatores de vento de doc08_vento.md: eficiencia_vento
+    (ângulo relativo, afeta teto e aceleração) e fator_intensidade_vento
+    (curva de intensidade, só afeta o teto).
 
     Returns:
         (x, y, heading, velocidade) atualizados.
@@ -50,11 +56,12 @@ def atualizar_posicao_toroidal(
     else:
         heading = (heading + (giro_max if diff > 0 else -giro_max)) % 360
 
-    acel = ACEL_VEL_SEG * dt
-    if velocidade < velocidade_max:
-        velocidade = min(velocidade_max, velocidade + acel)
+    vmax_efetivo = velocidade_max * eficiencia_vento * fator_intensidade_vento
+    acel = ACEL_VEL_SEG * dt * eficiencia_vento
+    if velocidade < vmax_efetivo:
+        velocidade = min(vmax_efetivo, velocidade + acel)
     else:
-        velocidade = max(velocidade_max, velocidade - acel)
+        velocidade = max(vmax_efetivo, velocidade - acel)
 
     rad = math.radians(heading)
     x = (x + math.sin(rad) * velocidade * dt) % MUNDO_TAMANHO
@@ -66,13 +73,24 @@ def atualizar_posicao_toroidal(
 # IA do mundo
 # ---------------------------------------------------------------------------
 
-def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
+def atualizar_ia_mundo(
+    estado_mundo: EstadoMundo, dt: float,
+    vento_direcao: float | None = None,
+    fator_intensidade_vento: float = 1.0,
+) -> None:
     """Atualiza movimento de todos os NavioMundo não-afundados.
 
     Comportamento de patrulha: a cada tick com 5% de chance sorteia novo heading.
     Comportamento de fuga: se dentro de MUNDO_ALCANCE_VISAO_FUGA, corre na
     direção oposta ao jogador. Fora disso, comportamento de patrulha (mas
     mantém status 'fugindo' para preservar partes/agua/moral).
+
+    Args:
+        vento_direcao: Direção atual do vento (doc08_vento.md), ou None
+            pra não aplicar nenhum efeito de vento (retrocompatibilidade).
+        fator_intensidade_vento: Fator de intensidade já resolvido (ver
+            pirates/core/vento.py:fator_intensidade_vento), aplicado a
+            todos os inimigos junto da eficiência angular individual.
     """
     for navio in estado_mundo.inimigos:
         if navio.status == "afundado":
@@ -111,16 +129,28 @@ def atualizar_ia_mundo(estado_mundo: EstadoMundo, dt: float) -> None:
                 navio.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
                 break
 
+        if vento_direcao is not None:
+            ang = angulo_relativo_vento(navio.heading, vento_direcao)
+            eff = _eficiencia_vento(navio.tipo_navio, ang)
+        else:
+            eff = 1.0
+
         navio.x, navio.y, navio.heading, navio.velocidade = atualizar_posicao_toroidal(
             navio.x, navio.y,
             navio.heading, navio.heading_alvo,
             navio.velocidade, velocidade_max,
             params["giro_graus_seg"],
             dt,
+            eficiencia_vento=eff,
+            fator_intensidade_vento=fator_intensidade_vento,
         )
 
 
-def atualizar_jogador_mundo(estado_mundo: EstadoMundo, params: dict, dt: float) -> None:
+def atualizar_jogador_mundo(
+    estado_mundo: EstadoMundo, params: dict, dt: float,
+    eficiencia_vento: float = 1.0,
+    fator_intensidade_vento: float = 1.0,
+) -> None:
     """Aplica física de movimento do jogador no mundo aberto com wrap toroidal."""
     velocidade_max = params["velocidade_max_base"] * estado_mundo.jogador_nivel_vela / 3
     (
@@ -137,6 +167,8 @@ def atualizar_jogador_mundo(estado_mundo: EstadoMundo, params: dict, dt: float) 
         velocidade_max,
         params["giro_graus_seg"],
         dt,
+        eficiencia_vento=eficiencia_vento,
+        fator_intensidade_vento=fator_intensidade_vento,
     )
 
 

@@ -71,6 +71,26 @@ class TestAtualizarPosicaoToroidal:
         )
         assert h == pytest.approx(5.0)
 
+    def test_eficiencia_vento_reduz_velocidade_final(self):
+        _, _, _, v_normal = atualizar_posicao_toroidal(
+            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 1.0, eficiencia_vento=1.0,
+        )
+        _, _, _, v_reduzida = atualizar_posicao_toroidal(
+            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 1.0, eficiencia_vento=0.5,
+        )
+        assert v_reduzida < v_normal
+
+    def test_fator_intensidade_vento_aumenta_teto(self):
+        # dt grande o suficiente pra ambos alcançarem o teto de velocidade
+        _, _, _, v_normal = atualizar_posicao_toroidal(
+            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 100.0, fator_intensidade_vento=1.0,
+        )
+        _, _, _, v_rajada = atualizar_posicao_toroidal(
+            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 100.0, fator_intensidade_vento=1.3,
+        )
+        assert v_normal == pytest.approx(10.0)
+        assert v_rajada == pytest.approx(13.0)
+
 
 class TestAtualizarIaMundo:
     def test_patrulha_nao_muda_pra_fugindo_fora_do_alcance(self):
@@ -99,6 +119,34 @@ class TestAtualizarIaMundo:
         atualizar_ia_mundo(em, 0.5)
         # Navio está a leste do jogador (4100 vs 4000); fuga aponta para leste = 90°
         assert navio.heading_alvo == pytest.approx(90.0, abs=1.0)
+
+    def test_vento_reduz_velocidade_na_zona_morta(self, monkeypatch):
+        # Trava o inimigo em patrulha sem re-sortear heading_alvo (5% de chance/tick).
+        monkeypatch.setattr("pirates.world.simulation.random.random", lambda: 1.0)
+
+        em = EstadoMundo("brigantim")
+        for n in em.inimigos:
+            n.status = "patrulha"
+            n.heading = 0.0
+            n.heading_alvo = 0.0
+            n.velocidade = 0.0
+
+        # Sem vento: velocidade sobe livremente até o teto de patrulha.
+        atualizar_ia_mundo(em, dt=5.0, vento_direcao=None)
+        v_sem_vento = em.inimigos[0].velocidade
+
+        em2 = EstadoMundo("brigantim")
+        for n in em2.inimigos:
+            n.status = "patrulha"
+            n.heading = 0.0
+            n.heading_alvo = 0.0
+            n.velocidade = 0.0
+
+        # Vento vindo direto da proa (heading=0) → zona morta, eficiência reduzida.
+        atualizar_ia_mundo(em2, dt=5.0, vento_direcao=0.0)
+        v_com_vento = em2.inimigos[0].velocidade
+
+        assert v_com_vento < v_sem_vento
 
 
 class TestMundoParaArena:
