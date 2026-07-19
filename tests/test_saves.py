@@ -222,6 +222,27 @@ def test_restaurar_posicao():
     assert em.jogador_y == pytest.approx(888.0)
 
 
+def test_restaurar_inimigos_respeitam_espacamento_da_posicao_salva():
+    from pirates.constants import MUNDO_ESPACAMENTO_MIN
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Anne", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado_mundo = _estado_mundo_fake("brigantim", seed)
+    # Posição bem longe do centro padrão de spawn (onde o lote original
+    # foi sorteado durante o __init__ de EstadoMundo).
+    estado_mundo.jogador_x = 100.0
+    estado_mundo.jogador_y = 100.0
+    salvar(estado, estado_mundo, slug)
+
+    data = carregar(slug)
+    config = {"hotkeys": True, "cores": True, "unicode": True, "textura_mar": True, "rastro": True}
+    _e, em = restaurar_estado(data, config)
+
+    for navio in em.inimigos:
+        d = em._distancia_toroidal(em.jogador_x, em.jogador_y, navio.x, navio.y)
+        assert d >= MUNDO_ESPACAMENTO_MIN
+
+
 def test_restaurar_seed_deterministica():
     from pirates.saves import restaurar_estado
     slug, seed = criar_novo_save("Porto", "brigantim")

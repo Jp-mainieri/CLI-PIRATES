@@ -233,6 +233,13 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     estado_mundo.horas_na_faixa8 = cap.get("horas_na_faixa8", 0.0)
     estado_mundo.portos_visitados = list(cap.get("portos_visitados", []))
 
+    # O lote de inimigos sorteado no __init__ do EstadoMundo respeitou o
+    # espaçamento mínimo em relação à posição padrão de spawn (centro do
+    # mapa), não a posição real salva do capitão (só definida acima) — sem
+    # re-sortear aqui, inimigos podem aparecer bem mais perto do jogador
+    # do que MUNDO_ESPACAMENTO_MIN permite, disparando combate imediato.
+    estado_mundo.sortear_novo_lote()
+
     return estado, estado_mundo
 
 
