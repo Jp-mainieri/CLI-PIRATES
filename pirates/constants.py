@@ -338,7 +338,7 @@ PRECO_VENDA_BARRIL_CHEIO = 3.0
 PRECO_REPARO_POR_PONTO_DANO = 0.5
 """Ouro por ponto percentual de dano reparado no porto."""
 
-PRECO_NAVIO_NOVO = {"chalupa": 50, "brigantim": 100, "galeao": 200}
+PRECO_NAVIO_NOVO = {"chalupa": 70, "brigantim": 150, "galeao": 300}
 """Preço BASE de compra de um navio novo, por tipo (antes do multiplicador
 de frota — ver comprar_navio_loja, que escala por quantos navios daquele
 tipo o jogador já possui)."""
