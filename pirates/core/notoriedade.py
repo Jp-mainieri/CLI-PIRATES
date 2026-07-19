@@ -31,11 +31,18 @@ DESBLOQUEIO_MUNDO_FAIXA = {"brigantim": 2, "galeao": 4}
 # campanha NOVA com esse tipo de navio (nao afeta compra no porto)
 DESBLOQUEIO_ARENA_VITORIAS = {"brigantim": 10, "galeao": 30}
 
+# (min, max) do sorteio de ouro base por tipo de navio, antes do
+# multiplicador MULT_OURO_POR_FAIXA.
+GOLD_BASE_POR_TIPO = {"facil": (5, 20), "normal": (12, 35), "dificil": (20, 50)}
+
 MULT_ELITE_PONTOS = 2.5
 BONUS_ELITE_PONTOS = 30.0
 
 # índice da faixa (0-7) -> chance de elite
 CHANCE_ELITE_POR_FAIXA = [0.0, 0.0, 0.06, 0.12, 0.18, 0.24, 0.30, 0.35]
+
+# índice da faixa (0-7) -> multiplicador aplicado ao ouro sorteado no loot
+MULT_OURO_POR_FAIXA = [0.35, 0.55, 0.75, 1.0, 1.3, 1.6, 2.0, 2.5]
 
 # índice da faixa (0-7) -> pesos de sorteio (facil, normal, dificil), somam 1.0
 DISTRIBUICAO_TIPO_POR_FAIXA = [

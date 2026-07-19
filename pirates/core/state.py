@@ -106,8 +106,8 @@ class Estado:
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas
+        self.inimigo.porao = gerar_porao_inimigo(cap, self.tipo_navio, 0.0)
         self.inimigo.canhoes = criar_canhoes(self.canhoes_lado)
-        self.inimigo.porao = gerar_porao_inimigo(cap)
         self.inimigo_crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.inimigo_crew_bomba: int = 0
 

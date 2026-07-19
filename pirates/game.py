@@ -587,7 +587,10 @@ def mundo_loop(
                 if inimigo_engajado.porao is not None:
                     estado.inimigo.porao = inimigo_engajado.porao
                 else:
-                    estado.inimigo.porao = gerar_porao_inimigo(cap, elite=inimigo_engajado.elite)
+                    estado.inimigo.porao = gerar_porao_inimigo(
+                        cap, inimigo_engajado.tipo_navio, estado_mundo.notoriedade,
+                        elite=inimigo_engajado.elite,
+                    )
                     inimigo_engajado.porao = estado.inimigo.porao
 
                 # Recria os canhoes do inimigo no numero certo pro tipo dele

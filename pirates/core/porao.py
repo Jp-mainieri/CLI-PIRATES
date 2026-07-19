@@ -26,13 +26,18 @@ class Barril:
     Attributes:
         tipo:       Um de TIPOS_CARGA.
         quantidade: 0 a capacidade (25 para recursos, 50 para ouro).
+        capacidade: Capacidade máxima deste barril. Se não informada na
+                    criação, assume o default de capacidade_barril(tipo) —
+                    ver __post_init__. Ouro pode ter capacidade efetiva maior
+                    que o default por navio, via upgrade capacidade_barril_ouro.
     """
     tipo: str
     quantidade: float
+    capacidade: float = 0.0
 
-    @property
-    def capacidade(self) -> float:
-        return CAPACIDADE_BARRIL_OURO if self.tipo == "ouro" else CAPACIDADE_BARRIL
+    def __post_init__(self) -> None:
+        if self.capacidade <= 0:
+            self.capacidade = capacidade_barril(self.tipo)
 
     @property
     def cheio(self) -> bool:
@@ -41,6 +46,12 @@ class Barril:
     @property
     def vazio(self) -> bool:
         return self.quantidade <= 0
+
+
+def capacidade_barril_ouro_efetiva(navio: 'Navio') -> float:
+    """Capacidade do barril de ouro desse navio, considerando o upgrade
+    capacidade_barril_ouro (10 por nível, base CAPACIDADE_BARRIL_OURO)."""
+    return CAPACIDADE_BARRIL_OURO + navio.upgrades.get('capacidade_barril_ouro', 0.0)
 
 
 class Porao:
@@ -81,15 +92,20 @@ class Porao:
         self.barris = [b for b in self.barris if not b.vazio]
         return max(0.0, restante)
 
-    def adicionar(self, tipo: str, quantidade: float) -> float:
+    def adicionar(self, tipo: str, quantidade: float, capacidade: float | None = None) -> float:
         """Adiciona `quantidade` do tipo dado: primeiro nos barris
         existentes desse tipo com mais espaço livre (mais vazio primeiro),
         depois cria barris novos em slots livres.
 
+        Args:
+            capacidade: Capacidade a usar em barris NOVOS criados por
+                overflow (default capacidade_barril(tipo)). Usada por
+                quem credita ouro num navio com upgrade capacidade_barril_ouro.
+
         Returns:
             Excedente que não coube (0 se coube tudo).
         """
-        cap = capacidade_barril(tipo)
+        cap = capacidade if capacidade is not None else capacidade_barril(tipo)
         restante = quantidade
         existentes = sorted(
             (b for b in self.barris if b.tipo == tipo and not b.cheio),
@@ -104,7 +120,7 @@ class Porao:
                 return 0.0
         while restante > 1e-9 and self.slots_livres() > 0:
             usado = min(cap, restante)
-            self.barris.append(Barril(tipo=tipo, quantidade=usado))
+            self.barris.append(Barril(tipo=tipo, quantidade=usado, capacidade=cap))
             restante -= usado
         return max(0.0, restante)
 
@@ -143,23 +159,43 @@ def _sortear_quantidade_carga(tipo: str, faixa: tuple[float, float]) -> float:
     return float(random.randint(round(minimo), round(maximo)))
 
 
-def gerar_porao_inimigo(capacidade: int, elite: bool = False) -> Porao:
-    """Porão aleatório de um inimigo recém-spawnado: 1 barril de ouro
-    garantido, mínimo 1 pólvora + 1 bolas garantidos, resto aleatório.
+def gerar_porao_inimigo(
+    capacidade: int, tipo_navio: str, pontos_notoriedade: float,
+    elite: bool = False,
+) -> Porao:
+    """Porão aleatório de um inimigo recém-spawnado: barril(is) de ouro
+    garantido(s), mínimo 1 pólvora + 1 bolas garantidos, resto aleatório.
+
+    O ouro escala por tipo de navio (GOLD_BASE_POR_TIPO) e por faixa de
+    notoriedade do jogador (MULT_OURO_POR_FAIXA); se o total sortado passar
+    de CAPACIDADE_BARRIL_OURO, cria quantos barris de ouro forem
+    necessários (sempre com a capacidade padrão — o upgrade de capacidade
+    de barril de ouro só se aplica ao porão do jogador).
 
     Navios elite têm 30% mais capacidade e um conteúdo médio bem mais
     cheio (nenhum slot fica vazio)."""
+    from .notoriedade import GOLD_BASE_POR_TIPO, MULT_OURO_POR_FAIXA, faixa_index
+
     if elite:
         capacidade = round(capacidade * 1.3)
     p = Porao(capacidade)
-    p.barris.append(Barril("ouro", float(random.randint(5, int(CAPACIDADE_BARRIL_OURO)))))
 
-    faixa = (0.8, 1.0) if elite else (0.2, 1.0)
-    slots_restantes = capacidade - 1
+    minimo, maximo = GOLD_BASE_POR_TIPO[tipo_navio]
+    faixa = faixa_index(pontos_notoriedade)
+    ouro_total = random.randint(minimo, maximo) * MULT_OURO_POR_FAIXA[faixa]
+
+    restante_ouro = ouro_total
+    while restante_ouro > 1e-9:
+        usado = min(restante_ouro, CAPACIDADE_BARRIL_OURO)
+        p.barris.append(Barril("ouro", usado, capacidade=CAPACIDADE_BARRIL_OURO))
+        restante_ouro -= usado
+
+    faixa_qtd = (0.8, 1.0) if elite else (0.2, 1.0)
+    slots_restantes = capacidade - len(p.barris)
     for tipo in ("polvora", "bolas", "tabuas"):
         if slots_restantes <= 0:
             break
-        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa)))
+        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa_qtd)))
         slots_restantes -= 1
 
     while slots_restantes > 0:
@@ -167,7 +203,7 @@ def gerar_porao_inimigo(capacidade: int, elite: bool = False) -> Porao:
         if not elite and random.random() < 0.3:  # 30% de chance de slot vazio
             continue
         tipo = random.choice(["polvora", "bolas", "tabuas"])
-        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa)))
+        p.barris.append(Barril(tipo, _sortear_quantidade_carga(tipo, faixa_qtd)))
 
     return p
 

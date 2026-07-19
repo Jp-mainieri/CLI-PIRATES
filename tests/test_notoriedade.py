@@ -9,6 +9,8 @@ from pirates.core.notoriedade import (
     FRACAO_PERDA_FUGA_JOGADOR,
     DESBLOQUEIO_MUNDO_FAIXA,
     DESBLOQUEIO_ARENA_VITORIAS,
+    GOLD_BASE_POR_TIPO,
+    MULT_OURO_POR_FAIXA,
     faixa_index,
     titulo,
     icone,
@@ -155,6 +157,31 @@ class TestPontosPorAfundamento:
         assert pontos_por_afundamento("galeao", elite=True) == pytest.approx(
             50 * 2.5 + 30.0
         )
+
+
+class TestMultOuroPorFaixa:
+    def test_tem_8_valores(self):
+        assert len(MULT_OURO_POR_FAIXA) == 8
+
+    def test_crescente(self):
+        assert MULT_OURO_POR_FAIXA == sorted(MULT_OURO_POR_FAIXA)
+
+    def test_primeiro_abaixo_de_1_ultimo_acima_de_1(self):
+        assert MULT_OURO_POR_FAIXA[0] < 1.0
+        assert MULT_OURO_POR_FAIXA[-1] > 1.0
+
+
+class TestGoldBasePorTipo:
+    def test_chaves_batem_com_tipos_de_navio(self):
+        assert set(GOLD_BASE_POR_TIPO) == {"facil", "normal", "dificil"}
+
+    def test_minimo_menor_que_maximo_e_escala_por_tipo(self):
+        minimos = []
+        for tipo in ("facil", "normal", "dificil"):
+            minimo, maximo = GOLD_BASE_POR_TIPO[tipo]
+            assert minimo < maximo
+            minimos.append(minimo)
+        assert minimos == sorted(minimos)
 
 
 class TestPontosPerdidosPorFuga:

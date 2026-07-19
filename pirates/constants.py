@@ -339,7 +339,9 @@ PRECO_REPARO_POR_PONTO_DANO = 0.5
 """Ouro por ponto percentual de dano reparado no porto."""
 
 PRECO_NAVIO_NOVO = {"chalupa": 50, "brigantim": 100, "galeao": 200}
-"""Preço de compra de um navio novo, por tipo."""
+"""Preço BASE de compra de um navio novo, por tipo (antes do multiplicador
+de frota — ver comprar_navio_loja, que escala por quantos navios daquele
+tipo o jogador já possui)."""
 
 PRECO_RENOMEAR = 20.0
 """Ouro para renomear um navio."""
@@ -350,19 +352,25 @@ Se o barril transferido é de ouro, a taxa sai do próprio barril; senão,
 tenta debitar do navio de origem e, se não tiver, do navio de destino."""
 
 PRECO_UPGRADE = {
-    "casco_max":        40.0,   # +10 HP máx. casco
-    "cooldown":         60.0,   # -10% cooldown canhão
-    "porao_slot":       50.0,   # +1 slot de porão
-    "tripulante_extra": 80.0,   # +1 tripulante acima do máximo do tipo
-    "velocidade_giro":  70.0,   # +10% velocidade/giro
-    "alcance_canhao":   50.0,   # +50m alcance
+    "casco_max":              60.0,   # +10 HP máx. casco
+    "cooldown":               90.0,   # -10% cooldown canhão
+    "porao_slot":             75.0,   # +1 slot de porão
+    "tripulante_extra":      120.0,   # +1 tripulante acima do máximo do tipo
+    "velocidade_giro":       100.0,   # +10% velocidade/giro
+    "alcance_canhao":         75.0,   # +50m alcance
+    "capacidade_barril_ouro": 50.0,   # +10 capacidade barril ouro
 }
 """Preços dos upgrades permanentes por navio."""
 
+TAXA_CRESCIMENTO_UPGRADE = {"capacidade_barril_ouro": 1.30}
+"""Taxa de crescimento de preço por nível, só pras chaves listadas aqui.
+Qualquer upgrade que não apareça usa a taxa padrão de 1.5 (ver
+lojas.preco_upgrade_nivel)."""
+
 PRECO_ITENS_TOPO = {
-    "casco_lendario":  600.0,   # +50% resistência efetiva de casco
-    "alcance_lendario": 450.0,  # +120m alcance (empilha com upgrade normal)
-    "porao_lendario":   500.0,  # +3 slots de porão de uma vez
+    "casco_lendario":  900.0,   # +50% resistência efetiva de casco
+    "alcance_lendario": 700.0,  # +120m alcance (empilha com upgrade normal)
+    "porao_lendario":   800.0,  # +3 slots de porão de uma vez
 }
 """Preços dos itens de topo, desbloqueados por faixa de notoriedade."""
 
