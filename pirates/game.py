@@ -397,7 +397,10 @@ def mundo_loop(
                             estado.log.append(f"{b.quantidade:.1f} de {b.tipo} se perdeu nos destrocos.")
                         estado_mundo.loot_pendente = None
             elif ch in (ord('N'), ord('n')) and buffer_entrada == "":
-                _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr, slug)
+                if _porto_ou_destroco_proximo(estado_mundo):
+                    _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr, slug)
+                else:
+                    _processar_cmd_mundo("ancorar", estado, estado_mundo, stdscr, slug)
             elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
                 estado.modo_adm = not estado.modo_adm
             elif ch in (_curses.KEY_ENTER, 10, 13):
@@ -748,6 +751,21 @@ def mundo_loop(
                         break
 
         desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
+
+
+def _porto_ou_destroco_proximo(estado_mundo) -> bool:
+    """True se há porto ou destroço com loot dentro do alcance de atracação
+    (mesmos raios usados pelo comando 'atracar') — usado pra decidir se a
+    hotkey N atraca ou ancora."""
+    jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+    for porto in estado_mundo.portos:
+        if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) < MUNDO_RAIO_ATRACACAO:
+            return True
+    for navio in estado_mundo.inimigos:
+        if navio.status == "afundado" and navio.loot is not None:
+            if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) < MUNDO_RAIO_COLETA_LOOT:
+                return True
+    return False
 
 
 def _processar_cmd_mundo(
