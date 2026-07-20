@@ -87,7 +87,6 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
 
     if estado.inimigo_em_fuga:
         inimigo.heading_alvo = (r + 180) % 360
-        inimigo.nivel_vela = 3
         inimigo.heading_alvo = _ajustar_heading_vento(
             inimigo.heading_alvo, estado.vento_direcao,
             IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
@@ -96,13 +95,10 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
 
     if d > 280:
         inimigo.heading_alvo = r
-        inimigo.nivel_vela = 3
     elif d < 150:
         inimigo.heading_alvo = (r + 180) % 360
-        inimigo.nivel_vela = 2
     else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
         inimigo.heading_alvo = (r + 90) % 360
-        inimigo.nivel_vela = 2
 
     inimigo.heading_alvo = _ajustar_heading_vento(
         inimigo.heading_alvo, estado.vento_direcao,

@@ -16,6 +16,7 @@ except ImportError:
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
+    DERIVA_LIMIAR_DIRECAO, DERIVA_LIMIAR_REFERENCIA,
 )
 from ..core.utils import (
     barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading,
@@ -63,18 +64,29 @@ def build_navio_diagrama(estado) -> list[tuple[str, int]]:
             cor_valor(estado, j.moral_atual),
         ),
         (
-            f"VELAS  [{barra(j.nivel_vela / 3 * 100, 10)}] {j.nivel_vela / 3 * 100:3.0f}%",
-            0,
-        ),
-        (
             f"VENTO  [{_seta_hud(estado, abs(estado.vento_direcao-180))} "
             f"{direcao_para_heading(estado.vento_direcao)} "
             f"{estado.vento_intensidade:4.1f}] | "
-            f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}",
+            f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}"
+            + ("  [ANCORADO]" if j.ancorado else ""),
             0,
         ),
         _linha_rumo(estado, j),
     ]
+
+
+def _linha_deriva(estado, j) -> tuple[str, int]:
+    """Linha DERIVA: magnitude e direção (ESTIB/BOMB) da deriva lateral."""
+    lateral = j.velocidade_lateral
+    if lateral > DERIVA_LIMIAR_DIRECAO:
+        direcao = "ESTIB"
+    elif lateral < -DERIVA_LIMIAR_DIRECAO:
+        direcao = "BOMB"
+    else:
+        direcao = "--"
+    texto = f"DERIVA {abs(lateral):4.2f} {direcao}"
+    pct = clamp(abs(lateral) / DERIVA_LIMIAR_REFERENCIA * 100.0, 0.0, 100.0)
+    return (texto, cor_valor(estado, pct, pior_se_alto=True))
 
 
 def _seta_hud(estado, heading: float) -> str:
@@ -412,7 +424,7 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
     linhas.append((f"pos=({i.x:7.1f},{i.y:7.1f}) heading={i.heading:5.1f}->{i.heading_alvo:5.1f}", 0))
     linhas.append((
         f"dist_do_jogador={d:6.1f}m rumo={r:5.1f} "
-        f"vel={i.velocidade:4.1f}/{i.velocidade_maxima():4.1f} vela={i.nivel_vela}/3",
+        f"vel={i.velocidade:4.1f}/{i.velocidade_maxima():4.1f} slot={i.slot_vela_selecionado}",
         0,
     ))
     linhas.append((f"afundado={i.afundado}", 0))
@@ -510,6 +522,23 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
             linhas.append((f"  {tipo:7s} {n_barris}b [{bar}] {total:.0f}/{max_u}u", 0))
         else:
             linhas.append((f"  {tipo:7s} 0b [----------]  0u", 0))
+    return linhas
+
+
+def build_velas_linhas(estado) -> list[tuple[str, int]]:
+    """Coluna com todos os slots de vela do navio, ao lado do porão
+    (doc10_customizacao_vela.md §7.2), terminando com a linha DERIVA."""
+    navio = estado.jogador
+    linhas: list[tuple[str, int]] = [("VELAS", 0)]
+    for i, slot in enumerate(navio.slots_vela):
+        tipo = slot["tipo"] or "vazio"
+        n_cheios = slot["nivel"] * 5
+        bar = "#" * n_cheios + "-" * (10 - n_cheios)
+        pct = slot["nivel"] * 50
+        marca = ">" if i == navio.slot_vela_selecionado else " "
+        linhas.append((f"{marca}{i} {slot['local']}-{tipo} [{bar}] ({pct}%)", 0))
+    linhas.append(("", 0))
+    linhas.append(_linha_deriva(estado, navio))
     return linhas
 
 

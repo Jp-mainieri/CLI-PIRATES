@@ -10,13 +10,14 @@ import random
 from collections import deque
 
 from ..constants import (
-    PARTES, NAVIO_TIPOS,
+    PARTES, NAVIO_TIPOS, PESO_CASCO, AREA_CASCO,
     FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
     VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX,
     VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
 )
 from .ship import Navio, criar_canhoes
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
+from .velas import gerar_slots_fabrica
 from .frota import Frota
 
 
@@ -92,10 +93,9 @@ class Estado:
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
             porao_capacidade=cap,
-            bonus_fixo_vela=params["bonus_fixo_vela"],
-            bonus_curva_vela=params["bonus_curva_vela"],
-            eficiencia_vento_tabela=params["eficiencia_vento"],
-            peso_casco=params["peso_casco"],
+            peso_casco=PESO_CASCO[self.tipo_navio],
+            area_casco=AREA_CASCO[self.tipo_navio],
+            slots_vela=gerar_slots_fabrica(self.tipo_navio),
         )
         self.jogador.tipo_nome = params["navio"]
         self.jogador.num_velas = self.num_velas
@@ -109,10 +109,9 @@ class Estado:
             giro_graus_seg=params["giro_graus_seg"],
             reparo_mult=params["reparo_mult"],
             porao_capacidade=cap,
-            bonus_fixo_vela=params["bonus_fixo_vela"],
-            bonus_curva_vela=params["bonus_curva_vela"],
-            eficiencia_vento_tabela=params["eficiencia_vento"],
-            peso_casco=params["peso_casco"],
+            peso_casco=PESO_CASCO[self.tipo_navio],
+            area_casco=AREA_CASCO[self.tipo_navio],
+            slots_vela=gerar_slots_fabrica(self.tipo_navio),
         )
         self.inimigo.tipo_nome = params["navio"]
         self.inimigo.num_velas = self.num_velas

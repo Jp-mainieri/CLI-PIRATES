@@ -14,8 +14,10 @@ from ..constants import (
     TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, ARTE_FUGA_JOGADOR, COMO_JOGAR_TEXTO,
     TIPOS_NAVIO, NAVIO_TIPOS, PARTES,
     COR_VERDE, COR_VERMELHO, COR_AMARELO,
+    VENTO_ZONAS_ANGULO_MEIO,
 )
 from ..core.utils import barra
+from ..core.velas import gerar_slots_fabrica, eficiencia_vento_bruta
 from .renderer import safe_addstr
 
 
@@ -122,14 +124,19 @@ def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | 
             'zona_morta': 'Zona Morta', 'bolina': 'Bolina',
             'traves': 'Traves', 'popa': 'Popa',
         }
-        melhor_zona, melhor_mult = max(p['eficiencia_vento'].items(), key=lambda kv: kv[1])
+        slots_fabrica = gerar_slots_fabrica(chave)
+        eficiencias_por_zona = {
+            zona: eficiencia_vento_bruta(slots_fabrica, angulo)
+            for zona, angulo in VENTO_ZONAS_ANGULO_MEIO.items()
+        }
+        melhor_zona, melhor_mult = max(eficiencias_por_zona.items(), key=lambda kv: kv[1])
         safe_addstr(
             stdscr, 13, 2,
             f"   Vento ideal .......... {zona_label[melhor_zona]} ({melhor_mult*100:.0f}% vel.)",
         )
         safe_addstr(
             stdscr, 14, 2,
-            f"   Zona morta (evite) ... {p['eficiencia_vento']['zona_morta']*100:.0f}% vel.",
+            f"   Zona morta (evite) ... {eficiencias_por_zona['zona_morta']*100:.0f}% vel.",
         )
         safe_addstr(stdscr, 16, 2, "SETA ESQUERDA/DIREITA muda | ENTER escolhe | ESC volta")
         stdscr.refresh()

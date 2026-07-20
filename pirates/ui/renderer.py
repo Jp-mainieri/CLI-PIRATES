@@ -27,6 +27,7 @@ from .hud import (
     build_vigia_linhas,
     build_vigia_mundo_linhas,
     build_porao_linhas,
+    build_velas_linhas,
 )
 
 RIGHT_X = 36
@@ -35,7 +36,10 @@ RIGHT_X = 36
 PORAO_X = 70
 """Coluna de início do painel de porão no HUD."""
 
-ADM_X = 100
+VELAS_X = 108
+"""Coluna de início do painel de velas no HUD."""
+
+ADM_X = 140
 """Coluna de início do painel ADM — bem à direita do HUD normal.
 Terminal precisa de ~150+ colunas; caso contrário safe_addstr trunca silenciosamente."""
 
@@ -106,6 +110,7 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
+    safe_addstr(stdscr, row, VELAS_X, "VELAS", _curses.A_UNDERLINE)
     row += 1
     topo_colunas = row
 
@@ -120,8 +125,9 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         for tid, tarefa, detalhe in roster
     ]
     porao_linhas = build_porao_linhas(estado.jogador)
+    velas_linhas = build_velas_linhas(estado)
 
-    maxlen = max(len(esquerda), len(direita), len(porao_linhas))
+    maxlen = max(len(esquerda), len(direita), len(porao_linhas), len(velas_linhas))
     for i in range(maxlen):
         rowi = topo_colunas + i
         if i < len(esquerda):
@@ -133,6 +139,9 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         if i < len(porao_linhas):
             texto, attr = porao_linhas[i]
             safe_addstr(stdscr, rowi, PORAO_X, texto, attr)
+        if i < len(velas_linhas):
+            texto, attr = velas_linhas[i]
+            safe_addstr(stdscr, rowi, VELAS_X, texto, attr)
 
     if estado.modo_adm:
         for i, (texto, attr) in enumerate(build_adm_linhas(estado)):
@@ -229,6 +238,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
+    safe_addstr(stdscr, row, VELAS_X, "VELAS", _curses.A_UNDERLINE)
     row += 1
     topo_colunas = row
 
@@ -243,7 +253,8 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
         for tid, tarefa, detalhe in roster
     ]
     porao_linhas = build_porao_linhas(estado.jogador)
-    maxlen = max(len(esquerda), len(direita), len(porao_linhas))
+    velas_linhas = build_velas_linhas(estado)
+    maxlen = max(len(esquerda), len(direita), len(porao_linhas), len(velas_linhas))
     for i in range(maxlen):
         rowi = topo_colunas + i
         if i < len(esquerda):
@@ -255,6 +266,9 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
         if i < len(porao_linhas):
             texto, attr = porao_linhas[i]
             safe_addstr(stdscr, rowi, PORAO_X, texto, attr)
+        if i < len(velas_linhas):
+            texto, attr = velas_linhas[i]
+            safe_addstr(stdscr, rowi, VELAS_X, texto, attr)
 
     row = topo_colunas + maxlen + 1
 

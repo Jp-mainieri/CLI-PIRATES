@@ -12,6 +12,7 @@ from ..constants import (
 from .entities import NavioMundo, Porto, Ilha, eh_solido_ilha
 from ..core.porao import Porao
 from ..core.notoriedade import sortear_tipo_navio, chance_elite
+from ..core.velas import gerar_slots_fabrica
 
 
 class EstadoMundo:
@@ -22,7 +23,6 @@ class EstadoMundo:
         jogador_x, jogador_y: Posição do jogador no mundo (toroidal).
         jogador_heading:      Rumo atual do jogador no mundo.
         jogador_heading_alvo: Rumo alvo (controle do leme).
-        jogador_nivel_vela:   Nível de vela atual.
         jogador_velocidade:   Velocidade atual.
         inimigos:             Lista de NavioMundo (ativos, fugindo ou afundados).
         portos:               Lista de Porto fixos no mundo.
@@ -46,7 +46,6 @@ class EstadoMundo:
         self.jogador_y: float = MUNDO_TAMANHO / 2
         self.jogador_heading: float = 0.0
         self.jogador_heading_alvo: float = 0.0
-        self.jogador_nivel_vela: int = 1
         self.jogador_velocidade: float = 0.0
         self.inimigos: list[NavioMundo] = []
         self.portos: list[Porto] = []
@@ -143,7 +142,8 @@ class EstadoMundo:
                 self.inimigos.append(
                     NavioMundo(x=x, y=y, heading=random.uniform(0, 360),
                                avoidance_mult=random.uniform(1.5, 3.0),
-                               tipo_navio=tipo, elite=eh_elite)
+                               tipo_navio=tipo, elite=eh_elite,
+                               slots_vela=gerar_slots_fabrica(tipo))
                 )
                 break
 

@@ -134,6 +134,38 @@ COEFICIENTE_EMPUXO_LATERAL = 0.05
 lateral, em (unidades/s) por (nó × num_velas). Placeholder – não
 calibrado."""
 
+K_ARRASTO_CASCO = 0.018
+"""Coeficiente de arrasto de água — usado no equilíbrio empuxo-vs-arrasto
+que define a velocidade máxima física do navio (doc08_vento.md §6).
+Placeholder – não calibrado."""
+
+C_ARRASTO = 0.006
+"""Coeficiente de arrasto aerodinâmico do casco — usado no empuxo
+constante de vento (vento empurrando o navio mesmo parado/sem vela,
+doc08_vento.md §7.4). Placeholder – não calibrado."""
+
+AREA_CASCO = {"chalupa": 8.5, "brigantim": 16.0, "galeao": 27.0}
+"""Área de casco exposta ao vento/água por tipo de navio (m² nominais),
+usada no equilíbrio de velocidade máxima e no empuxo constante."""
+
+PESO_CASCO = {"chalupa": 200.0, "brigantim": 500.0, "galeao": 1100.0}
+"""Peso do casco vazio por tipo de navio (kg), usado na força de correção
+de deriva lateral e no empuxo constante de vento."""
+
+DERIVA_LIMIAR_DIRECAO = 0.05
+"""Abaixo deste valor (unidades/s) a deriva lateral é considerada nula
+pro HUD (mostra '--' em vez de ESTIB/BOMB)."""
+
+DERIVA_LIMIAR_REFERENCIA = 1.5
+"""Deriva lateral (unidades/s) tratada como 100% na barra de cor do HUD."""
+
+PRECO_TROCA_VELA = {"chalupa": 30.0, "brigantim": 60.0, "galeao": 90.0}
+"""Preço (ouro) pra trocar o tipo de uma vela de proa/mastro/popa já
+existente, por tipo de navio."""
+
+PRECO_INSTALAR_AUX = {"topo_quadrada": 50.0, "vela_de_asa": 70.0}
+"""Preço (ouro) pra instalar/trocar uma vela auxiliar, por tipo de vela."""
+
 TAXA_REPARO_SEG = 3.0
 """Pontos de HP recuperados por tripulante por segundo em reparo contínuo."""
 
@@ -310,7 +342,7 @@ ARROWS_UNICODE = ['↑', '↗', '→', '↘',
                   '↓', '↙', '←', '↖']
 """Setas Unicode para os 8 rumos (↑ ↗ → ↘ ↓ ↙ ← ↖)."""
 
-COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda", "fugir"]
+COMANDOS = ["leme", "vela", "reparar", "bomba", "canhao", "radar", "ajuda", "fugir", "ancorar"]
 """Comandos de texto aceitos no prompt do jogo."""
 
 CANHAO_SUBCMDS = ["trip", "mirar", "parar"]
@@ -358,6 +390,80 @@ COR_MAR = 6       # azul
 COR_ILHA = 7      # amarelo (terra/areia)
 
 # ---------------------------------------------------------------------------
+# Velas — tabela por tipo de vela (doc08_vento.md §5, doc10_customizacao_vela.md §2)
+# ---------------------------------------------------------------------------
+
+TIPOS_VELA = {
+    "quadrada": {
+        "eficiencia_vento": {"zona_morta": 0.15, "bolina": 0.40, "traves": 0.75, "popa": 1.00},
+        "bonus_fixo": 0.40,
+        "bonus_curva": 0.0,
+        "auxiliar": False,
+    },
+    "latina": {
+        "eficiencia_vento": {"zona_morta": 0.85, "bolina": 1.00, "traves": 0.90, "popa": 0.70},
+        "bonus_fixo": 0.20,
+        "bonus_curva": 0.10,
+        "auxiliar": False,
+    },
+    "estai": {
+        "eficiencia_vento": {"zona_morta": 0.60, "bolina": 0.80, "traves": 1.00, "popa": 0.85},
+        "bonus_fixo": 0.10,
+        "bonus_curva": 0.35,
+        "auxiliar": False,
+    },
+    "carangueja": {
+        "eficiencia_vento": {"zona_morta": 0.70, "bolina": 0.90, "traves": 1.00, "popa": 0.80},
+        "bonus_fixo": 0.25,
+        "bonus_curva": 0.15,
+        "auxiliar": False,
+    },
+    "topo_quadrada": {
+        "eficiencia_vento": {"zona_morta": 0.05, "bolina": 0.15, "traves": 0.40, "popa": 1.25},
+        "bonus_fixo": 0.15,
+        "bonus_curva": 0.0,
+        "auxiliar": True,
+    },
+    "vela_de_asa": {
+        "eficiencia_vento": {"zona_morta": 0.0, "bolina": 0.0, "traves": 0.0, "popa": 2.00},
+        "bonus_fixo": 0.05,
+        "bonus_curva": 0.0,
+        "auxiliar": True,
+    },
+}
+"""Parâmetros por tipo de vela. 'estai' nunca conta na soma de velocidade
+(eficiencia_vento, bonus_fixo) — só entra na soma de bonus_curva, onde
+quer que o slot esteja."""
+
+LOADOUT_VELA_FABRICA = {
+    "chalupa": [
+        {"local": "proa",       "tipo": "estai",  "nivel": 1},
+        {"local": "principal",  "tipo": "latina", "nivel": 1},
+        {"local": "aux-1",      "tipo": None,     "nivel": 0},   # vazio
+    ],
+    "brigantim": [
+        {"local": "proa",       "tipo": "estai",     "nivel": 1},
+        {"local": "principal",  "tipo": "quadrada",  "nivel": 1},
+        {"local": "popa",       "tipo": "carangueja","nivel": 1},
+        {"local": "aux-1",      "tipo": None,        "nivel": 0},
+        {"local": "aux-2",      "tipo": None,        "nivel": 0},
+    ],
+    "galeao": [
+        {"local": "proa",         "tipo": "estai",         "nivel": 1},
+        {"local": "principal-1",  "tipo": "quadrada",      "nivel": 1},
+        {"local": "principal-2",  "tipo": "quadrada",      "nivel": 1},
+        {"local": "principal-3",  "tipo": "quadrada",      "nivel": 1},
+        {"local": "popa",         "tipo": "carangueja",    "nivel": 1},
+        {"local": "aux-1",        "tipo": "topo_quadrada", "nivel": 1},
+        {"local": "aux-2",        "tipo": "topo_quadrada", "nivel": 1},
+        {"local": "aux-3",        "tipo": None,            "nivel": 0},  # vazio
+    ],
+}
+"""Loadout inicial de slots de vela por tipo de navio. tipo: None = slot
+auxiliar existente mas vazio. Nenhum slot pode ser criado além desta
+lista — o loadout de fábrica é o teto de quantos slots um navio tem."""
+
+# ---------------------------------------------------------------------------
 # Tipos de navio / dificuldade
 # ---------------------------------------------------------------------------
 
@@ -372,20 +478,11 @@ NAVIO_TIPOS = {
         "num_velas": 1,
         "velocidade_max_base": 8.0,
         "giro_graus_seg": 45.0,
-        "bonus_fixo_vela": 0.20,
-        "bonus_curva_vela": 0.225,
-        "eficiencia_vento": {
-            "zona_morta": 0.85,
-            "bolina": 1.00,
-            "traves": 0.90,
-            "popa": 0.70,
-        },
         "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
         "reparo_mult": 1.5,     # Chalupa repara mais rápido
         "porao_capacidade": 6,
-        "peso_casco": 200.0,
     },
     "brigantim": {
         "navio": "Brigantim",
@@ -394,20 +491,11 @@ NAVIO_TIPOS = {
         "num_velas": 3,
         "velocidade_max_base": 11.0,
         "giro_graus_seg": 25.0,
-        "bonus_fixo_vela": 0.35,
-        "bonus_curva_vela": 0.125,
-        "eficiencia_vento": {
-            "zona_morta": 0.333,
-            "bolina": 0.567,
-            "traves": 0.833,
-            "popa": 0.933,
-        },
         "cooldown_mult": 1.0,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,     # Brigantim — velocidade de reparo média
         "porao_capacidade": 9,
-        "peso_casco": 500.0,
     },
     "galeao": {
         "navio": "Galeao",
@@ -416,20 +504,11 @@ NAVIO_TIPOS = {
         "num_velas": 7,
         "velocidade_max_base": 14.0,
         "giro_graus_seg": 12.0,
-        "bonus_fixo_vela": 0.292,
-        "bonus_curva_vela": 0.071,
-        "eficiencia_vento": {
-            "zona_morta": 0.208,
-            "bolina": 0.40,
-            "traves": 0.675,
-            "popa": 1.05,
-        },
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 2,
         "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
-        "peso_casco": 1100.0,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador
@@ -555,15 +634,22 @@ COMO_JOGAR_TEXTO = [
     "         Brigantim (dificuldade 2): 3 trip, 2 canhoes/lado, 9 slots",
     "         Galeao (dificuldade 3): 7 trip, 3 canhoes/lado, 14 slots",
     "",
-    "VENTO",
-    "  Direcao e intensidade mudam lentamente com o tempo (ver HUD: VENTO).",
-    "  O angulo do casco em relacao ao vento define 4 zonas: zona morta,",
-    "  bolina, traves e popa - cada uma multiplica velocidade maxima e",
-    "  aceleracao (o multiplicador varia por tipo, veja 'Tipos de Navio'",
-    "  pra saber a zona ideal do seu).",
+    "VENTO E VELAS",
+    "  Vale em combate, arena e navegacao no mundo aberto. Direcao e",
+    "  intensidade do vento mudam lentamente com o tempo (ver HUD: VENTO).",
+    "  Cada navio tem slots de vela individuais (proa/mastros/popa/",
+    "  auxiliares) - cada um com um tipo de vela e um nivel (0/50/100%).",
+    "  Nao ha teto artificial de velocidade: ela emerge do equilibrio",
+    "  entre o empuxo somado das suas velas e o arrasto do casco.",
+    "  O angulo do casco em relacao ao vento define 4 zonas (zona morta,",
+    "  bolina, traves, popa) - a zona ideal varia por tipo de vela, veja",
+    "  'Tipos de Navio' pra saber a do seu loadout de fabrica.",
     "  Vento fraco reduz o teto de velocidade; vento forte (rajada) aumenta.",
     "  Virar o leme bruscamente e vento de traves geram deriva lateral -",
     "  o navio desliza de lado, corrigida aos poucos pela aderencia do casco.",
+    "  Comando 'ancorar' zera a velocidade-alvo e os empuxos de vento",
+    "  (o leme continua funcionando). Troque/instale velas na Loja de",
+    "  Navios de qualquer porto.",
     "",
     "MUNDO ABERTO",
     "  M              alterna mapa de navegacao / mapa mundo (8km)",
@@ -582,11 +668,16 @@ COMO_JOGAR_TEXTO = [
     "  Loja polvora/bolas/tabuas: comprar barril, reabastecer, vender",
     "  Loja de navios: comprar novo navio, trocar ativo, renomear",
     "  Upgrades: casco, cooldown, porao, tripulacao, velocidade, alcance",
+    "  Velas: trocar tipo de vela (proa/mastro/popa) ou instalar/trocar",
+    "  vela auxiliar - nunca cria slot novo, so troca o que ja existe",
     "  Doca: zarpar de volta ao mundo",
     "",
-    "COMBATE (comandos durante a batalha)",
+    "COMANDOS (combate, arena ou navegacao)",
     "  leme <graus>             define o rumo (0-360)  alias: l",
-    "  vela <0-3>               nivel de vela          alias: v",
+    "  vela                     lista os slots de vela do navio",
+    "  vela <0-2>               nivel do slot selecionado alias: v",
+    "  vela <ID> <0-2>          nivel de um slot especifico",
+    "  ancorar                  liga/desliga a ancora (leme continua livre)",
     "  reparar <parte> <trip>   reparo continuo        alias: r",
     "  bomba <trip>             tripulantes nas bombas alias: b",
     "  canhao <id> <dist>       aloca e mira           alias: c",
@@ -602,7 +693,8 @@ COMO_JOGAR_TEXTO = [
     "",
     "HOTKEYS (prompt vazio, com ou sem SHIFT)",
     "  a / d   leme estibordo / bombordo (+15 graus)",
-    "  w / s   vela ++ / vela --",
+    "  q       cicla o slot de vela selecionado",
+    "  w / s   nivel ++ / -- do slot de vela selecionado",
     "  j / l   seleciona canhao bombordo / estibordo",
     "  i / k   mira +25m / -25m",
     "  espaco  atirar/parar | reparo ++",

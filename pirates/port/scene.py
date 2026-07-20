@@ -14,7 +14,7 @@ from .lojas import (
     preco_upgrade_nivel, nivel_atual_upgrade, nivel_max_upgrade,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
     comprar_navio_loja, renomear_navio_loja, aplicar_upgrade, comprar_item_topo,
-    transferir_barril_frota,
+    transferir_barril_frota, trocar_vela, instalar_vela_auxiliar,
     UPGRADE_NIVEIS_MAX,
 )
 from ..constants import (
@@ -23,6 +23,7 @@ from ..constants import (
     NAVIO_TIPOS, SIMB_CAPITAO, POLL_MS,
     COR_VERMELHO, COR_VERDE, COR_AMARELO, COR_JOGADOR, COR_MAR,
     PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
+    TIPOS_VELA, PRECO_TROCA_VELA, PRECO_INSTALAR_AUX,
 )
 from ..core.notoriedade import faixa_index
 from ..core.state import sincronizar_crew_com_navio_ativo
@@ -198,8 +199,16 @@ def _input_texto(stdscr, prompt: str, max_y: int, max_x: int) -> str:
 
 
 def _menu_simples(stdscr, titulo: str, opcoes: list[str],
-                  rodape: str, estado, extra_linhas: list[str] | None = None) -> int:
-    """Menu navegável. TAB abre inventário completo. Retorna índice ou -1 (ESC)."""
+                  rodape: str, estado, extra_linhas: list[str] | None = None,
+                  linha_hover_fn=None) -> int:
+    """Menu navegável. TAB abre inventário completo. Retorna índice ou -1 (ESC).
+
+    Args:
+        linha_hover_fn: Se fornecida, chamada a cada frame com o índice do
+            cursor atual (`int -> list[str]`) — retorno é exibido abaixo
+            das opções, atualizado conforme o jogador navega. Diferente
+            de `extra_linhas` (estático, calculado uma vez antes do loop).
+    """
     cursor = 0
     while True:
         stdscr.erase()
@@ -218,6 +227,12 @@ def _menu_simples(stdscr, titulo: str, opcoes: list[str],
         if extra_linhas:
             row += 1
             for linha in extra_linhas:
+                safe_addstr(stdscr, row, 4, linha)
+                row += 1
+
+        if linha_hover_fn is not None:
+            row += 1
+            for linha in linha_hover_fn(cursor):
                 safe_addstr(stdscr, row, 4, linha)
                 row += 1
 
@@ -425,6 +440,7 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
             f"Renomear navio atual .................................... {PRECO_RENOMEAR:.1f} ouro",
             "Upgrades do navio atual .................................",
             "Itens de topo ............................................",
+            "Velas do navio atual .....................................",
             "[Voltar]",
         ]
         extra = [f">> {msg}"] if msg else None
@@ -466,6 +482,9 @@ def _loja_navios(stdscr, frota, porto_id: int, tipo_navio_atual: str, estado, es
 
         elif escolha == 5:
             _loja_itens_topo(stdscr, navio_ativo, estado_mundo, estado)
+
+        elif escolha == 6:
+            _loja_velas(stdscr, navio_ativo, tipo_navio_atual, estado)
 
 
 def _fluxo_comprar_navio(stdscr, frota, porto_id: int, navio_ativo, estado) -> str:
@@ -606,6 +625,66 @@ def _loja_upgrades(stdscr, navio, tipo_navio: str, estado) -> None:
             return
         chave = CHAVES[escolha]
         ok, m = aplicar_upgrade(navio, tipo_navio, chave, estado)
+        msg = m
+
+
+def _loja_velas(stdscr, navio, tipo_navio: str, estado) -> None:
+    """Sub-loop de troca/instalação de velas (doc10_customizacao_vela.md)."""
+    msg = ""
+    while True:
+        opcoes = []
+        for i, slot in enumerate(navio.slots_vela):
+            tipo_atual = slot["tipo"] or "vazio"
+            opcoes.append(f"[{i}] {slot['local']}: {tipo_atual}")
+        opcoes.append("[Voltar]")
+        extra = [f">> {msg}"] if msg else None
+        escolha = _menu_simples(
+            stdscr, f"VELAS: {navio.tipo_nome.upper()}", opcoes,
+            "CIMA/BAIXO: navegar  ESPACO: escolher slot  ESC: voltar",
+            estado, extra_linhas=extra,
+        )
+        msg = ""
+        if escolha in (-1, len(opcoes) - 1):
+            return
+
+        slot = navio.slots_vela[escolha]
+        e_aux = slot["local"].startswith("aux")
+        tipos_validos = [
+            t for t, d in TIPOS_VELA.items() if d["auxiliar"] == e_aux
+        ]
+
+        def _preco(t: str) -> float:
+            return PRECO_INSTALAR_AUX[t] if e_aux else PRECO_TROCA_VELA[tipo_navio]
+
+        sub_opcoes = [
+            f"{'Instalar' if e_aux else 'Trocar para'} {t} .... {_preco(t):.0f} ouro"
+            for t in tipos_validos
+        ]
+        sub_opcoes.append("[Voltar]")
+
+        def _hover(idx: int, _tipos=tipos_validos) -> list[str]:
+            if not (0 <= idx < len(_tipos)):
+                return []
+            d = TIPOS_VELA[_tipos[idx]]
+            ef = d["eficiencia_vento"]
+            return [
+                f"zona morta {ef['zona_morta']:.2f}  bolina {ef['bolina']:.2f}  "
+                f"traves {ef['traves']:.2f}  popa {ef['popa']:.2f}",
+                f"bonus fixo +{d['bonus_fixo']*100:.0f}%  bonus curva +{d['bonus_curva']*100:.0f}%",
+            ]
+
+        sub_escolha = _menu_simples(
+            stdscr, f"SLOT {escolha}: {slot['local']}", sub_opcoes,
+            "CIMA/BAIXO: navegar  ESPACO: comprar  ESC: voltar", estado,
+            linha_hover_fn=_hover,
+        )
+        if sub_escolha in (-1, len(sub_opcoes) - 1):
+            continue
+        novo_tipo = tipos_validos[sub_escolha]
+        if e_aux:
+            ok, m = instalar_vela_auxiliar(navio, escolha, novo_tipo)
+        else:
+            ok, m = trocar_vela(navio, tipo_navio, escolha, novo_tipo)
         msg = m
 
 

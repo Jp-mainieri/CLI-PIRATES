@@ -12,11 +12,13 @@ from ..constants import (
     PRECO_TRANSFERENCIA_FROTA,
     NAVIO_TIPOS, PARTES, PRECO_ITENS_TOPO, FAIXA_MINIMA_ITEM_TOPO,
     TAXA_CRESCIMENTO_UPGRADE,
+    PRECO_TROCA_VELA, PRECO_INSTALAR_AUX, TIPOS_VELA,
 )
 from ..core.porao import (
     Barril, Porao, CAPACIDADE_BARRIL, capacidade_barril_ouro_efetiva,
     preco_reabastecer, preco_venda, preco_reparo,  # re-exportadas do core
 )
+from ..core.velas import trocar_tipo_slot, instalar_ou_trocar_aux
 
 
 def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
@@ -290,3 +292,43 @@ def comprar_item_topo(navio, chave: str, faixa_notoriedade: int) -> tuple[bool, 
         navio.porao.capacidade += 3
 
     return True, f"Item de topo '{chave}' comprado por {preco:.1f} ouro."
+
+
+# ---------------------------------------------------------------------------
+# Loja de velas (doc10_customizacao_vela.md)
+# ---------------------------------------------------------------------------
+
+def trocar_vela(navio, tipo_navio: str, indice_slot: int, novo_tipo: str) -> tuple[bool, str]:
+    """Troca o tipo de um slot de proa/mastro/popa já existente
+    (doc10_customizacao_vela.md §4). Não vale pra slots auxiliares."""
+    if not (0 <= indice_slot < len(navio.slots_vela)):
+        return False, "Slot invalido."
+    slot = navio.slots_vela[indice_slot]
+    if slot["local"].startswith("aux"):
+        return False, "Use a opcao de velas auxiliares para esse slot."
+    if novo_tipo not in TIPOS_VELA or TIPOS_VELA[novo_tipo]["auxiliar"]:
+        return False, "Tipo de vela invalido para esse slot."
+
+    preco = PRECO_TROCA_VELA[tipo_navio]
+    if not _debitar_ouro(navio, preco):
+        return False, "Ouro insuficiente."
+    trocar_tipo_slot(navio.slots_vela, indice_slot, novo_tipo)
+    return True, f"Vela trocada para {novo_tipo} ({preco:.0f} ouro)."
+
+
+def instalar_vela_auxiliar(navio, indice_slot: int, novo_tipo: str) -> tuple[bool, str]:
+    """Instala (slot vazio) ou troca (slot ocupado) uma vela auxiliar
+    (doc10_customizacao_vela.md §6). Nunca cria slot novo."""
+    if not (0 <= indice_slot < len(navio.slots_vela)):
+        return False, "Slot invalido."
+    slot = navio.slots_vela[indice_slot]
+    if not slot["local"].startswith("aux"):
+        return False, "Esse slot nao e auxiliar."
+    if novo_tipo not in TIPOS_VELA or not TIPOS_VELA[novo_tipo]["auxiliar"]:
+        return False, "Tipo de vela auxiliar invalido."
+
+    preco = PRECO_INSTALAR_AUX[novo_tipo]
+    if not _debitar_ouro(navio, preco):
+        return False, "Ouro insuficiente."
+    instalar_ou_trocar_aux(navio.slots_vela, indice_slot, novo_tipo)
+    return True, f"{novo_tipo} instalada ({preco:.0f} ouro)."

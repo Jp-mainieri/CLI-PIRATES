@@ -3,15 +3,16 @@ vento.py – Estado e cálculo de vento de CLI PIRATES (doc08_vento.md).
 
 Vento é global e compartilhado entre jogador e inimigo. Direção e
 intensidade derivam lentamente ao longo do tempo em direção a um alvo
-resorteado periodicamente. A eficiência de vento por navio é derivada do
-loadout de vela fixo de cada tipo (ver NAVIO_TIPOS['eficiencia_vento']).
+resorteado periodicamente. A eficiência de vento por navio é derivada da
+soma dos slots de vela daquela instância (ver pirates/core/velas.py) —
+esta função só resolve a interpolação de UMA tabela de zonas por vez
+(a de um tipo de vela específico).
 """
 
 import math
 import random
 
 from ..constants import (
-    NAVIO_TIPOS,
     VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX,
     VENTO_INTENSIDADE_LIMITE_FRACA, VENTO_INTENSIDADE_LIMITE_MODERADA,
     VENTO_MULT_INTENSIDADE_CALMARIA, VENTO_MULT_INTENSIDADE_PLENA,
@@ -19,7 +20,7 @@ from ..constants import (
     VENTO_DERIVA_DIRECAO_GRAUS_SEG, VENTO_DERIVA_INTENSIDADE_SEG,
     VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
     VENTO_ZONAS_ANGULO_MEIO,
-    COEFICIENTE_EMPUXO_LATERAL,
+    COEFICIENTE_EMPUXO_LATERAL, C_ARRASTO,
 )
 
 _ZONA_ORDEM = ["zona_morta", "bolina", "traves", "popa"]
@@ -55,26 +56,26 @@ def zona_vento(angulo_relativo: float) -> str:
     return "popa"
 
 
-def eficiencia_vento(tipo_navio: str, angulo_relativo: float) -> float:
-    """Eficiência de vento (fração, pode passar de 1.0) pro tipo de navio e
-    ângulo relativo dados, por interpolação linear entre os pontos-chave
-    (meio de cada zona), com platô nas pontas."""
-    tabela = NAVIO_TIPOS[tipo_navio]["eficiencia_vento"]
+def eficiencia_zona(tabela_zonas: dict, angulo_relativo: float) -> float:
+    """Eficiência de vento (fração, pode passar de 1.0) pra UMA tabela de
+    zonas (de um tipo de vela específico) no ângulo relativo dado, por
+    interpolação linear entre os pontos-chave (meio de cada zona), com
+    platô nas pontas."""
     angulo = max(0.0, min(180.0, angulo_relativo))
 
     if angulo <= VENTO_ZONAS_ANGULO_MEIO["zona_morta"]:
-        return tabela["zona_morta"]
+        return tabela_zonas["zona_morta"]
     if angulo >= VENTO_ZONAS_ANGULO_MEIO["popa"]:
-        return tabela["popa"]
+        return tabela_zonas["popa"]
 
     for a_key, b_key in zip(_ZONA_ORDEM, _ZONA_ORDEM[1:]):
         a_ang = VENTO_ZONAS_ANGULO_MEIO[a_key]
         b_ang = VENTO_ZONAS_ANGULO_MEIO[b_key]
         if a_ang <= angulo <= b_ang:
             t = (angulo - a_ang) / (b_ang - a_ang)
-            return tabela[a_key] + t * (tabela[b_key] - tabela[a_key])
+            return tabela_zonas[a_key] + t * (tabela_zonas[b_key] - tabela_zonas[a_key])
 
-    return tabela["popa"]  # inalcançável, guarda de segurança
+    return tabela_zonas["popa"]  # inalcançável, guarda de segurança
 
 
 def fator_intensidade_vento(intensidade: float) -> float:
@@ -103,6 +104,16 @@ def fator_intensidade_vento(intensidade: float) -> float:
     return VENTO_MULT_INTENSIDADE_PLENA + t * (
         VENTO_MULT_INTENSIDADE_MAXIMA - VENTO_MULT_INTENSIDADE_PLENA
     )
+
+
+def empuxo_constante_vento(peso_casco: float, area_casco: float, intensidade_vento: float) -> float:
+    """Empuxo constante do vento (unidades/s²), forma de arrasto
+    aerodinâmico: F = C_ARRASTO * area * intensidade², convertido em
+    aceleração via F=ma (doc08_vento.md §7.4). Empurra o navio mesmo
+    parado/sem vela; suprimido quando o navio está ancorado (ver
+    pirates/core/movimento.py)."""
+    forca = C_ARRASTO * area_casco * intensidade_vento ** 2
+    return forca / peso_casco
 
 
 def _sortear_alvo(direcao_atual: float) -> tuple[float, float, float]:

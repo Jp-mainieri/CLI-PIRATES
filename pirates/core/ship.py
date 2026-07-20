@@ -10,18 +10,22 @@ import math
 from ..constants import (
     PARTES, PARTES_CRITICAS,
     MAPA_TAMANHO, GIRO_GRAUS_SEG_PADRAO,
-    ACEL_VEL_SEG, TAXA_REPARO_SEG, REPARO_K, FATOR_TABUAS_POR_HP,
+    TAXA_REPARO_SEG, REPARO_K, FATOR_TABUAS_POR_HP,
     AGUA_BASE, AGUA_K, SAIDA_BOMBA_SEG,
     MORAL_PESO_CASCO, MORAL_PESO_AGUA, MORAL_PESO_OUTRAS,
     MORAL_QUEDA_TAXA_SEG, MORAL_K, MORAL_RECUP_BASE_SEG, MORAL_BONUS_ACERTO,
     MORAL_LIMIAR_ALTO, MORAL_LIMIAR_MEDIO,
     MORAL_MULT_NORMAL, MORAL_MULT_ABALADO, MORAL_MULT_COMBALIDO, MORAL_MULT_PANICO,
     MORAL_CRASH_RECURSOS_TETO, MORAL_CRASH_RECURSOS_DURACAO_SEG,
-    BASE_ADERENCIA, VELOCIDADE_REFERENCIA_ADERENCIA, PESO_REFERENCIA_ADERENCIA,
+    K_ARRASTO_CASCO,
 )
 from .utils import clamp
 from .porao import Porao, estoque_inicial_jogador  # noqa: F401 (re-exportado)
-from .vento import empuxo_lateral_vento
+from .velas import (
+    bonus_fixo_vela_bruto, bonus_curva_vela_bruto,
+    indice_slot_principal_inicial,
+)
+from .movimento import calcular_tick_fisica
 
 
 class Canhao:
@@ -117,7 +121,9 @@ class Navio:
         heading:            Rumo atual em graus (Norte = 0, horário).
         heading_alvo:       Rumo para o qual o leme aponta.
         velocidade:         Velocidade atual (unidades/segundo).
-        nivel_vela:         Nível de vela configurado (0-3).
+        slots_vela:         Lista de slots de vela (proa/mastros/popa/aux).
+        ancorado:           Se True, velocidade máxima é 0 e os empuxos de
+                             vento são suprimidos (leme continua girando).
         partes:             Dict parte→HP (0-100) para cada parte reparável.
         agua:               Nível de água no porão (0-100). 100 = afundou.
         afundado:           True quando água atinge 100.
@@ -140,10 +146,9 @@ class Navio:
         giro_graus_seg: float = GIRO_GRAUS_SEG_PADRAO,
         reparo_mult: float = 1.0,
         porao_capacidade: int = 0,
-        bonus_fixo_vela: float = 0.0,
-        bonus_curva_vela: float = 0.0,
-        eficiencia_vento_tabela: dict | None = None,
         peso_casco: float = 500.0,
+        area_casco: float = 16.0,
+        slots_vela: list[dict] | None = None,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -151,7 +156,6 @@ class Navio:
         self.heading = heading % 360
         self.heading_alvo = heading % 360
         self.velocidade: float = 0.0
-        self.nivel_vela: int = 1
         self.partes: dict[str, float] = {p: 100.0 for p in PARTES}
         self.agua: float = 0.0
         self.afundado: bool = False
@@ -167,14 +171,15 @@ class Navio:
         self.upgrades: dict[str, float] = {}
         self.upgrade_niveis: dict[str, int] = {}
         self.itens_topo: dict[str, bool] = {}
-        self.bonus_fixo_vela = bonus_fixo_vela
-        self.bonus_curva_vela = bonus_curva_vela
-        self.eficiencia_vento_tabela = eficiencia_vento_tabela or {
-            "zona_morta": 1.0, "bolina": 1.0, "traves": 1.0, "popa": 1.0,
-        }
+        self.peso_casco = peso_casco
+        self.area_casco = area_casco
+        self.slots_vela: list[dict] = slots_vela if slots_vela is not None else []
+        self.slot_vela_selecionado: int = (
+            indice_slot_principal_inicial(self.slots_vela) if self.slots_vela else 0
+        )
+        self.ancorado: bool = False
         self.eficiencia_vento_atual: float = 1.0
         self.fator_intensidade_vento_atual: float = 1.0
-        self.peso_casco = peso_casco
         self.velocidade_lateral: float = 0.0
         self._recursos_criticos_zerados: bool | None = None
         self.moral_lock_restante: float = 0.0
@@ -184,32 +189,33 @@ class Navio:
         return not self.afundado
 
     def taxa_giro(self) -> float:
-        """Taxa de giro efetiva: giro_base × bônus de curva da vela, reduzida
-        proporcionalmente ao dano da roda do leme. Não depende do vento
-        (doc08_vento.md seção 3)."""
-        base = self.giro_graus_seg * (1.0 + self.bonus_curva_vela)
+        """Taxa de giro efetiva: giro_base × bônus de curva da soma dos
+        slots de vela, reduzida proporcionalmente ao dano da roda do
+        leme. Não depende do vento (doc08_vento.md §3)."""
+        base = self.giro_graus_seg * (1.0 + bonus_curva_vela_bruto(self.slots_vela))
         return base * max(0.0, self.partes['roda'] / 100)
 
     def velocidade_maxima(self) -> float:
-        """Velocidade máxima alcançável com o nível de vela, dano e vento atuais.
-        Aplica bônus de upgrade 'velocidade_giro' e o bônus fixo de vela, além
-        da eficiência de vento do ângulo relativo atual (doc08_vento.md)."""
-        fator_vela = self.nivel_vela / 3
+        """Velocidade máxima como ponto de equilíbrio entre empuxo da vela
+        (soma dos slots) e arrasto do casco (doc08_vento.md §6) — sem teto
+        artificial. Zero se ancorado."""
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
-        base = self.velocidade_max_base * (1.0 + self.bonus_fixo_vela)
-        base *= self.eficiencia_vento_atual
-        base *= self.fator_intensidade_vento_atual
-        base *= (1.0 + self.upgrades.get('velocidade_giro', 0.0))
-        return base * fator_vela * fator_dano
 
-    def _forca_correcao_deriva(self) -> float:
-        """Força de correção (aderência) da deriva lateral, em 1/segundo.
-        Sobe com a velocidade atual (mais aderência em alta velocidade) e cai
-        com o peso do casco (navios pesados corrigem mais devagar, deslizam
-        mais – doc09_deriva.md)."""
-        fator_velocidade = 1.0 + self.velocidade / VELOCIDADE_REFERENCIA_ADERENCIA
-        fator_peso = self.peso_casco / PESO_REFERENCIA_ADERENCIA
-        return BASE_ADERENCIA * fator_velocidade / fator_peso
+        if self.ancorado:
+            return 0.0
+
+        empuxo = (
+            self.velocidade_max_base
+            * (1.0 + bonus_fixo_vela_bruto(self.slots_vela))
+            * self.eficiencia_vento_atual
+            * self.fator_intensidade_vento_atual
+            * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
+        )
+        if empuxo <= 0 or self.area_casco <= 0:
+            return 0.0
+
+        vmax = math.sqrt(empuxo / (K_ARRASTO_CASCO * self.area_casco))
+        return vmax * fator_dano
 
     def alcance_canhao_efetivo(self) -> float:
         """Alcance efetivo dos canhões, incluindo upgrade 'alcance_canhao' (metros extras)."""
@@ -225,75 +231,45 @@ class Navio:
         return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
 
     def atualizar_movimento(
-        self, dt: float, eficiencia_vento: float = 1.0,
-        fator_intensidade_vento: float = 1.0,
+        self, dt: float,
         angulo_relativo_vento_atual: float = 90.0,
         intensidade_vento_atual: float = 0.0,
+        vento_direcao_atual: float = 0.0,
     ) -> None:
-        """Aplica física de giro, propulsão e deriva lateral para o intervalo
-        de tempo *dt*.
+        """Aplica física de giro, propulsão (equilíbrio empuxo-vs-arrasto),
+        deriva lateral (curva de leme + través) e empuxo constante de vento
+        pro intervalo de tempo *dt*. Ver doc08_vento.md, doc09_deriva.md,
+        doc10_customizacao_vela.md. O leme continua girando normalmente
+        mesmo ancorado.
 
         Args:
             dt: Delta de tempo em segundos desde o último tick.
-            eficiencia_vento: Eficiência de vento (0.0+) pro ângulo relativo
-                atual do navio, calculada externamente (ver pirates/core/vento.py).
-            fator_intensidade_vento: Multiplicador de teto de velocidade pela
-                curva de intensidade do vento (0.5 a 1.3, suave), calculado
-                externamente. Não afeta aceleração.
-            angulo_relativo_vento_atual: Ângulo relativo (0-180) entre o rumo
-                do navio e a direção do vento, usado só pro empuxo lateral de
-                través (doc09_deriva.md §5) – não confundir com o cálculo de
-                eficiencia_vento, que já foi resolvido externamente.
-            intensidade_vento_atual: Intensidade do vento em nós, usada só
-                pro empuxo lateral de través.
+            angulo_relativo_vento_atual: Ângulo relativo (0-180) entre o
+                rumo do navio e a direção do vento.
+            intensidade_vento_atual: Intensidade do vento em nós.
+            vento_direcao_atual: Direção do vento (graus), usada pro
+                empuxo constante.
         """
         if self.afundado:
             return
 
-        self.eficiencia_vento_atual = eficiencia_vento
-        self.fator_intensidade_vento_atual = fator_intensidade_vento
+        fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
+        fator_upgrade = 1.0 + self.upgrades.get('velocidade_giro', 0.0)
 
-        diff = (self.heading_alvo - self.heading + 540) % 360 - 180
-        giro_max = self.taxa_giro() * dt
-        if abs(diff) <= giro_max:
-            delta_heading = diff
-            self.heading = self.heading_alvo
-        else:
-            delta_heading = giro_max if diff > 0 else -giro_max
-            self.heading = (self.heading + delta_heading) % 360
+        (
+            self.heading, self.velocidade, self.velocidade_lateral, dx, dy,
+            self.eficiencia_vento_atual, self.fator_intensidade_vento_atual,
+        ) = calcular_tick_fisica(
+            self.heading, self.heading_alvo, self.velocidade, self.velocidade_lateral,
+            self.giro_graus_seg, self.velocidade_max_base, self.slots_vela,
+            self.peso_casco, self.area_casco, self.num_velas, self.ancorado,
+            fator_dano, dt,
+            angulo_relativo_vento_atual, intensidade_vento_atual, vento_direcao_atual,
+            fator_vmax_extra=fator_upgrade,
+        )
 
-        vmax = self.velocidade_maxima()
-        acel = ACEL_VEL_SEG * dt * eficiencia_vento
-        if self.velocidade < vmax:
-            self.velocidade = min(vmax, self.velocidade + acel)
-        else:
-            self.velocidade = max(vmax, self.velocidade - acel)
-
-        # Deriva lateral (doc09_deriva.md): parte da velocidade de avanço
-        # "escapa" como lateral ao virar o leme, depois decai por aderência.
-        self.velocidade_lateral += self.velocidade * math.sin(math.radians(delta_heading))
-
-        # ...e por empuxo de vento de través (doc09_deriva.md §5).
-        self.velocidade_lateral += empuxo_lateral_vento(
-            self.num_velas, intensidade_vento_atual, angulo_relativo_vento_atual,
-        ) * dt
-
-        forca_correcao = self._forca_correcao_deriva()
-        fracao_removida = min(1.0, forca_correcao * dt)
-        self.velocidade_lateral *= (1.0 - fracao_removida)
-
-        rad = math.radians(self.heading)
-        rad_lateral = math.radians(self.heading + 90.0)
-        self.x += (
-            math.sin(rad) * self.velocidade
-            + math.sin(rad_lateral) * self.velocidade_lateral
-        ) * dt
-        self.y += (
-            math.cos(rad) * self.velocidade
-            + math.cos(rad_lateral) * self.velocidade_lateral
-        ) * dt
-        self.x = clamp(self.x, -MAPA_TAMANHO, MAPA_TAMANHO)
-        self.y = clamp(self.y, -MAPA_TAMANHO, MAPA_TAMANHO)
+        self.x = clamp(self.x + dx, -MAPA_TAMANHO, MAPA_TAMANHO)
+        self.y = clamp(self.y + dy, -MAPA_TAMANHO, MAPA_TAMANHO)
 
     def reparar(self, parte: str, tripulantes: int, dt: float) -> None:
         """Avança o reparo contínuo de uma parte do navio.
