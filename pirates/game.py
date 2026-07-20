@@ -20,7 +20,7 @@ from .constants import (
     COR_VERDE, COR_AMARELO, COR_VERMELHO,
     COR_JOGADOR, COR_INIMIGO, COR_MAR, COR_ILHA,
     MODO_ADM_DISPONIVEL,
-    PARTES, NAVIO_TIPOS,
+    PARTES, NAVIO_TIPOS, PESO_CASCO, AREA_CASCO,
     MUNDO_TAMANHO, MAPA_TAMANHO,
     MUNDO_TICK, MUNDO_GATILHO_COMBATE, MUNDO_RAIO_COLETA_LOOT, MUNDO_RAIO_ATRACACAO,
     DANO_COLISAO_BASE, DANO_COLISAO_K, DANO_COLISAO_V_REF,
@@ -52,9 +52,7 @@ from .world.simulation import (
     atualizar_ia_mundo, atualizar_jogador_mundo,
     mundo_para_arena, arena_para_mundo,
 )
-from .core.vento import (
-    atualizar_vento, angulo_relativo_vento, eficiencia_vento, fator_intensidade_vento,
-)
+from .core.vento import atualizar_vento, angulo_relativo_vento
 from .port.scene import porto_loop
 
 
@@ -107,7 +105,6 @@ def _tentar_respawn(estado, estado_mundo):
     estado_mundo.jogador_velocidade = 0.0
     estado_mundo.jogador_heading = 0.0
     estado_mundo.jogador_heading_alvo = 0.0
-    estado_mundo.jogador_nivel_vela = 0
 
     estado.fim = None
     estado.jogador.afundado = False
@@ -400,7 +397,10 @@ def mundo_loop(
                             estado.log.append(f"{b.quantidade:.1f} de {b.tipo} se perdeu nos destrocos.")
                         estado_mundo.loot_pendente = None
             elif ch in (ord('N'), ord('n')) and buffer_entrada == "":
-                _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr, slug)
+                if _porto_ou_destroco_proximo(estado_mundo):
+                    _processar_cmd_mundo("atracar", estado, estado_mundo, stdscr, slug)
+                else:
+                    _processar_cmd_mundo("ancorar", estado, estado_mundo, stdscr, slug)
             elif MODO_ADM_DISPONIVEL and ch == _curses.KEY_F12:
                 estado.modo_adm = not estado.modo_adm
             elif ch in (_curses.KEY_ENTER, 10, 13):
@@ -433,9 +433,8 @@ def mundo_loop(
                 if tab_estado["candidatos"]:
                     buffer_entrada = tab_estado["prefixo"] + tab_estado["candidatos"][tab_estado["indice"]]
             elif estado.hotkeys_ativo and buffer_entrada == "" and processar_hotkey(ch, estado):
-                # Sync leme/vela do estado.jogador para estado_mundo
+                # Sync leme do estado.jogador para estado_mundo
                 estado_mundo.jogador_heading_alvo = estado.jogador.heading_alvo
-                estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
             elif 32 <= ch <= 126:
                 buffer_entrada += chr(ch)
                 tab_estado["ativo"] = False
@@ -449,16 +448,14 @@ def mundo_loop(
 
             # Sync controles do jogador para o mundo
             estado_mundo.jogador_heading_alvo = estado.jogador.heading_alvo
-            estado_mundo.jogador_nivel_vela = estado.jogador.nivel_vela
 
             atualizar_vento(estado, dt)
             ang_jogador = angulo_relativo_vento(estado.jogador.heading, estado.vento_direcao)
-            eff_jogador = eficiencia_vento(estado.tipo_navio, ang_jogador)
-            fator_int = fator_intensidade_vento(estado.vento_intensidade)
-            estado.jogador.eficiencia_vento_atual = eff_jogador
-            estado.jogador.fator_intensidade_vento_atual = fator_int
 
-            atualizar_jogador_mundo(estado_mundo, params, dt, eff_jogador, fator_int)
+            atualizar_jogador_mundo(
+                estado_mundo, estado.jogador, dt,
+                ang_jogador, estado.vento_intensidade, estado.vento_direcao,
+            )
 
             # --- Colisão com ilha (navegação) ---
             from .world.entities import eh_solido_ilha as _esi_nav
@@ -506,7 +503,7 @@ def mundo_loop(
                 estado_mundo.rastro_jogador.append(
                     (estado_mundo.jogador_x, estado_mundo.jogador_y)
                 )
-            atualizar_ia_mundo(estado_mundo, dt, estado.vento_direcao, fator_int)
+            atualizar_ia_mundo(estado_mundo, dt, estado.vento_direcao, estado.vento_intensidade)
 
             # Sync heading/velocidade de volta pro navio (usado na bussola e HUD)
             estado.jogador.heading = estado_mundo.jogador_heading
@@ -568,6 +565,10 @@ def mundo_loop(
                 estado.inimigo.giro_graus_seg = params_inimigo['giro_graus_seg']
                 estado.inimigo.reparo_mult = params_inimigo['reparo_mult']
                 estado.inimigo.num_velas = params_inimigo['num_velas']
+                estado.inimigo.peso_casco = PESO_CASCO[inimigo_engajado.tipo_navio]
+                estado.inimigo.area_casco = AREA_CASCO[inimigo_engajado.tipo_navio]
+                estado.inimigo.slots_vela = inimigo_engajado.slots_vela
+                estado.inimigo.velocidade_lateral = inimigo_engajado.velocidade_lateral
                 estado.inimigo_tipo_navio = inimigo_engajado.tipo_navio
                 estado.inimigo_min_crew_canhao = params_inimigo['min_crew_canhao']
                 if inimigo_engajado.partes is not None:
@@ -750,6 +751,21 @@ def mundo_loop(
                         break
 
         desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada)
+
+
+def _porto_ou_destroco_proximo(estado_mundo) -> bool:
+    """True se há porto ou destroço com loot dentro do alcance de atracação
+    (mesmos raios usados pelo comando 'atracar') — usado pra decidir se a
+    hotkey N atraca ou ancora."""
+    jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+    for porto in estado_mundo.portos:
+        if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) < MUNDO_RAIO_ATRACACAO:
+            return True
+    for navio in estado_mundo.inimigos:
+        if navio.status == "afundado" and navio.loot is not None:
+            if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) < MUNDO_RAIO_COLETA_LOOT:
+                return True
+    return False
 
 
 def _processar_cmd_mundo(

@@ -3,12 +3,11 @@
 import math
 import random
 
-from ..constants import (
-    MUNDO_TAMANHO, MUNDO_ALCANCE_VISAO_FUGA, NAVIO_TIPOS, ACEL_VEL_SEG,
-)
+from ..constants import MUNDO_TAMANHO, NAVIO_TIPOS, PESO_CASCO, AREA_CASCO
 from .entities import NavioMundo
 from .state import EstadoMundo
-from ..core.vento import angulo_relativo_vento, eficiencia_vento as _eficiencia_vento
+from ..core.movimento import calcular_tick_fisica
+from ..core.vento import angulo_relativo_vento
 
 
 # ---------------------------------------------------------------------------
@@ -26,49 +25,6 @@ def delta_toroidal(x1: float, y1: float, x2: float, y2: float) -> tuple[float, f
     return dx, dy
 
 
-def atualizar_posicao_toroidal(
-    x: float,
-    y: float,
-    heading: float,
-    heading_alvo: float,
-    velocidade: float,
-    velocidade_max: float,
-    giro_graus_seg: float,
-    dt: float,
-    eficiencia_vento: float = 1.0,
-    fator_intensidade_vento: float = 1.0,
-) -> tuple[float, float, float, float]:
-    """Aplica física de giro + propulsão com wraparound toroidal.
-
-    Idêntica à física de Navio.atualizar_movimento, mas com
-    ``% MUNDO_TAMANHO`` no lugar do clamp(-MAPA_TAMANHO, MAPA_TAMANHO).
-    Aceita os mesmos fatores de vento de doc08_vento.md: eficiencia_vento
-    (ângulo relativo, afeta teto e aceleração) e fator_intensidade_vento
-    (curva de intensidade, só afeta o teto).
-
-    Returns:
-        (x, y, heading, velocidade) atualizados.
-    """
-    diff = (heading_alvo - heading + 540) % 360 - 180
-    giro_max = giro_graus_seg * dt
-    if abs(diff) <= giro_max:
-        heading = heading_alvo
-    else:
-        heading = (heading + (giro_max if diff > 0 else -giro_max)) % 360
-
-    vmax_efetivo = velocidade_max * eficiencia_vento * fator_intensidade_vento
-    acel = ACEL_VEL_SEG * dt * eficiencia_vento
-    if velocidade < vmax_efetivo:
-        velocidade = min(vmax_efetivo, velocidade + acel)
-    else:
-        velocidade = max(vmax_efetivo, velocidade - acel)
-
-    rad = math.radians(heading)
-    x = (x + math.sin(rad) * velocidade * dt) % MUNDO_TAMANHO
-    y = (y + math.cos(rad) * velocidade * dt) % MUNDO_TAMANHO
-    return x, y, heading, velocidade
-
-
 # ---------------------------------------------------------------------------
 # IA do mundo
 # ---------------------------------------------------------------------------
@@ -76,45 +32,44 @@ def atualizar_posicao_toroidal(
 def atualizar_ia_mundo(
     estado_mundo: EstadoMundo, dt: float,
     vento_direcao: float | None = None,
-    fator_intensidade_vento: float = 1.0,
+    vento_intensidade: float = 0.0,
 ) -> None:
     """Atualiza movimento de todos os NavioMundo não-afundados.
 
-    Comportamento de patrulha: a cada tick com 5% de chance sorteia novo heading.
-    Comportamento de fuga: se dentro de MUNDO_ALCANCE_VISAO_FUGA, corre na
-    direção oposta ao jogador. Fora disso, comportamento de patrulha (mas
+    Usa a mesma física de vento/slots de vela/deriva do combate (ver
+    pirates/core/movimento.py), com wraparound toroidal no lugar de
+    clamp. Comportamento de patrulha: a cada tick com 5% de chance sorteia
+    novo heading e cruza mais devagar (1/3 do teto físico via
+    `fator_vmax_extra`). Comportamento de fuga: se dentro de
+    MUNDO_ALCANCE_VISAO_FUGA, corre na direção oposta ao jogador em
+    velocidade física plena. Fora disso, comportamento de patrulha (mas
     mantém status 'fugindo' para preservar partes/agua/moral).
 
     Args:
         vento_direcao: Direção atual do vento (doc08_vento.md), ou None
-            pra não aplicar nenhum efeito de vento (retrocompatibilidade).
-        fator_intensidade_vento: Fator de intensidade já resolvido (ver
-            pirates/core/vento.py:fator_intensidade_vento), aplicado a
-            todos os inimigos junto da eficiência angular individual.
+            pra usar um ângulo neutro (retrocompatibilidade/testes).
+        vento_intensidade: Intensidade atual do vento, em nós.
     """
     for navio in estado_mundo.inimigos:
         if navio.status == "afundado":
             continue
 
         params = NAVIO_TIPOS[navio.tipo_navio]
-        vmax_patrulha = params["velocidade_max_base"] * 1 / 3
-        vmax_fuga = params["velocidade_max_base"] * 3 / 3
 
         dx, dy = delta_toroidal(
             navio.x, navio.y,
             estado_mundo.jogador_x, estado_mundo.jogador_y,
         )
-        d = (dx ** 2 + dy ** 2) ** 0.5
 
         if navio.status == "fugindo":
             # Sempre foge na direção oposta ao jogador, sem limite de distância
             rumo_pro_jogador = math.degrees(math.atan2(dx, dy)) % 360
             navio.heading_alvo = (rumo_pro_jogador + 180) % 360
-            velocidade_max = vmax_fuga
+            fator_vmax_extra = 1.0
         else:
             if random.random() < 0.05:
                 navio.heading_alvo = random.uniform(0, 360)
-            velocidade_max = vmax_patrulha
+            fator_vmax_extra = 1.0 / 3.0
 
         # Evasão de ilhas (personalidade via avoidance_mult)
         for ilha in getattr(estado_mundo, 'ilhas', []):
@@ -131,45 +86,59 @@ def atualizar_ia_mundo(
 
         if vento_direcao is not None:
             ang = angulo_relativo_vento(navio.heading, vento_direcao)
-            eff = _eficiencia_vento(navio.tipo_navio, ang)
+            direcao = vento_direcao
         else:
-            eff = 1.0
+            ang = 90.0
+            direcao = 0.0
 
-        navio.x, navio.y, navio.heading, navio.velocidade = atualizar_posicao_toroidal(
-            navio.x, navio.y,
-            navio.heading, navio.heading_alvo,
-            navio.velocidade, velocidade_max,
-            params["giro_graus_seg"],
-            dt,
-            eficiencia_vento=eff,
-            fator_intensidade_vento=fator_intensidade_vento,
+        (
+            navio.heading, navio.velocidade, navio.velocidade_lateral, mov_dx, mov_dy,
+            _eff, _fator_int,
+        ) = calcular_tick_fisica(
+            navio.heading, navio.heading_alvo, navio.velocidade, navio.velocidade_lateral,
+            params["giro_graus_seg"], params["velocidade_max_base"], navio.slots_vela,
+            PESO_CASCO[navio.tipo_navio], AREA_CASCO[navio.tipo_navio], params["num_velas"],
+            False, 1.0, dt,
+            ang, vento_intensidade, direcao,
+            fator_vmax_extra=fator_vmax_extra,
         )
+        navio.x = (navio.x + mov_dx) % MUNDO_TAMANHO
+        navio.y = (navio.y + mov_dy) % MUNDO_TAMANHO
 
 
 def atualizar_jogador_mundo(
-    estado_mundo: EstadoMundo, params: dict, dt: float,
-    eficiencia_vento: float = 1.0,
-    fator_intensidade_vento: float = 1.0,
+    estado_mundo: EstadoMundo, jogador, dt: float,
+    angulo_relativo_vento_atual: float = 90.0,
+    intensidade_vento_atual: float = 0.0,
+    vento_direcao_atual: float = 0.0,
 ) -> None:
-    """Aplica física de movimento do jogador no mundo aberto com wrap toroidal."""
-    velocidade_max = params["velocidade_max_base"] * estado_mundo.jogador_nivel_vela / 3
+    """Aplica física de movimento do jogador no mundo aberto com wrap
+    toroidal, usando os campos reais do `Navio` (slots de vela, peso/área
+    de casco, âncora) — mesma física do combate (ver
+    pirates/core/movimento.py). Muta `jogador` in-place (heading,
+    velocidade, velocidade_lateral, eficiencia_vento_atual,
+    fator_intensidade_vento_atual) e sincroniza os espelhos de
+    `estado_mundo.jogador_*`.
+    """
+    fator_dano = (jogador.partes['vela'] / 100) * (jogador.partes['mastro'] / 100)
+    fator_upgrade = 1.0 + jogador.upgrades.get('velocidade_giro', 0.0)
+
     (
-        estado_mundo.jogador_x,
-        estado_mundo.jogador_y,
-        estado_mundo.jogador_heading,
-        estado_mundo.jogador_velocidade,
-    ) = atualizar_posicao_toroidal(
-        estado_mundo.jogador_x,
-        estado_mundo.jogador_y,
-        estado_mundo.jogador_heading,
-        estado_mundo.jogador_heading_alvo,
-        estado_mundo.jogador_velocidade,
-        velocidade_max,
-        params["giro_graus_seg"],
-        dt,
-        eficiencia_vento=eficiencia_vento,
-        fator_intensidade_vento=fator_intensidade_vento,
+        jogador.heading, jogador.velocidade, jogador.velocidade_lateral, dx, dy,
+        jogador.eficiencia_vento_atual, jogador.fator_intensidade_vento_atual,
+    ) = calcular_tick_fisica(
+        jogador.heading, jogador.heading_alvo, jogador.velocidade, jogador.velocidade_lateral,
+        jogador.giro_graus_seg, jogador.velocidade_max_base, jogador.slots_vela,
+        jogador.peso_casco, jogador.area_casco, jogador.num_velas, jogador.ancorado,
+        fator_dano, dt,
+        angulo_relativo_vento_atual, intensidade_vento_atual, vento_direcao_atual,
+        fator_vmax_extra=fator_upgrade,
     )
+
+    estado_mundo.jogador_x = (estado_mundo.jogador_x + dx) % MUNDO_TAMANHO
+    estado_mundo.jogador_y = (estado_mundo.jogador_y + dy) % MUNDO_TAMANHO
+    estado_mundo.jogador_heading = jogador.heading
+    estado_mundo.jogador_velocidade = jogador.velocidade
 
 
 # ---------------------------------------------------------------------------

@@ -14,8 +14,10 @@ from ..constants import (
     TITULO_ARTE, ARTE_VITORIA, ARTE_DERROTA, ARTE_FUGA, ARTE_FUGA_JOGADOR, COMO_JOGAR_TEXTO,
     TIPOS_NAVIO, NAVIO_TIPOS, PARTES,
     COR_VERDE, COR_VERMELHO, COR_AMARELO,
+    VENTO_ZONAS_ANGULO_MEIO,
 )
 from ..core.utils import barra
+from ..core.velas import gerar_slots_fabrica, eficiencia_vento_bruta
 from .renderer import safe_addstr
 
 
@@ -63,14 +65,37 @@ def tela_menu(stdscr) -> str:
 
 
 def tela_como_jogar(stdscr) -> None:
-    """Exibe a tela de instruções completas do jogo. Qualquer tecla volta."""
+    """Exibe a tela de instruções completas do jogo, com scroll.
+
+    SETA CIMA/BAIXO ou J/K rolam uma linha; PAGE UP/DOWN rolam uma tela
+    inteira. ESC ou Q voltam ao menu.
+    """
     stdscr.nodelay(False)
     stdscr.timeout(-1)
-    stdscr.erase()
-    for i, l in enumerate(COMO_JOGAR_TEXTO):
-        safe_addstr(stdscr, i, 2, l)
-    stdscr.refresh()
-    stdscr.getch()
+    offset = 0
+    total = len(COMO_JOGAR_TEXTO)
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        visiveis = max(1, max_y - 1)
+        offset = max(0, min(offset, max(0, total - visiveis)))
+        for i, l in enumerate(COMO_JOGAR_TEXTO[offset:offset + visiveis]):
+            safe_addstr(stdscr, i, 2, l)
+        rodape = "SETAS/J-K: rolar  PGUP/PGDN: pagina  ESC/Q: voltar"
+        safe_addstr(stdscr, max_y - 1, 2, rodape, _curses.A_REVERSE)
+        stdscr.refresh()
+
+        ch = stdscr.getch()
+        if ch in (27, ord('q'), ord('Q')):
+            return
+        elif ch in (_curses.KEY_UP, ord('k'), ord('K')):
+            offset -= 1
+        elif ch in (_curses.KEY_DOWN, ord('j'), ord('J')):
+            offset += 1
+        elif ch == _curses.KEY_PPAGE:
+            offset -= visiveis
+        elif ch == _curses.KEY_NPAGE:
+            offset += visiveis
 
 
 def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | None:
@@ -122,14 +147,19 @@ def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | 
             'zona_morta': 'Zona Morta', 'bolina': 'Bolina',
             'traves': 'Traves', 'popa': 'Popa',
         }
-        melhor_zona, melhor_mult = max(p['eficiencia_vento'].items(), key=lambda kv: kv[1])
+        slots_fabrica = gerar_slots_fabrica(chave)
+        eficiencias_por_zona = {
+            zona: eficiencia_vento_bruta(slots_fabrica, angulo)
+            for zona, angulo in VENTO_ZONAS_ANGULO_MEIO.items()
+        }
+        melhor_zona, melhor_mult = max(eficiencias_por_zona.items(), key=lambda kv: kv[1])
         safe_addstr(
             stdscr, 13, 2,
             f"   Vento ideal .......... {zona_label[melhor_zona]} ({melhor_mult*100:.0f}% vel.)",
         )
         safe_addstr(
             stdscr, 14, 2,
-            f"   Zona morta (evite) ... {p['eficiencia_vento']['zona_morta']*100:.0f}% vel.",
+            f"   Zona morta (evite) ... {eficiencias_por_zona['zona_morta']*100:.0f}% vel.",
         )
         safe_addstr(stdscr, 16, 2, "SETA ESQUERDA/DIREITA muda | ENTER escolhe | ESC volta")
         stdscr.refresh()

@@ -81,7 +81,9 @@ def _navio_para_dict(navio) -> dict:
         "partes": dict(navio.partes),
         "agua": navio.agua,
         "moral_atual": navio.moral_atual,
-        "nivel_vela": navio.nivel_vela,
+        "slots_vela": [dict(slot) for slot in navio.slots_vela],
+        "slot_vela_selecionado": navio.slot_vela_selecionado,
+        "ancorado": navio.ancorado,
         "alcance_canhao": navio.alcance_canhao,
         "upgrades": dict(navio.upgrades),
         "upgrade_niveis": dict(navio.upgrade_niveis),
@@ -102,7 +104,10 @@ def _aplicar_navio_dict(navio, data: dict) -> None:
     navio.agua = data["agua"]
     navio.afundado = navio.agua >= 100
     navio.moral_atual = data["moral_atual"]
-    navio.nivel_vela = data["nivel_vela"]
+    if "slots_vela" in data:
+        navio.slots_vela = [dict(slot) for slot in data["slots_vela"]]
+    navio.slot_vela_selecionado = data.get("slot_vela_selecionado", navio.slot_vela_selecionado)
+    navio.ancorado = data.get("ancorado", False)
     navio.alcance_canhao = data["alcance_canhao"]
     navio.upgrades = dict(data["upgrades"])
     navio.upgrade_niveis = dict(data["upgrade_niveis"])
@@ -177,7 +182,8 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
     from .world.state import EstadoMundo
     from .core.frota import Frota, NavioPossuido
     from .core.ship import Navio, criar_canhoes
-    from .constants import NAVIO_TIPOS
+    from .core.velas import gerar_slots_fabrica
+    from .constants import NAVIO_TIPOS, PESO_CASCO, AREA_CASCO
 
     tipo_navio_ativo = data["frota"][data["frota_indice_ativo"]]["tipo"]
     seed = data["seed_mundo"]
@@ -204,6 +210,9 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
             giro_graus_seg=p["giro_graus_seg"],
             reparo_mult=p["reparo_mult"],
             porao_capacidade=p["porao_capacidade"],
+            peso_casco=PESO_CASCO[tipo_n],
+            area_casco=AREA_CASCO[tipo_n],
+            slots_vela=gerar_slots_fabrica(tipo_n),
         )
         navio_n.tipo_nome = p["navio"]
         navio_n.num_velas = p["num_velas"]

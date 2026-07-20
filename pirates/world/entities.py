@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -88,6 +88,10 @@ class NavioMundo:
         loot:         Porão-loot deixado ao afundar (None se já coletado).
         tipo_navio:   Chave de NAVIO_TIPOS sorteada no spawn ('chalupa'/'brigantim'/'galeao').
         elite:        True se este navio é uma variante elite (mais forte, mais loot).
+        slots_vela:   Loadout de slots de vela (ver pirates/core/velas.py),
+                      sorteado no spawn — sem loja pra NPCs, fica fixo.
+        velocidade_lateral: Deriva lateral (doc09_deriva.md), persistida
+                      tick a tick igual à de Navio.
     """
     x: float
     y: float
@@ -103,3 +107,5 @@ class NavioMundo:
     avoidance_mult: float = 2.0  # personalidade: evita ilha quando dist < raio_max * mult
     tipo_navio: str = "brigantim"
     elite: bool = False
+    slots_vela: list[dict] = field(default_factory=list)
+    velocidade_lateral: float = 0.0

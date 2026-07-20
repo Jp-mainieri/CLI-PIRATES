@@ -54,16 +54,60 @@ def processar_comando(texto: str, estado: Estado) -> None:
         except ValueError:
             estado.log.append("Uso: leme <graus>")
 
+    elif cmd == "vela" and len(partes_cmd) == 1:
+        if not jogador.slots_vela:
+            estado.log.append("Este navio nao tem slots de vela.")
+        for i, slot in enumerate(jogador.slots_vela):
+            marca = ">" if i == jogador.slot_vela_selecionado else " "
+            tipo = slot["tipo"] or "vazio"
+            pct = slot["nivel"] * 50
+            estado.log.append(f"{marca}{i} {slot['local']}-{tipo} ({pct}%)")
+
     elif cmd == "vela" and len(partes_cmd) == 2:
         try:
-            n = int(partes_cmd[1])
-            if 0 <= n <= 3:
-                jogador.nivel_vela = n
-                estado.log.append(f"Velas no nivel {n}")
-            else:
-                estado.log.append("Nivel de vela deve ser 0-3")
+            nivel = int(partes_cmd[1])
         except ValueError:
-            estado.log.append("Uso: vela <0-3>")
+            estado.log.append("Uso: vela | vela <0-2> | vela <ID> <0-2>")
+            return
+        if not (0 <= nivel <= 2):
+            estado.log.append("Nivel de vela deve ser 0, 1 ou 2.")
+            return
+        if not jogador.slots_vela:
+            estado.log.append("Este navio nao tem slots de vela.")
+            return
+        slot = jogador.slots_vela[jogador.slot_vela_selecionado]
+        if slot["tipo"] is None:
+            estado.log.append("Slot selecionado esta vazio - instale uma vela no porto primeiro.")
+            return
+        slot["nivel"] = nivel
+        estado.log.append(f"Slot {jogador.slot_vela_selecionado} ({slot['local']}) no nivel {nivel}")
+
+    elif cmd == "vela" and len(partes_cmd) == 3:
+        try:
+            indice = int(partes_cmd[1])
+            nivel = int(partes_cmd[2])
+        except ValueError:
+            estado.log.append("Uso: vela <ID> <0-2>")
+            return
+        if not (0 <= indice < len(jogador.slots_vela)):
+            estado.log.append("ID de slot invalido.")
+            return
+        if not (0 <= nivel <= 2):
+            estado.log.append("Nivel de vela deve ser 0, 1 ou 2.")
+            return
+        slot = jogador.slots_vela[indice]
+        if slot["tipo"] is None:
+            estado.log.append("Esse slot esta vazio - instale uma vela no porto primeiro.")
+            return
+        slot["nivel"] = nivel
+        estado.log.append(f"Slot {indice} ({slot['local']}) no nivel {nivel}")
+
+    elif cmd == "ancorar":
+        jogador.ancorado = not jogador.ancorado
+        if jogador.ancorado:
+            estado.log.append("Ancora lancada - navio parado, leme ainda funciona.")
+        else:
+            estado.log.append("Ancora levantada.")
 
     elif cmd == "reparar" and len(partes_cmd) == 3:
         parte = partes_cmd[1]
@@ -291,5 +335,9 @@ def obter_candidatos(
     elif cmd == "reparar" and pos == 1:
         return [c for c in PARTES if c.startswith(pl)]
     elif cmd == "vela" and pos == 1:
-        return [c for c in ("0", "1", "2", "3") if c.startswith(pl)]
+        opcoes = [str(i) for i in range(len(estado.jogador.slots_vela))]
+        opcoes += [c for c in ("0", "1", "2") if c not in opcoes]
+        return [c for c in opcoes if c.startswith(pl)]
+    elif cmd == "vela" and pos == 2:
+        return [c for c in ("0", "1", "2") if c.startswith(pl)]
     return []

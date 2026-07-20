@@ -6,6 +6,7 @@ from pirates.core.ship import Navio
 from pirates.core.porao import Barril, Porao, CAPACIDADE_BARRIL, CAPACIDADE_BARRIL_OURO
 from pirates.core.frota import Frota
 from pirates.core.porao import preco_reabastecer, preco_venda, preco_reparo
+from pirates.core.velas import gerar_slots_fabrica
 from pirates.port.lojas import (
     preco_upgrade_nivel,
     comprar_barril, reabastecer_barril, vender_barril, reparo_instantaneo,
@@ -21,7 +22,10 @@ from pirates.constants import (
 
 
 def _navio(cap: int = 6) -> Navio:
-    n = Navio("TestShip", x=0, y=0, heading=0, porao_capacidade=cap)
+    n = Navio(
+        "TestShip", x=0, y=0, heading=0, porao_capacidade=cap,
+        slots_vela=gerar_slots_fabrica("chalupa"),
+    )
     n.tipo_nome = "Chalupa"
     return n
 

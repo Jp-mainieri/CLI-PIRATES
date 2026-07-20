@@ -16,6 +16,7 @@ except ImportError:
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
+    DERIVA_LIMIAR_DIRECAO, DERIVA_LIMIAR_REFERENCIA, GLYPH_VELA,
 )
 from ..core.utils import (
     barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading,
@@ -30,51 +31,64 @@ from .colors import (
 
 
 
-def build_navio_diagrama(estado) -> list[tuple[str, int]]:
+def build_navio_diagrama(estado) -> list[tuple[str, int, list]]:
     """Constrói as linhas de status do navio do jogador (coluna esquerda).
 
+    A parte em foco de reparo (hotkeys) ganha um "<" à direita.
+
     Returns:
-        Lista de (texto, atributo_curses).
+        Lista de (texto, atributo_curses, overlays).
     """
     j = estado.jogador
+    foco = estado.foco
+
+    def _marca_reparo(parte: str) -> str:
+        if foco and foco[0] == "reparo" and PARTES[foco[1]] == parte:
+            return " <"
+        return ""
+
     return [
         (
-            f"CASCO  [{barra(j.partes['casco'], 10)}] {j.partes['casco']:5.1f}%",
-            cor_valor(estado, j.partes['casco']),
+            f"CASCO  [{barra(j.partes['casco'], 10)}] {j.partes['casco']:5.1f}%{_marca_reparo('casco')}",
+            cor_valor(estado, j.partes['casco']), [],
         ),
         (
-            f"MASTRO [{barra(j.partes['mastro'], 10)}] {j.partes['mastro']:5.1f}%",
-            cor_valor(estado, j.partes['mastro']),
+            f"MASTRO [{barra(j.partes['mastro'], 10)}] {j.partes['mastro']:5.1f}%{_marca_reparo('mastro')}",
+            cor_valor(estado, j.partes['mastro']), [],
         ),
         (
-            f"VELA   [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%",
-            cor_valor(estado, j.partes['vela']),
+            f"VELA   [{barra(j.partes['vela'], 10)}] {j.partes['vela']:5.1f}%{_marca_reparo('vela')}",
+            cor_valor(estado, j.partes['vela']), [],
         ),
         (
-            f"RODA   [{barra(j.partes['roda'], 10)}] {j.partes['roda']:5.1f}%",
-            cor_valor(estado, j.partes['roda']),
+            f"RODA   [{barra(j.partes['roda'], 10)}] {j.partes['roda']:5.1f}%{_marca_reparo('roda')}",
+            cor_valor(estado, j.partes['roda']), [],
         ),
         (
             f"AGUA   [{barra(j.agua, 10)}] {j.agua:5.1f}%",
-            cor_valor(estado, j.agua, pior_se_alto=True),
+            cor_valor(estado, j.agua, pior_se_alto=True), [],
         ),
         (
             f"MORAL  [{barra(j.moral_atual, 10)}] {j.moral_atual:5.1f}%",
-            cor_valor(estado, j.moral_atual),
+            cor_valor(estado, j.moral_atual), [],
         ),
-        (
-            f"VELAS  [{barra(j.nivel_vela / 3 * 100, 10)}] {j.nivel_vela / 3 * 100:3.0f}%",
-            0,
-        ),
-        (
-            f"VENTO  [{_seta_hud(estado, abs(estado.vento_direcao-180))} "
-            f"{direcao_para_heading(estado.vento_direcao)} "
-            f"{estado.vento_intensidade:4.1f}] | "
-            f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}",
-            0,
-        ),
+        _linha_vento(estado, j),
         _linha_rumo(estado, j),
     ]
+
+
+def _linha_deriva(estado, j) -> tuple[str, int]:
+    """Linha DERIVA: magnitude e direção (ESTIB/BOMB) da deriva lateral."""
+    lateral = j.velocidade_lateral
+    if lateral > DERIVA_LIMIAR_DIRECAO:
+        direcao = "ESTIB"
+    elif lateral < -DERIVA_LIMIAR_DIRECAO:
+        direcao = "BOMB"
+    else:
+        direcao = "--"
+    texto = f"DERIVA {abs(lateral):4.2f} {direcao}"
+    pct = clamp(abs(lateral) / DERIVA_LIMIAR_REFERENCIA * 100.0, 0.0, 100.0)
+    return (texto, cor_valor(estado, pct, pior_se_alto=True))
 
 
 def _seta_hud(estado, heading: float) -> str:
@@ -84,13 +98,36 @@ def _seta_hud(estado, heading: float) -> str:
             else seta_ascii_para_heading(heading))
 
 
-def _linha_rumo(estado, j) -> tuple[str, int]:
-    """Linha RUMO com zona de vento e cor condicional (verde=favoravel,
-    vermelho=zona morta)."""
+def _cor_pair(estado, cor: int) -> int:
+    if estado.cores_ativo and _curses is not None:
+        return _curses.color_pair(cor)
+    return 0
+
+
+def _linha_vento(estado, j) -> tuple[str, int, list]:
+    """Linha VENTO — a seta de direção do vento fica sempre vermelha."""
+    prefixo = "VENTO  ["
+    seta = _seta_hud(estado, abs(estado.vento_direcao - 180))
+    texto = (
+        f"{prefixo}{seta} "
+        f"{direcao_para_heading(estado.vento_direcao)} "
+        f"{estado.vento_intensidade:4.1f}] | "
+        f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}"
+        + ("  [ANCORADO]" if j.ancorado else "")
+    )
+    overlays = [(len(prefixo), seta, _cor_pair(estado, COR_VERMELHO))]
+    return (texto, 0, overlays)
+
+
+def _linha_rumo(estado, j) -> tuple[str, int, list]:
+    """Linha RUMO com zona de vento (cor de fundo verde/vermelha conforme
+    favorabilidade) e a seta do rumo do navio sempre amarela."""
     ang = angulo_relativo_vento(j.heading, estado.vento_direcao)
     zona = zona_vento(ang)
+    prefixo = "RUMO   ["
+    seta = _seta_hud(estado, j.heading)
     texto = (
-        f"RUMO   [{_seta_hud(estado, j.heading)} "
+        f"{prefixo}{seta} "
         f"{direcao_para_heading(j.heading)} "
         f"{j.heading:5.1f} {f'-> {j.heading_alvo:5.1f}' if j.heading != j.heading_alvo else ''}] ({zona.replace('_', ' ')})"
     )
@@ -100,18 +137,25 @@ def _linha_rumo(estado, j) -> tuple[str, int]:
             attr = _curses.color_pair(COR_VERMELHO)
         elif j.eficiencia_vento_atual >= 1.0:
             attr = _curses.color_pair(COR_VERDE)
-    return (texto, attr)
+    overlays = [(len(prefixo), seta, _cor_pair(estado, COR_AMARELO))]
+    return (texto, attr, overlays)
 
 
 def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
     """Constrói as linhas de status de todos os canhões do jogador.
 
+    O canhão em foco (hotkeys) ganha um ">" à esquerda.
+
     Returns:
         Lista de (texto, atributo_curses).
     """
     linhas: list[tuple[str, int]] = []
+    foco = estado.foco
     for lado in ('estibordo', 'bombordo'):
-        for c in estado.jogador.canhoes[lado]:
+        for idx, c in enumerate(estado.jogador.canhoes[lado]):
+            selecionado = bool(
+                foco and foco[0] == "canhao" and foco[1] == lado and foco[2] == idx
+            )
             if estado.tempo < c.proximo_tiro:
                 restante = c.proximo_tiro - estado.tempo
                 pct_cd = clamp(100 * (1 - restante / COOLDOWN_CANHAO), 0, 100)
@@ -133,7 +177,8 @@ def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
                 info = f"mira:{c.dist_alvo:.0f}m {restante:.1f}s"
                 attr = cor_cooldown(estado, pronto=False)
 
-            linhas.append((f"{c.label} {bar_str} {info}", attr))
+            prefixo = "> " if selecionado else "  "
+            linhas.append((f"{prefixo}{c.label} {bar_str} {info}", attr))
     return linhas
 
 
@@ -412,7 +457,7 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
     linhas.append((f"pos=({i.x:7.1f},{i.y:7.1f}) heading={i.heading:5.1f}->{i.heading_alvo:5.1f}", 0))
     linhas.append((
         f"dist_do_jogador={d:6.1f}m rumo={r:5.1f} "
-        f"vel={i.velocidade:4.1f}/{i.velocidade_maxima():4.1f} vela={i.nivel_vela}/3",
+        f"vel={i.velocidade:4.1f}/{i.velocidade_maxima():4.1f} slot={i.slot_vela_selecionado}",
         0,
     ))
     linhas.append((f"afundado={i.afundado}", 0))
@@ -510,6 +555,31 @@ def build_porao_linhas(navio) -> list[tuple[str, int]]:
             linhas.append((f"  {tipo:7s} {n_barris}b [{bar}] {total:.0f}/{max_u}u", 0))
         else:
             linhas.append((f"  {tipo:7s} 0b [----------]  0u", 0))
+    return linhas
+
+
+def _barra_vela(slot: dict) -> str:
+    """Barra de 4 caracteres de um slot de vela: borda+abertura+borda,
+    onde a borda identifica o tipo (ver GLYPH_VELA) e a abertura reflete
+    o nível (0/1/2 -> '--'/'#-'/'##'). Slot vazio: '----'."""
+    tipo = slot["tipo"]
+    if tipo is None:
+        return "----"
+    abertura = ("--", "#-", "##")[slot["nivel"]]
+    esquerda, direita = GLYPH_VELA[tipo]
+    return f"{esquerda}{abertura}{direita}"
+
+
+def build_velas_linhas(estado) -> list[tuple[str, int]]:
+    """Coluna com todos os slots de vela do navio, ao lado do porão
+    (doc10_customizacao_vela.md §7.2), terminando com a linha DERIVA."""
+    navio = estado.jogador
+    linhas: list[tuple[str, int]] = [("VELAS", 0)]
+    for i, slot in enumerate(navio.slots_vela):
+        marca = ">" if i == navio.slot_vela_selecionado else " "
+        linhas.append((f"{marca}{i} {slot['local']:9s} [{_barra_vela(slot)}]", 0))
+    linhas.append(("", 0))
+    linhas.append(_linha_deriva(estado, navio))
     return linhas
 
 

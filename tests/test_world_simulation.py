@@ -9,11 +9,12 @@ from pirates.world.entities import NavioMundo
 from pirates.world.state import EstadoMundo
 from pirates.world.simulation import (
     delta_toroidal,
-    atualizar_posicao_toroidal,
     atualizar_ia_mundo,
     mundo_para_arena,
     arena_para_mundo,
 )
+from pirates.core.movimento import calcular_tick_fisica
+from pirates.core.velas import gerar_slots_fabrica
 
 
 class TestDeltaToroidal:
@@ -41,55 +42,66 @@ class TestDeltaToroidal:
         assert dx1 == pytest.approx(-dx2)
 
 
-class TestAtualizarPosicaoToroidal:
-    def test_avanca_norte(self):
-        x, y, h, v = atualizar_posicao_toroidal(
-            4000, 4000, 0.0, 0.0, 10.0, 10.0, 5.0, 1.0
+class TestCalcularTickFisica:
+    def _chamar(self, **overrides):
+        base = dict(
+            heading=0.0, heading_alvo=0.0, velocidade=0.0, velocidade_lateral=0.0,
+            giro_graus_seg_base=10.0, velocidade_max_base=10.0,
+            slots_vela=gerar_slots_fabrica("brigantim"),
+            peso_casco=500.0, area_casco=16.0, num_velas=3, ancorado=False,
+            fator_dano=1.0, dt=1.0,
+            angulo_relativo_vento_atual=67.5, intensidade_vento_atual=10.0,
+            vento_direcao_atual=0.0,
         )
-        # heading=0 → sin(0)=0, cos(0)=1 → só y cresce
-        assert x == pytest.approx(4000.0)
-        assert y == pytest.approx(4010.0)
-
-    def test_wrap_borda_superior(self):
-        # Começa perto da borda y=MUNDO_TAMANHO e avança norte
-        x, y, h, v = atualizar_posicao_toroidal(
-            4000, MUNDO_TAMANHO - 5, 0.0, 0.0, 20.0, 20.0, 5.0, 1.0
-        )
-        assert y == pytest.approx(15.0)
+        base.update(overrides)
+        return calcular_tick_fisica(**base)
 
     def test_giro_aplica_limite(self):
-        # Taxa de giro 10°/s, dt=1 → máx 10° de variação
-        _, _, h, _ = atualizar_posicao_toroidal(
-            0, 0, 0.0, 90.0, 0.0, 0.0, 10.0, 1.0
+        # Taxa de giro 10°/s (sem bonus_curva na chalupa/brigantim padrão), dt=1
+        heading, *_ = self._chamar(
+            heading=0.0, heading_alvo=90.0, giro_graus_seg_base=10.0,
+            slots_vela=[],
         )
-        assert h == pytest.approx(10.0)
+        assert heading == pytest.approx(10.0)
 
     def test_giro_snap_ao_alvo(self):
-        # Diferença menor que giro_max → heading fica exatamente no alvo
-        _, _, h, _ = atualizar_posicao_toroidal(
-            0, 0, 0.0, 5.0, 0.0, 0.0, 10.0, 1.0
+        heading, *_ = self._chamar(
+            heading=0.0, heading_alvo=5.0, giro_graus_seg_base=10.0,
+            slots_vela=[],
         )
-        assert h == pytest.approx(5.0)
+        assert heading == pytest.approx(5.0)
 
-    def test_eficiencia_vento_reduz_velocidade_final(self):
-        _, _, _, v_normal = atualizar_posicao_toroidal(
-            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 1.0, eficiencia_vento=1.0,
+    def test_freia_sem_velas_abertas(self):
+        # Regressão: com slots vazios (eficiencia_bruta=0), vmax=0, mas o
+        # navio tem que desacelerar (arrasto do casco), nao ficar travado
+        # na velocidade antiga.
+        _, velocidade, *_ = self._chamar(
+            velocidade=10.0, slots_vela=[], dt=1.0,
         )
-        _, _, _, v_reduzida = atualizar_posicao_toroidal(
-            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 1.0, eficiencia_vento=0.5,
-        )
-        assert v_reduzida < v_normal
+        assert velocidade < 10.0
 
-    def test_fator_intensidade_vento_aumenta_teto(self):
-        # dt grande o suficiente pra ambos alcançarem o teto de velocidade
-        _, _, _, v_normal = atualizar_posicao_toroidal(
-            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 100.0, fator_intensidade_vento=1.0,
+    def test_freia_ate_zero_com_dt_grande(self):
+        _, velocidade, *_ = self._chamar(
+            velocidade=10.0, slots_vela=[], dt=1000.0,
         )
-        _, _, _, v_rajada = atualizar_posicao_toroidal(
-            0, 0, 0.0, 0.0, 0.0, 10.0, 5.0, 100.0, fator_intensidade_vento=1.3,
+        assert velocidade == pytest.approx(0.0)
+
+    def test_intensidade_aumenta_velocidade_final(self):
+        _, v_calmaria, *_ = self._chamar(
+            velocidade=0.0, dt=100.0, intensidade_vento_atual=0.0,
         )
-        assert v_normal == pytest.approx(10.0)
-        assert v_rajada == pytest.approx(13.0)
+        _, v_rajada, *_ = self._chamar(
+            velocidade=0.0, dt=100.0, intensidade_vento_atual=20.0,
+        )
+        assert v_rajada > v_calmaria
+
+    def test_ancorado_zera_velocidade_mas_ainda_gira(self):
+        heading, velocidade, *_ = self._chamar(
+            heading=0.0, heading_alvo=90.0, giro_graus_seg_base=10.0,
+            velocidade=10.0, ancorado=True, dt=1000.0,
+        )
+        assert velocidade == pytest.approx(0.0)
+        assert heading == pytest.approx(90.0)
 
 
 class TestAtualizarIaMundo:
@@ -109,6 +121,7 @@ class TestAtualizarIaMundo:
 
     def test_fugindo_dentro_do_alcance_muda_heading(self):
         em = EstadoMundo("brigantim")
+        em.ilhas = []  # evita flakiness: ilha sorteada sem seed podia cair perto e disparar evasao
         em.jogador_x = 4000.0
         em.jogador_y = 4000.0
         navio = em.inimigos[0]
@@ -130,6 +143,10 @@ class TestAtualizarIaMundo:
             n.heading = 0.0
             n.heading_alvo = 0.0
             n.velocidade = 0.0
+            # Tipo/slots fixos pra teste determinístico (spawn sorteia o
+            # tipo aleatoriamente, mesmo em EstadoMundo("brigantim")).
+            n.tipo_navio = "brigantim"
+            n.slots_vela = gerar_slots_fabrica("brigantim")
 
         # Sem vento: velocidade sobe livremente até o teto de patrulha.
         atualizar_ia_mundo(em, dt=5.0, vento_direcao=None)
@@ -141,6 +158,8 @@ class TestAtualizarIaMundo:
             n.heading = 0.0
             n.heading_alvo = 0.0
             n.velocidade = 0.0
+            n.tipo_navio = "brigantim"
+            n.slots_vela = gerar_slots_fabrica("brigantim")
 
         # Vento vindo direto da proa (heading=0) → zona morta, eficiência reduzida.
         atualizar_ia_mundo(em2, dt=5.0, vento_direcao=0.0)

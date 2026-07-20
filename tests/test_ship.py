@@ -38,21 +38,10 @@ class TestNavio:
     def _navio(self, **kwargs):
         return Navio("Teste", x=0, y=0, heading=0, **kwargs)
 
-    def test_velocidade_maxima_sem_dano(self):
+    def test_velocidade_maxima_zero_sem_slots_vela(self):
         n = self._navio(velocidade_max_base=10.0)
-        n.nivel_vela = 3
-        assert abs(n.velocidade_maxima() - 10.0) < 0.01
-
-    def test_velocidade_maxima_zero_vela(self):
-        n = self._navio(velocidade_max_base=10.0)
-        n.nivel_vela = 0
+        n.eficiencia_vento_atual = 0.0  # como ficaria após um tick sem slots
         assert n.velocidade_maxima() == 0.0
-
-    def test_velocidade_reduzida_por_dano_vela(self):
-        n = self._navio(velocidade_max_base=10.0)
-        n.nivel_vela = 3
-        n.partes['vela'] = 50.0
-        assert n.velocidade_maxima() < 10.0
 
     def test_vivo_inicialmente(self):
         n = self._navio()

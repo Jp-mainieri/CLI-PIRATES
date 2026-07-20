@@ -70,7 +70,8 @@ def comprar_navio(
     Não valida se o jogador tem ouro suficiente — isso é responsabilidade
     de quem chama (Tier 3b). Retorna False se o tipo for inválido.
     """
-    from ..constants import NAVIO_TIPOS
+    from ..constants import NAVIO_TIPOS, PESO_CASCO, AREA_CASCO
+    from .velas import gerar_slots_fabrica
     if tipo not in NAVIO_TIPOS:
         return False
     params = NAVIO_TIPOS[tipo]
@@ -80,6 +81,9 @@ def comprar_navio(
         giro_graus_seg=params["giro_graus_seg"],
         reparo_mult=params["reparo_mult"],
         porao_capacidade=params["porao_capacidade"],
+        peso_casco=PESO_CASCO[tipo],
+        area_casco=AREA_CASCO[tipo],
+        slots_vela=gerar_slots_fabrica(tipo),
     )
     navio.tipo_nome = params["navio"]
     navio.num_velas = params["num_velas"]

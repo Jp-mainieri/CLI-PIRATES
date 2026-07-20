@@ -2,12 +2,11 @@
 
 import pytest
 
-from pirates.core.ship import Navio
 from pirates.core.vento import (
-    angulo_relativo_vento, zona_vento, eficiencia_vento, atualizar_vento,
-    fator_intensidade_vento,
+    angulo_relativo_vento, zona_vento, eficiencia_zona, atualizar_vento,
+    fator_intensidade_vento, empuxo_lateral_vento, empuxo_constante_vento,
 )
-from pirates.constants import NAVIO_TIPOS
+from pirates.constants import TIPOS_VELA
 
 
 class Estadinho:
@@ -48,28 +47,28 @@ class TestZonaVento:
         assert zona_vento(135.1) == "popa"
 
 
-class TestEficienciaVento:
-    @pytest.mark.parametrize("tipo", NAVIO_TIPOS.keys())
+class TestEficienciaZona:
+    @pytest.mark.parametrize("tipo", TIPOS_VELA.keys())
     def test_pontos_chave_batem_com_tabela(self, tipo):
-        tabela = NAVIO_TIPOS[tipo]["eficiencia_vento"]
-        assert eficiencia_vento(tipo, 22.5) == pytest.approx(tabela["zona_morta"])
-        assert eficiencia_vento(tipo, 67.5) == pytest.approx(tabela["bolina"])
-        assert eficiencia_vento(tipo, 112.5) == pytest.approx(tabela["traves"])
-        assert eficiencia_vento(tipo, 157.5) == pytest.approx(tabela["popa"])
+        tabela = TIPOS_VELA[tipo]["eficiencia_vento"]
+        assert eficiencia_zona(tabela, 22.5) == pytest.approx(tabela["zona_morta"])
+        assert eficiencia_zona(tabela, 67.5) == pytest.approx(tabela["bolina"])
+        assert eficiencia_zona(tabela, 112.5) == pytest.approx(tabela["traves"])
+        assert eficiencia_zona(tabela, 157.5) == pytest.approx(tabela["popa"])
 
     def test_interpolacao_linear_ponto_intermediario(self):
-        tabela = NAVIO_TIPOS["brigantim"]["eficiencia_vento"]
+        tabela = TIPOS_VELA["latina"]["eficiencia_vento"]
         meio = (22.5 + 67.5) / 2
         esperado = (tabela["zona_morta"] + tabela["bolina"]) / 2
-        assert eficiencia_vento("brigantim", meio) == pytest.approx(esperado)
+        assert eficiencia_zona(tabela, meio) == pytest.approx(esperado)
 
     def test_plato_antes_do_primeiro_ponto(self):
-        tabela = NAVIO_TIPOS["galeao"]["eficiencia_vento"]
-        assert eficiencia_vento("galeao", 5.0) == pytest.approx(tabela["zona_morta"])
+        tabela = TIPOS_VELA["quadrada"]["eficiencia_vento"]
+        assert eficiencia_zona(tabela, 5.0) == pytest.approx(tabela["zona_morta"])
 
     def test_plato_depois_do_ultimo_ponto(self):
-        tabela = NAVIO_TIPOS["galeao"]["eficiencia_vento"]
-        assert eficiencia_vento("galeao", 175.0) == pytest.approx(tabela["popa"])
+        tabela = TIPOS_VELA["quadrada"]["eficiencia_vento"]
+        assert eficiencia_zona(tabela, 175.0) == pytest.approx(tabela["popa"])
 
 
 class TestAtualizarVento:
@@ -117,30 +116,29 @@ class TestFatorIntensidadeVento:
         assert fator_intensidade_vento(10.0) == pytest.approx(1.0)
 
 
-class TestIntegracaoNavio:
-    def test_velocidade_maxima_varia_com_eficiencia_vento(self):
-        n = Navio("Teste", 0, 0, 0, velocidade_max_base=10.0)
-        n.eficiencia_vento_atual = 1.0
-        vmax_normal = n.velocidade_maxima()
-        n.eficiencia_vento_atual = 0.5
-        vmax_reduzida = n.velocidade_maxima()
-        assert vmax_reduzida == pytest.approx(vmax_normal * 0.5)
+class TestEmpuxoLateralVento:
+    def test_zero_em_zona_morta(self):
+        assert empuxo_lateral_vento(3, 10.0, 0.0) == pytest.approx(0.0)
 
-    def test_velocidade_maxima_varia_com_fator_intensidade_vento(self):
-        n = Navio("Teste", 0, 0, 0, velocidade_max_base=10.0)
-        n.fator_intensidade_vento_atual = 1.0
-        vmax_normal = n.velocidade_maxima()
-        n.fator_intensidade_vento_atual = 1.3
-        vmax_rajada = n.velocidade_maxima()
-        assert vmax_rajada == pytest.approx(vmax_normal * 1.3)
+    def test_zero_em_popa(self):
+        assert empuxo_lateral_vento(3, 10.0, 180.0) == pytest.approx(0.0)
 
-    def test_taxa_giro_nao_depende_de_vento(self):
-        n = Navio(
-            "Teste", 0, 0, 0,
-            giro_graus_seg=20.0, bonus_curva_vela=0.1,
-        )
-        antes = n.taxa_giro()
-        n.eficiencia_vento_atual = 0.2
-        depois = n.taxa_giro()
-        assert antes == pytest.approx(depois)
-        assert antes == pytest.approx(20.0 * 1.1)
+    def test_maximo_em_traves(self):
+        e90 = abs(empuxo_lateral_vento(3, 10.0, 90.0))
+        e45 = abs(empuxo_lateral_vento(3, 10.0, 45.0))
+        assert e90 > e45
+
+
+class TestEmpuxoConstanteVento:
+    def test_zero_sem_vento(self):
+        assert empuxo_constante_vento(500.0, 16.0, 0.0) == pytest.approx(0.0)
+
+    def test_cresce_com_intensidade_ao_quadrado(self):
+        e10 = empuxo_constante_vento(500.0, 16.0, 10.0)
+        e20 = empuxo_constante_vento(500.0, 16.0, 20.0)
+        assert e20 == pytest.approx(e10 * 4)
+
+    def test_diminui_com_peso(self):
+        leve = empuxo_constante_vento(200.0, 16.0, 10.0)
+        pesado = empuxo_constante_vento(1100.0, 16.0, 10.0)
+        assert leve > pesado

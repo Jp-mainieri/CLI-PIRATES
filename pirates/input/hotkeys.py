@@ -134,7 +134,8 @@ def processar_hotkey(ch: int, estado: Estado) -> bool:
     Mapeamento (maiúsculas e minúsculas equivalentes):
         ESPAÇO  – alterna o item em foco
         A / D   – leme ±HOTKEY_PASSO_LEME graus
-        W / S   – vela ++ / --
+        Q       – cicla o slot de vela selecionado
+        W / S   – nível ++ / -- do slot de vela selecionado
         J / L   – seleciona canhão bombordo / estibordo
         I / K   – mira ±HOTKEY_PASSO_MIRA metros
         U / H   – bomba +1 / -1 tripulante
@@ -175,13 +176,32 @@ def processar_hotkey(ch: int, estado: Estado) -> bool:
             f"{jogador.heading_alvo:.0f} graus"
         )
         return True
+    if letra == 'Q':
+        n = len(jogador.slots_vela)
+        if n:
+            idx = jogador.slot_vela_selecionado
+            for _ in range(n):
+                idx = (idx + 1) % n
+                if jogador.slots_vela[idx]["tipo"] is not None:
+                    break
+            jogador.slot_vela_selecionado = idx
+            slot = jogador.slots_vela[idx]
+            tipo = slot["tipo"] or "vazio"
+            estado.log.append(f"Slot {idx} selecionado: {slot['local']}-{tipo}")
+        return True
     if letra == 'W':
-        jogador.nivel_vela = min(3, jogador.nivel_vela + 1)
-        estado.log.append(f"Vela ++ -> nivel {jogador.nivel_vela}")
+        if jogador.slots_vela:
+            slot = jogador.slots_vela[jogador.slot_vela_selecionado]
+            if slot["tipo"] is not None:
+                slot["nivel"] = min(2, slot["nivel"] + 1)
+                estado.log.append(f"Slot {jogador.slot_vela_selecionado} nivel {slot['nivel']}")
         return True
     if letra == 'S':
-        jogador.nivel_vela = max(0, jogador.nivel_vela - 1)
-        estado.log.append(f"Vela -- -> nivel {jogador.nivel_vela}")
+        if jogador.slots_vela:
+            slot = jogador.slots_vela[jogador.slot_vela_selecionado]
+            if slot["tipo"] is not None:
+                slot["nivel"] = max(0, slot["nivel"] - 1)
+                estado.log.append(f"Slot {jogador.slot_vela_selecionado} nivel {slot['nivel']}")
         return True
     if letra == 'J':
         _ciclar_canhao(estado, 'bombordo')
