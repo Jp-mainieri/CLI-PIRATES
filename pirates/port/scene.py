@@ -151,7 +151,8 @@ def _desenhar_porto(stdscr, cap_col: int, cap_row: int, porto_nome: str,
     painel_row = sep_row + 1
 
     if vista == "hud":
-        linhas = build_navio_diagrama(estado)[:6]   # casco/mastro/vela/roda/agua/moral
+        # casco/mastro/vela/roda/agua/moral — descarta overlays (nao usados aqui)
+        linhas = [(t, a) for t, a, _ov in build_navio_diagrama(estado)[:6]]
     else:
         linhas = build_porao_inventario_linhas(estado.jogador, cores=cores)
 

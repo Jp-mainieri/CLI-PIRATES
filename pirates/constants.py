@@ -435,6 +435,19 @@ TIPOS_VELA = {
 (eficiencia_vento, bonus_fixo) — só entra na soma de bonus_curva, onde
 quer que o slot esteja."""
 
+GLYPH_VELA = {
+    "latina": ("/", "|"),
+    "estai": ("|", ">"),
+    "quadrada": ("[", "]"),
+    "carangueja": ("{", "7"),
+    "topo_quadrada": ("=", "="),
+    "vela_de_asa": ("|", "D"),
+}
+"""Par (borda_esquerda, borda_direita) usado na barra de 4 caracteres de
+cada tipo de vela no HUD: borda + 2 chars de abertura (nível 0/1/2 =
+'--'/'#-'/'##') + borda. Slot vazio não tem entrada aqui (barra fixa
+'----')."""
+
 LOADOUT_VELA_FABRICA = {
     "chalupa": [
         {"local": "proa",       "tipo": "estai",  "nivel": 1},

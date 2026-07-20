@@ -65,14 +65,37 @@ def tela_menu(stdscr) -> str:
 
 
 def tela_como_jogar(stdscr) -> None:
-    """Exibe a tela de instruções completas do jogo. Qualquer tecla volta."""
+    """Exibe a tela de instruções completas do jogo, com scroll.
+
+    SETA CIMA/BAIXO ou J/K rolam uma linha; PAGE UP/DOWN rolam uma tela
+    inteira. ESC ou Q voltam ao menu.
+    """
     stdscr.nodelay(False)
     stdscr.timeout(-1)
-    stdscr.erase()
-    for i, l in enumerate(COMO_JOGAR_TEXTO):
-        safe_addstr(stdscr, i, 2, l)
-    stdscr.refresh()
-    stdscr.getch()
+    offset = 0
+    total = len(COMO_JOGAR_TEXTO)
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        visiveis = max(1, max_y - 1)
+        offset = max(0, min(offset, max(0, total - visiveis)))
+        for i, l in enumerate(COMO_JOGAR_TEXTO[offset:offset + visiveis]):
+            safe_addstr(stdscr, i, 2, l)
+        rodape = "SETAS/J-K: rolar  PGUP/PGDN: pagina  ESC/Q: voltar"
+        safe_addstr(stdscr, max_y - 1, 2, rodape, _curses.A_REVERSE)
+        stdscr.refresh()
+
+        ch = stdscr.getch()
+        if ch in (27, ord('q'), ord('Q')):
+            return
+        elif ch in (_curses.KEY_UP, ord('k'), ord('K')):
+            offset -= 1
+        elif ch in (_curses.KEY_DOWN, ord('j'), ord('J')):
+            offset += 1
+        elif ch == _curses.KEY_PPAGE:
+            offset -= visiveis
+        elif ch == _curses.KEY_NPAGE:
+            offset += visiveis
 
 
 def tela_navio(stdscr, bloqueios: dict[str, str | None] | None = None) -> str | None:

@@ -33,11 +33,11 @@ from .hud import (
 RIGHT_X = 36
 """Coluna de início do painel direito (canhões + tripulação)."""
 
-PORAO_X = 70
-"""Coluna de início do painel de porão no HUD."""
-
-VELAS_X = 108
+VELAS_X = 70
 """Coluna de início do painel de velas no HUD."""
+
+PORAO_X = 108
+"""Coluna de início do painel de porão no HUD."""
 
 ADM_X = 140
 """Coluna de início do painel ADM — bem à direita do HUD normal.
@@ -109,8 +109,8 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     safe_addstr(stdscr, row, 0, "SEU NAVIO",
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
-    safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, VELAS_X, "VELAS", _curses.A_UNDERLINE)
+    safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
     row += 1
     topo_colunas = row
 
@@ -131,8 +131,10 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     for i in range(maxlen):
         rowi = topo_colunas + i
         if i < len(esquerda):
-            texto, attr = esquerda[i]
+            texto, attr, overlays = esquerda[i]
             safe_addstr(stdscr, rowi, 0, texto, attr)
+            for col_o, segmento, attr_seg in overlays:
+                safe_addstr(stdscr, rowi, col_o, segmento, attr_seg)
         if i < len(direita):
             texto, attr = direita[i]
             safe_addstr(stdscr, rowi, RIGHT_X, texto, attr)
@@ -237,8 +239,8 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     safe_addstr(stdscr, row, 0, "SEU NAVIO",
                 _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, RIGHT_X, "CANHOES", _curses.A_UNDERLINE)
-    safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
     safe_addstr(stdscr, row, VELAS_X, "VELAS", _curses.A_UNDERLINE)
+    safe_addstr(stdscr, row, PORAO_X, "PORAO", _curses.A_UNDERLINE)
     row += 1
     topo_colunas = row
 
@@ -258,8 +260,10 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     for i in range(maxlen):
         rowi = topo_colunas + i
         if i < len(esquerda):
-            texto, attr = esquerda[i]
+            texto, attr, overlays = esquerda[i]
             safe_addstr(stdscr, rowi, 0, texto, attr)
+            for col_o, segmento, attr_seg in overlays:
+                safe_addstr(stdscr, rowi, col_o, segmento, attr_seg)
         if i < len(direita):
             texto, attr = direita[i]
             safe_addstr(stdscr, rowi, RIGHT_X, texto, attr)
