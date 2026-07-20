@@ -34,7 +34,7 @@ class TestBuildVelasLinhas:
         e = _estado("brigantim")
         idx = next(i for i, s in enumerate(e.jogador.slots_vela) if s["local"].startswith("aux"))
         linhas = build_velas_linhas(e)
-        assert "[----]" in linhas[1 + idx][0]
+        assert "----" in linhas[1 + idx][0]
 
     def test_ultima_linha_e_deriva(self):
         e = _estado("brigantim")

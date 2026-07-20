@@ -36,10 +36,10 @@ RIGHT_X = 36
 VELAS_X = 70
 """Coluna de início do painel de velas no HUD."""
 
-PORAO_X = 108
+PORAO_X = 94
 """Coluna de início do painel de porão no HUD."""
 
-ADM_X = 140
+ADM_X = 128
 """Coluna de início do painel ADM — bem à direita do HUD normal.
 Terminal precisa de ~150+ colunas; caso contrário safe_addstr trunca silenciosamente."""
 
