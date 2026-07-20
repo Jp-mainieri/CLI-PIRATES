@@ -16,6 +16,7 @@ except ImportError:
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
+    COR_MAR, COR_INIMIGO,
     DERIVA_LIMIAR_DIRECAO, DERIVA_LIMIAR_REFERENCIA, GLYPH_VELA,
 )
 from ..core.utils import (
@@ -73,6 +74,7 @@ def build_navio_diagrama(estado) -> list[tuple[str, int, list]]:
             cor_valor(estado, j.moral_atual), [],
         ),
         _linha_vento(estado, j),
+        _linha_velocidade(estado, j),
         _linha_rumo(estado, j),
     ]
 
@@ -105,18 +107,45 @@ def _cor_pair(estado, cor: int) -> int:
 
 
 def _linha_vento(estado, j) -> tuple[str, int, list]:
-    """Linha VENTO — a seta de direção do vento fica sempre vermelha."""
+    """Linha VENTO — mostra de onde o vento vem, a seta (sempre vermelha)
+    e pra onde ele vai (ex: "NE ↘ SW" = vem de NE, vai pra SW)."""
     prefixo = "VENTO  ["
-    seta = _seta_hud(estado, abs(estado.vento_direcao - 180))
+    direcao_para = (estado.vento_direcao + 180) % 360
+    seta = _seta_hud(estado, direcao_para)
+    compass_de = f"{prefixo}{direcao_para_heading(estado.vento_direcao)} "
     texto = (
-        f"{direcao_para_heading(estado.vento_direcao)} "
-        f"{prefixo}{seta} "
-        f"{estado.vento_intensidade:4.1f}] | "
-        f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}"
-        + ("  [ANCORADO]" if j.ancorado else "")
+        f"{compass_de}{seta} "
+        f"{direcao_para_heading(direcao_para)} "
+        f"{estado.vento_intensidade:4.1f}]"
     )
-    overlays = [(len(prefixo), seta, _cor_pair(estado, COR_VERMELHO))]
+    overlays = [(len(compass_de), seta, _cor_pair(estado, COR_VERMELHO))]
     return (texto, 0, overlays)
+
+
+def _linha_velocidade(estado, j) -> tuple[str, int, list]:
+    """Linha VEL — barra sem números/texto de estado: quantidade de '#'
+    é a velocidade atual (arredondada); '>' mostra o quanto falta pra
+    acelerar até a velocidade-alvo; '<' mostra o excesso sendo perdido
+    ao frear/reduzir. Parado (0/0) vira só '-'. Cor: branco parado, azul
+    acelerando, amarelo estável no máximo, magenta freando/reduzindo."""
+    vel = round(j.velocidade)
+    vmax = round(j.velocidade_maxima())
+
+    if vel <= 0 and vmax <= 0:
+        corpo = "-"
+        cor = 0
+    elif vel < vmax:
+        corpo = "#" * vel + ">" * (vmax - vel)
+        cor = _cor_pair(estado, COR_MAR)
+    elif vel == vmax:
+        corpo = "#" * vel
+        cor = _cor_pair(estado, COR_AMARELO)
+    else:  # vel > vmax: freando (vmax=0) ou reduzindo (vmax>0)
+        corpo = "#" * vmax + "<" * (vel - vmax)
+        cor = _cor_pair(estado, COR_INIMIGO)
+
+    texto = f"VEL    [{corpo}]" + (" [ANCORADO]" if j.ancorado else "")
+    return (texto, cor, [])
 
 
 def _linha_rumo(estado, j) -> tuple[str, int, list]:
