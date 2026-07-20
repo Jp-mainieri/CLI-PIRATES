@@ -109,8 +109,8 @@ def _linha_vento(estado, j) -> tuple[str, int, list]:
     prefixo = "VENTO  ["
     seta = _seta_hud(estado, abs(estado.vento_direcao - 180))
     texto = (
-        f"{prefixo}{seta} "
         f"{direcao_para_heading(estado.vento_direcao)} "
+        f"{prefixo}{seta} "
         f"{estado.vento_intensidade:4.1f}] | "
         f"VEL {j.velocidade:4.1f}/{j.velocidade_maxima():4.1f}"
         + ("  [ANCORADO]" if j.ancorado else "")
@@ -577,9 +577,9 @@ def build_velas_linhas(estado) -> list[tuple[str, int]]:
     linhas: list[tuple[str, int]] = [("VELAS", 0)]
     for i, slot in enumerate(navio.slots_vela):
         marca = ">" if i == navio.slot_vela_selecionado else " "
-        linhas.append((f"{marca}{i} {slot['local']:9s} [{_barra_vela(slot)}]", 0))
+        linhas.append((f"{marca}{i} {slot['local']:9s} {_barra_vela(slot)}", 0))
     linhas.append(("", 0))
-    linhas.append(_linha_deriva(estado, navio))
+    #linhas.append(_linha_deriva(estado, navio))
     return linhas
 
 
