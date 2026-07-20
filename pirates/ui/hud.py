@@ -579,7 +579,7 @@ def build_velas_linhas(estado) -> list[tuple[str, int]]:
         marca = ">" if i == navio.slot_vela_selecionado else " "
         linhas.append((f"{marca}{i} {slot['local']:9s} {_barra_vela(slot)}", 0))
     linhas.append(("", 0))
-    linhas.append(_linha_deriva(estado, navio))
+    #linhas.append(_linha_deriva(estado, navio))
     return linhas
 
 
