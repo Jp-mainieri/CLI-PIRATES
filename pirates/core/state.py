@@ -241,8 +241,8 @@ def montar_tripulacao(estado: Estado) -> list[tuple[str, str, str]]:
                 if i >= len(ids):
                     break
                 detalhe = f"canhao {c.label}"
-                if c.dist_alvo is not None:
-                    detalhe += f" (mira {c.dist_alvo:.0f}m)"
+                #if c.dist_alvo is not None:
+                #    detalhe += f" (mira {c.dist_alvo:.0f}m)"
                 roster.append((ids[i], "canhao", detalhe))
                 i += 1
 
