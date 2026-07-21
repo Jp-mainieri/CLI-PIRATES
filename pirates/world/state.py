@@ -114,38 +114,71 @@ class EstadoMundo:
                 ))
                 break
 
+    def _melhor_ponto_livre_de_ilha(self, tentativas: int) -> tuple[float, float]:
+        """Fallback pra quando o espaçamento mínimo não pode ser satisfeito por
+        rejection sampling: sorteia `tentativas` pontos fora de ilhas e devolve
+        o que maximiza a menor distância até jogador/inimigos/portos."""
+        melhor_ponto = (self.jogador_x, self.jogador_y)
+        melhor_dist = -1.0
+        for _ in range(tentativas):
+            x = random.uniform(0, MUNDO_TAMANHO)
+            y = random.uniform(0, MUNDO_TAMANHO)
+            if any(eh_solido_ilha(x, y, ilha) for ilha in self.ilhas):
+                continue
+            candidatos_dist = [self._distancia_toroidal(x, y, self.jogador_x, self.jogador_y)]
+            candidatos_dist += [
+                self._distancia_toroidal(x, y, n.x, n.y)
+                for n in self.inimigos if n.status != "afundado"
+            ]
+            candidatos_dist += [self._distancia_toroidal(x, y, p.x, p.y) for p in self.portos]
+            dist_min = min(candidatos_dist)
+            if dist_min > melhor_dist:
+                melhor_dist = dist_min
+                melhor_ponto = (x, y)
+        return melhor_ponto
+
     def sortear_novo_lote(self) -> None:
         """Remove navios patrulhando e sorteia MUNDO_NUM_INIMIGOS novos,
-        respeitando espaçamento mínimo entre si, do jogador, dos portos e das ilhas."""
+        respeitando espaçamento mínimo entre si, do jogador, dos portos e das ilhas.
+
+        Se o espaçamento mínimo não puder ser satisfeito em posições tardias
+        (pouco espaço livre entre ilhas/navios já sorteados), cai pro fallback
+        de `_melhor_ponto_livre_de_ilha`, que garante que o lote sempre complete
+        (nunca deixa de sortear um navio), mesmo que o espaçamento fique
+        um pouco abaixo do mínimo nesse caso raro."""
         self.inimigos = [n for n in self.inimigos if n.status in ("afundado", "fugindo")]
         for _ in range(MUNDO_NUM_INIMIGOS):
-            for _t in range(200):
-                x = random.uniform(0, MUNDO_TAMANHO)
-                y = random.uniform(0, MUNDO_TAMANHO)
-                if self._distancia_toroidal(x, y, self.jogador_x, self.jogador_y) < MUNDO_ESPACAMENTO_MIN:
+            x = y = None
+            for _t in range(1500):
+                cx = random.uniform(0, MUNDO_TAMANHO)
+                cy = random.uniform(0, MUNDO_TAMANHO)
+                if self._distancia_toroidal(cx, cy, self.jogador_x, self.jogador_y) < MUNDO_ESPACAMENTO_MIN:
                     continue
                 if any(
-                    self._distancia_toroidal(x, y, n.x, n.y) < MUNDO_ESPACAMENTO_MIN
+                    self._distancia_toroidal(cx, cy, n.x, n.y) < MUNDO_ESPACAMENTO_MIN
                     for n in self.inimigos
                     if n.status != "afundado"
                 ):
                     continue
                 if any(
-                    self._distancia_toroidal(x, y, p.x, p.y) < MUNDO_ESPACAMENTO_MIN
+                    self._distancia_toroidal(cx, cy, p.x, p.y) < MUNDO_ESPACAMENTO_MIN
                     for p in self.portos
                 ):
                     continue
-                if any(eh_solido_ilha(x, y, ilha) for ilha in self.ilhas):
+                if any(eh_solido_ilha(cx, cy, ilha) for ilha in self.ilhas):
                     continue
-                tipo = sortear_tipo_navio(self.notoriedade)
-                eh_elite = random.random() < chance_elite(self.notoriedade, self.horas_na_faixa8)
-                self.inimigos.append(
-                    NavioMundo(x=x, y=y, heading=random.uniform(0, 360),
-                               avoidance_mult=random.uniform(1.5, 3.0),
-                               tipo_navio=tipo, elite=eh_elite,
-                               slots_vela=gerar_slots_fabrica(tipo))
-                )
+                x, y = cx, cy
                 break
+            if x is None:
+                x, y = self._melhor_ponto_livre_de_ilha(200)
+            tipo = sortear_tipo_navio(self.notoriedade)
+            eh_elite = random.random() < chance_elite(self.notoriedade, self.horas_na_faixa8)
+            self.inimigos.append(
+                NavioMundo(x=x, y=y, heading=random.uniform(0, 360),
+                           avoidance_mult=random.uniform(1.5, 3.0),
+                           tipo_navio=tipo, elite=eh_elite,
+                           slots_vela=gerar_slots_fabrica(tipo))
+            )
 
     def acumular_horas_faixa8(self, dt: float) -> None:
         """Acumula tempo de jogo na faixa 8 de notoriedade (usado no crescimento

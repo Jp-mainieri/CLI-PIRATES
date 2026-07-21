@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .constants import MUNDO_TAMANHO
+
 if TYPE_CHECKING:
     from .core.state import Estado
     from .world.state import EstadoMundo
@@ -281,8 +283,8 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "rastro_ativo": True,
         },
         "capitao": {
-            "x": 4000.0,
-            "y": 4000.0,
+            "x": MUNDO_TAMANHO / 2,
+            "y": MUNDO_TAMANHO / 2,
             "heading": 0.0,
             "notoriedade": 0,
             "notoriedade_maxima": 0.0,

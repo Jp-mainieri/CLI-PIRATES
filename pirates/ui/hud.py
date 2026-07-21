@@ -889,48 +889,78 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
 
 
 def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
-    """Grade fixa cobrindo os 8000×8000 inteiros.
+    """Grade fixa cobrindo o quadrante de MUNDO_QUADRANTE_TAMANHO onde o jogador está.
 
-    Em modo ADM mostra o jogador (@) e inimigos (E/e) sobre o oceano.
+    Em modo ADM mostra o jogador (@) e inimigos (E/e) sobre o oceano. Portos e
+    inimigos fora do alcance de visão do capitão (MUNDO_VISAO_PORTOS /
+    MUNDO_VISAO_INIMIGOS) não aparecem; ilhas sempre aparecem se dentro do quadrante.
 
     Returns:
         Lista de (texto, atributo_base, overlays).
     """
+    from ..constants import MUNDO_QUADRANTE_TAMANHO, MUNDO_VISAO_PORTOS, MUNDO_VISAO_INIMIGOS
+
     # 40×20 células de 1 char: visualmente quadrado (chars ~2× mais altos que largos)
     GRID_W, GRID_H = 40, 20
 
     grid = [['~'] * GRID_W for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
+    qi = qj = 0
+    n_quadrantes = int(MUNDO_TAMANHO // MUNDO_QUADRANTE_TAMANHO)
     if estado_mundo is not None:
-        def _world_to_cell(wx: float, wy: float) -> tuple[int, int]:
-            col = int(wx / MUNDO_TAMANHO * GRID_W) % GRID_W
-            row = int((1.0 - wy / MUNDO_TAMANHO) * GRID_H) % GRID_H
+        qx = (estado_mundo.jogador_x // MUNDO_QUADRANTE_TAMANHO) * MUNDO_QUADRANTE_TAMANHO
+        qy = (estado_mundo.jogador_y // MUNDO_QUADRANTE_TAMANHO) * MUNDO_QUADRANTE_TAMANHO
+        qi = int(qx // MUNDO_QUADRANTE_TAMANHO)
+        qj = int(qy // MUNDO_QUADRANTE_TAMANHO)
+
+        def _no_quadrante(wx: float, wy: float) -> tuple[int, int] | None:
+            lx = (wx - qx) % MUNDO_TAMANHO
+            ly = (wy - qy) % MUNDO_TAMANHO
+            if lx >= MUNDO_QUADRANTE_TAMANHO or ly >= MUNDO_QUADRANTE_TAMANHO:
+                return None
+            col = int(lx / MUNDO_QUADRANTE_TAMANHO * GRID_W) % GRID_W
+            row = int((1.0 - ly / MUNDO_QUADRANTE_TAMANHO) * GRID_H) % GRID_H
             return col, row
 
-        # Portos [P] — visíveis fora do combate
+        jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
+
+        # Portos [P] — visíveis fora do combate, dentro do quadrante e do alcance de visão
         if not getattr(estado_mundo, 'em_combate', False):
             for porto in getattr(estado_mundo, 'portos', []):
-                col, row = _world_to_cell(porto.x, porto.y)
+                if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) > MUNDO_VISAO_PORTOS:
+                    continue
+                cel = _no_quadrante(porto.x, porto.y)
+                if cel is None:
+                    continue
+                col, row = cel
                 grid[row][col] = 'P'
                 _attr_porto_mw = (_curses.color_pair(COR_VERDE) if (estado.cores_ativo and _curses) else 0)
                 overlays_por_linha[row].append((max(0, col - 1), '[P]', _attr_porto_mw))
 
-        # Ilhas [#] — sempre visíveis
+        # Ilhas [#] — sempre visíveis se dentro do quadrante (hazard físico, sem gate de visão)
         _attr_ilha_mw = (_curses.color_pair(COR_ILHA) if (estado.cores_ativo and _curses) else 0)
         for ilha in getattr(estado_mundo, 'ilhas', []):
-            col, row = _world_to_cell(ilha.x, ilha.y)
+            cel = _no_quadrante(ilha.x, ilha.y)
+            if cel is None:
+                continue
+            col, row = cel
             grid[row][col] = '#'
             overlays_por_linha[row].append((max(0, col - 1), '[#]', _attr_ilha_mw))
 
-        # Jogador — sempre visível
-        col, row = _world_to_cell(estado_mundo.jogador_x, estado_mundo.jogador_y)
+        # Jogador — sempre visível (está sempre dentro do próprio quadrante)
+        col, row = _no_quadrante(jx, jy)
         grid[row][col] = '@'
         overlays_por_linha[row].append((col, '@', cor_navio(estado, e_jogador=True)))
 
-        # Inimigos — sempre visíveis
+        # Inimigos — dentro do quadrante e do alcance de visão do capitão
         for navio in estado_mundo.inimigos:
-            col, row = _world_to_cell(navio.x, navio.y)
+            if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > MUNDO_VISAO_INIMIGOS:
+                continue
+            cel = _no_quadrante(navio.x, navio.y)
+            if cel is None:
+                continue
+            col, row = cel
             if navio.status == "afundado":
                 grid[row][col] = 'x'
                 if navio.loot is not None:
@@ -949,13 +979,16 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 grid[row][col] = glifo
                 overlays_por_linha[row].append((col, glifo, attr))
 
-    # Destroços do jogador [*] no mapa mundo — vermelho
-    for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
-        col, row = _world_to_cell(wx, wy)
-        grid[row][col] = '*'
-        attr = (_curses.color_pair(COR_VERMELHO)
-                if (estado.cores_ativo and _curses) else 0)
-        overlays_por_linha[row].append((max(0, col - 1), '*', attr))
+        # Destroços do jogador [*] no mapa mundo — vermelho
+        for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
+            cel = _no_quadrante(wx, wy)
+            if cel is None:
+                continue
+            col, row = cel
+            grid[row][col] = '*'
+            attr = (_curses.color_pair(COR_VERMELHO)
+                    if (estado.cores_ativo and _curses) else 0)
+            overlays_por_linha[row].append((max(0, col - 1), '*', attr))
 
     # W/E nos lados da linha central
     mid = GRID_H // 2
@@ -966,7 +999,11 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     if getattr(estado_mundo, 'em_combate', False):
         titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
     else:
-        titulo_mapa = "=== MAPA MUNDO (8km×8km)  [@ voce  E inimigo  e fugindo  [x] afundado  [*] seu navio  [P] porto  [#] ilha] ==="
+        titulo_mapa = (
+            f"=== MAPA MUNDO — Quadrante ({qi},{qj})/{n_quadrantes}x{n_quadrantes} "
+            "(32km×32km total)  [@ voce  E inimigo  e fugindo  [x] afundado  "
+            "[*] seu navio  [P] porto  [#] ilha] ==="
+        )
     linhas: list[tuple] = [(titulo_mapa, 0, [])]
     linhas.append(("N".center(GRID_W), 0, []))
     for i, row in enumerate(grid):

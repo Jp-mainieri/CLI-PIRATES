@@ -260,13 +260,18 @@ TEMPO_FUGA_ESCAPE_SEG = 15.0
 # Mundo aberto (esqueleto mínimo)
 # ---------------------------------------------------------------------------
 
-MUNDO_TAMANHO = 8000.0
-"""Lado do mundo aberto toroidal, em unidades de jogo (8km)."""
+MUNDO_TAMANHO = 32000.0
+"""Lado do mundo aberto toroidal, em unidades de jogo (32km, grade 4x4 de
+quadrantes de MUNDO_QUADRANTE_TAMANHO)."""
 
-MUNDO_NUM_INIMIGOS = 8
+MUNDO_QUADRANTE_TAMANHO = 8000.0
+"""Lado de cada quadrante do mapa-mundo (8km). O mapa-mundo (tecla [M]) mostra
+apenas o quadrante onde o jogador está, não o mundo inteiro."""
+
+MUNDO_NUM_INIMIGOS = 32
 """Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
 
-MUNDO_ESPACAMENTO_MIN = 1000.0
+MUNDO_ESPACAMENTO_MIN = 4000.0
 """Distância mínima entre navios inimigos entre si e do jogador ao sortear
 novas posições de spawn."""
 
@@ -281,22 +286,28 @@ MUNDO_ALCANCE_VISAO_FUGA = 900.0
 """Distância dentro da qual um navio em modo fuga no mundo foge ativamente
 do jogador."""
 
+MUNDO_VISAO_PORTOS = 5000.0
+"""Alcance de detecção do capitão para portos no mapa-mundo."""
+
+MUNDO_VISAO_INIMIGOS = 3600.0
+"""Alcance de detecção do capitão para navios inimigos no mapa-mundo."""
+
 MUNDO_TICK = 0.5
 """Intervalo de simulação do mundo em navegação livre (mesmo valor de SIM_TICK)."""
 
-MUNDO_NUM_PORTOS = 2
+MUNDO_NUM_PORTOS = 8
 """Número de portos fixos espalhados pelo mundo."""
 
-MUNDO_NUM_ILHAS = 10
+MUNDO_NUM_ILHAS = 48
 """Número de ilhas espalhadas pelo mundo (geração determinística)."""
 
 ILHA_RAIO_MIN = 150.0
 """Raio base mínimo de uma ilha, em unidades de jogo."""
 
-ILHA_RAIO_MAX = 400.0
+ILHA_RAIO_MAX = 1000.0
 """Raio base máximo de uma ilha, em unidades de jogo."""
 
-ILHA_PORTO_EXCLUSAO = 800.0
+ILHA_PORTO_EXCLUSAO = 2000.0
 """Distância mínima entre o centro de uma ilha e o spawn do jogador ou qualquer porto."""
 
 DANO_COLISAO_BASE = 6.0
@@ -649,7 +660,8 @@ COMO_JOGAR_TEXTO = [
     "COMO JOGAR",
     "",
     "CLI PIRATES e um jogo naval em tempo real. Voce navega um mundo",
-    "aberto de 8km x 8km, enfrenta inimigos, coleta loot e administra",
+    "aberto de 32km x 32km (dividido em quadrantes de 8km), enfrenta",
+    "inimigos, coleta loot e administra",
     "recursos (polvora, bolas, tabuas, ouro) no porao do seu navio.",
     "",
     "NAVIOS   Chalupa (dificuldade 1): 2 trip, 1 canhao/lado, 6 slots porao",
@@ -674,7 +686,7 @@ COMO_JOGAR_TEXTO = [
     "  Navios de qualquer porto.",
     "",
     "MUNDO ABERTO",
-    "  M              alterna mapa de navegacao / mapa mundo (8km)",
+    "  M              alterna mapa de navegacao / mapa mundo (quadrante 8km)",
     "  V              abre o inventario do porao",
     "  ESC            volta ao menu",
     "  mapa / radar   mesmo que M / leitura do inimigo mais proximo",
