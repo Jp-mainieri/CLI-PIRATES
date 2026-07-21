@@ -322,7 +322,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
         return agua
 
     d_real = distancia(jogador, inimigo)
-    alcance_visual = 1800
+    alcance_visual = 3600
     if d_real > alcance_visual:
         return agua
 
@@ -815,7 +815,7 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     from types import SimpleNamespace
     from ..constants import NAVIO_TIPOS
 
-    ALCANCE_VISUAL = 1800.0
+    ALCANCE_VISUAL = 3600.0
     jx = estado_mundo.jogador_x
     jy = estado_mundo.jogador_y
 
@@ -856,7 +856,7 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     linhas = build_vista_linhas(estado, inimigo_vista=inimigo_vista, jogador_vista=jogador_vista)
 
     # Porto na visão do capitão quando próximo (1000m)
-    ALCANCE_VISUAL_PORTO = 1000.0
+    ALCANCE_VISUAL_PORTO = 2000.0
     if not getattr(estado_mundo, 'em_combate', False):
         from types import SimpleNamespace as _NS
         for porto in getattr(estado_mundo, 'portos', []):
