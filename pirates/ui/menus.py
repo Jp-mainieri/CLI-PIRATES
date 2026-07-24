@@ -448,7 +448,7 @@ def tela_historico(stdscr, historico: list[dict]) -> None:
                 minutos = duracao // 60
                 segundos = duracao % 60
                 causa = h.get("causa_morte") or "desconhecida"
-                not_max = h.get("notoriedade_maxima", 0)
+                not_max = int(h.get("notoriedade_maxima", 0))
                 linha = (
                     f"{h['nome_capitao']:<20s}  "
                     f"Causa: {causa:<14s}  "
