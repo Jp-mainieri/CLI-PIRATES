@@ -969,7 +969,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 else:
                     attr = (_curses.color_pair(COR_JOGADOR)
                             if (estado.cores_ativo and _curses) else 0)
-                overlays_por_linha[row].append((max(0, col - 1), 'x', attr))
+                overlays_por_linha[row].append((col, 'x', attr))
             elif navio.status == "fugindo":
                 glifo, attr = 'e', cor_navio(estado, e_jogador=False)
                 grid[row][col] = glifo
@@ -991,23 +991,24 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             overlays_por_linha[row].append((max(0, col - 1), '*', attr))
 
     # W/E nos lados da linha central
-    mid = GRID_H // 2
-    grid[mid][0] = 'W'
-    grid[mid][GRID_W - 1] = 'E'
+    midY = GRID_H // 2
+    midX = GRID_W // 2
+    grid[midY][0] = 'W'
+    grid[midY][GRID_W - 1] = 'E'
+    grid[0][midX - 1] = 'N'
+    grid[GRID_H - 1][midX] = 'S'
 
     attr_mar = cor_mar(estado)
     if getattr(estado_mundo, 'em_combate', False):
-        titulo_mapa = "=== MAPA MUNDO — COMBATE  [@ voce  E inimigo] ==="
+        titulo_mapa = "=== MAPA MUNDO — COMBATE ==="
     else:
         titulo_mapa = (
-            f"=== MAPA MUNDO — Quadrante ({qi},{qj})/{n_quadrantes}x{n_quadrantes} "
-            "(32km×32km total)  [@ voce  E inimigo  e fugindo  [x] afundado  "
-            "[*] seu navio  [P] porto  [#] ilha] ==="
+            f"=========== MAPA MUNDO ({qi},{qj}) ==========="
         )
-    linhas: list[tuple] = [(titulo_mapa, 0, [])]
-    linhas.append(("N".center(GRID_W), 0, []))
+        legenda_mapa = ("[ @ voce | E inimigo | P porto | # ilha]"
+        )
+    linhas: list[tuple] = [(titulo_mapa, 0, []), (legenda_mapa, 0, []),('', 0, [])]
     for i, row in enumerate(grid):
         linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
-    linhas.append(("S".center(GRID_W), 0, []))
     linhas.append(("[M] fecha", 0, []))
     return linhas
