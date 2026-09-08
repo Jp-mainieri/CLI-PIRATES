@@ -13,6 +13,7 @@ from ..constants import (
     PARTES, NAVIO_TIPOS,
     IA_VENTO_MARGEM_SAIDA_GRAUS, IA_VENTO_CORRECAO_MAX_GRAUS,
     IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
+    IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE, IA_ILHA_HISTERESE,
 )
 from ..core.utils import clamp
 from ..core.combat import distancia, rumo_para, dentro_do_arco
@@ -64,15 +65,76 @@ def _ajustar_heading_vento(
     return candidato_mais if ang_mais >= ang_menos else candidato_menos
 
 
+def _lado_pronto(estado, lado: str) -> int:
+    """Quantos canhões de *lado* já estão fora do cooldown."""
+    return sum(
+        1 for c in estado.inimigo.canhoes[lado]
+        if estado.tempo >= c.proximo_tiro
+    )
+
+
+def _escolher_lado_bordada(estado) -> str:
+    """Escolhe qual bordada apresentar ao jogador, com histerese.
+
+    Mantém o lado atual enquanto ele tiver algum canhão carregado; troca
+    para o lado oposto assim que o atual descarrega e o outro tem carga.
+    Isso faz o inimigo virar de bordo entre as salvas em vez de expor a
+    vida inteira o mesmo costado (o que deixava metade dos canhões
+    permanentemente ociosos).
+    """
+    atual = estado.ia_lado_bordada
+    oposto = 'bombordo' if atual == 'estibordo' else 'estibordo'
+    if _lado_pronto(estado, atual) == 0 and _lado_pronto(estado, oposto) > 0:
+        estado.ia_lado_bordada = oposto
+    return estado.ia_lado_bordada
+
+
+def _escolher_modo_movimento(estado, d: float) -> str:
+    """Decide entre 'aproximar', 'circular' e 'afastar' com histerese.
+
+    Os limiares de entrada são IA_DIST_APROXIMAR/IA_DIST_AFASTAR, mas pra
+    voltar a 'circular' a distância precisa cruzar IA_DIST_HISTERESE metros
+    além do limiar. Sem isso um navio parado em cima do limiar alterna de
+    modo a cada tick e nunca completa a manobra.
+    """
+    modo = estado.ia_modo_movimento
+    if modo == 'aproximar':
+        if d <= IA_DIST_APROXIMAR - IA_DIST_HISTERESE:
+            modo = 'circular'
+    elif modo == 'afastar':
+        if d >= IA_DIST_AFASTAR + IA_DIST_HISTERESE:
+            modo = 'circular'
+    else:
+        if d > IA_DIST_APROXIMAR:
+            modo = 'aproximar'
+        elif d < IA_DIST_AFASTAR:
+            modo = 'afastar'
+    estado.ia_modo_movimento = modo
+    return modo
+
+
+def _ajustar_velas(navio, nivel: int) -> None:
+    """Coloca todos os slots de vela equipados de *navio* em *nivel* (0-2).
+
+    Slots vazios (``tipo is None``) são ignorados.
+    """
+    for slot in navio.slots_vela:
+        if slot["tipo"] is not None:
+            slot["nivel"] = nivel
+
+
 def atualizar_ia_movimento(estado, dt: float) -> None:
     """Atualiza o heading alvo e o nível de vela do navio inimigo.
 
     Comportamento normal:
-    - Longe (>280m): aproxima em velocidade máxima.
-    - Perto (<150m): afasta para manter distância de combate.
-    - Faixa ideal (150-280m): circula lateralmente com estibordo ao jogador.
+    - Longe (>280m): aproxima em velocidade máxima (velas cheias).
+    - Perto (<150m): afasta para manter distância de combate (velas cheias).
+    - Faixa ideal (150-280m): circula lateralmente apresentando ao jogador
+      a bordada carregada (ver `_escolher_lado_bordada`), com velas a meio
+      pau para manter a plataforma de tiro estável.
 
-    Comportamento em fuga: foge na direção oposta ao jogador a todo vapor.
+    Comportamento em fuga: foge na direção oposta ao jogador a todo vapor
+    (velas cheias), desviando de ilhas no caminho.
 
     Args:
         estado: Estado atual do jogo.
@@ -87,32 +149,47 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
 
     if estado.inimigo_em_fuga:
         inimigo.heading_alvo = (r + 180) % 360
-        inimigo.heading_alvo = _ajustar_heading_vento(
-            inimigo.heading_alvo, estado.vento_direcao,
-            IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
-        )
-        return
-
-    if d > 280:
+        _ajustar_velas(inimigo, 2)
+        correcao_max = IA_VENTO_CORRECAO_MAX_FUGA_GRAUS
+    elif _escolher_modo_movimento(estado, d) == 'aproximar':
         inimigo.heading_alvo = r
-    elif d < 150:
+        _ajustar_velas(inimigo, 2)
+        correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
+    elif estado.ia_modo_movimento == 'afastar':
         inimigo.heading_alvo = (r + 180) % 360
-    else:  # 150-280m: circula lateralmente com estibordo voltado ao jogador
-        inimigo.heading_alvo = (r + 90) % 360
+        _ajustar_velas(inimigo, 2)
+        correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
+    else:
+        # Faixa de bordada: circula apresentando o costado que ainda tem carga.
+        # Estibordo é o centro do arco em rel=90 (combat.eficiencia_angular),
+        # logo o heading precisa ser r-90; bombordo é r+90.
+        lado = _escolher_lado_bordada(estado)
+        offset = -90 if lado == 'estibordo' else 90
+        inimigo.heading_alvo = (r + offset) % 360
+        _ajustar_velas(inimigo, 1)
+        correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
 
     inimigo.heading_alvo = _ajustar_heading_vento(
-        inimigo.heading_alvo, estado.vento_direcao,
-        IA_VENTO_CORRECAO_MAX_GRAUS,
+        inimigo.heading_alvo, estado.vento_direcao, correcao_max,
     )
 
-    # Evasão de ilhas em combate (personalidade via ia_island_avoidance_mult)
-    for ilha in getattr(estado, 'ilhas_arena', []):
+    # Evasão de ilhas em combate (personalidade via ia_island_avoidance_mult).
+    # Histerese: enquanto já estiver evadindo uma ilha, o raio de gatilho é
+    # ampliado por IA_ILHA_HISTERESE, senão a IA entra e sai da evasão a cada
+    # tick na borda do raio e fica oscilando de rumo sem se afastar.
+    evadindo = None
+    for idx, ilha in enumerate(getattr(estado, 'ilhas_arena', [])):
         _idx = inimigo.x - ilha.x
         _idy = inimigo.y - ilha.y
         dist_ilha = math.hypot(_idx, _idy)
-        if dist_ilha < ilha.raio_maximo * estado.ia_island_avoidance_mult:
+        raio = ilha.raio_maximo * estado.ia_island_avoidance_mult
+        if idx == estado.ia_ilha_evadindo:
+            raio *= IA_ILHA_HISTERESE
+        if dist_ilha < raio:
             inimigo.heading_alvo = math.degrees(math.atan2(_idx, _idy)) % 360
+            evadindo = idx
             break
+    estado.ia_ilha_evadindo = evadindo
 
 
 def _crewar_canhoes(estado, inimigo, restante: int) -> None:

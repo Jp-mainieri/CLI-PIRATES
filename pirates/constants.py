@@ -112,6 +112,24 @@ IA_VENTO_CORRECAO_MAX_FUGA_GRAUS = 70.0
 """Correção máxima de rumo (graus) em modo fuga – maior que em combate
 normal, porque velocidade importa mais que manter a direção exata oposta
 ao jogador quando fugindo. Placeholder – não calibrado."""
+
+IA_DIST_APROXIMAR = 280.0
+"""Acima desta distância (m) a IA fecha a distância com o jogador."""
+
+IA_DIST_AFASTAR = 150.0
+"""Abaixo desta distância (m) a IA abre distância do jogador. Entre
+IA_DIST_AFASTAR e IA_DIST_APROXIMAR ela circula dando a bordada."""
+
+IA_DIST_HISTERESE = 30.0
+"""Margem (m) que a distância precisa cruzar de volta pra IA sair do modo
+aproximar/afastar. Sem ela o navio parado em cima de um dos limiares
+troca de modo a cada tick e nunca completa a manobra. Placeholder – não
+calibrado."""
+
+IA_ILHA_HISTERESE = 1.25
+"""Multiplicador aplicado ao raio de evasão enquanto a IA já está
+evadindo uma ilha: ela só considera a ilha livre depois de se afastar
+25% além do raio que disparou a evasão. Placeholder – não calibrado."""
 # ---------------------------------------------------------------------------
 # Deriva lateral (doc09_deriva.md)
 # ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 """simulation.py – Tick do mundo aberto e transformações de coordenadas."""
 
 import math
-import random
 
 from ..constants import MUNDO_TAMANHO, NAVIO_TIPOS, PESO_CASCO, AREA_CASCO
 from .entities import NavioMundo
@@ -39,10 +38,10 @@ def atualizar_ia_mundo(
     Usa a mesma física de vento/slots de vela/deriva do combate (ver
     pirates/core/movimento.py), com wraparound toroidal no lugar de
     clamp. Comportamento de patrulha: a cada tick com 5% de chance sorteia
-    novo heading e cruza mais devagar (1/3 do teto físico via
+    novo heading (via `estado_mundo._rng_ia`, determinístico pela seed) e cruza mais devagar (1/3 do teto físico via
     `fator_vmax_extra`). Comportamento de fuga: se dentro de
-    MUNDO_ALCANCE_VISAO_FUGA, corre na direção oposta ao jogador em
-    velocidade física plena. Fora disso, comportamento de patrulha (mas
+    MUNDO_ALCANCE_VISAO_FUGA, corre na direção oposta ao jogador com as
+    velas cheias, em velocidade física plena. Fora disso, comportamento de patrulha (mas
     mantém status 'fugindo' para preservar partes/agua/moral).
 
     Args:
@@ -66,9 +65,13 @@ def atualizar_ia_mundo(
             rumo_pro_jogador = math.degrees(math.atan2(dx, dy)) % 360
             navio.heading_alvo = (rumo_pro_jogador + 180) % 360
             fator_vmax_extra = 1.0
+            # Fugir a todo vapor: iça todas as velas equipadas.
+            for slot in navio.slots_vela:
+                if slot["tipo"] is not None:
+                    slot["nivel"] = 2
         else:
-            if random.random() < 0.05:
-                navio.heading_alvo = random.uniform(0, 360)
+            if estado_mundo._rng_ia.random() < 0.05:
+                navio.heading_alvo = estado_mundo._rng_ia.uniform(0, 360)
             fator_vmax_extra = 1.0 / 3.0
 
         # Evasão de ilhas (personalidade via avoidance_mult)

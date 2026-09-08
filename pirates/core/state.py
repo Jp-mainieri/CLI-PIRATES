@@ -40,6 +40,12 @@ class Estado:
         ia_limiar_casco:   HP de casco que dispara o reparo da IA.
         ia_limiar_fuga_entrada: Moral abaixo da qual o inimigo entra em modo fuga.
         ia_limiar_fuga_saida:   Moral acima da qual o inimigo sai do modo fuga.
+        ia_lado_bordada:   Lado ('estibordo'/'bombordo') que a IA apresenta ao
+            jogador ao circular; alterna quando o lado atual esgota a carga.
+        ia_modo_movimento: 'aproximar' | 'circular' | 'afastar' — modo de
+            manobra atual da IA, mantido entre ticks para dar histerese.
+        ia_ilha_evadindo: Índice em `ilhas_arena` da ilha que a IA está
+            contornando agora, ou None.
         inimigo_em_fuga:   True quando o inimigo está tentando escapar.
         tempo_fuga_longe:  Segundos que o inimigo ficou além de ALCANCE_FUGA_ESCAPE.
         jogador_tentando_fugir: True quando o jogador está tentando escapar (comando 'fugir').
@@ -164,6 +170,9 @@ class Estado:
         )
         self.frota.indice_ativo = 0
         self.ia_island_avoidance_mult: float = random.uniform(1.5, 3.0)
+        self.ia_lado_bordada: str = random.choice(('estibordo', 'bombordo'))
+        self.ia_modo_movimento: str = 'circular'
+        self.ia_ilha_evadindo: int | None = None
         self.ilhas_arena: list = []
         self.em_colisao_ilha_inimigo: bool = False
 

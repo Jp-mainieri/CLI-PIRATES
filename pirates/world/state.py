@@ -38,6 +38,10 @@ class EstadoMundo:
             seed = random.randint(0, 2**31 - 1)
         self.seed_mundo: int = seed
         self._rng = random.Random(seed)
+        # RNG separado pra IA de patrulha: mantém o layout do mundo (portos,
+        # ilhas) independente de quantos ticks de IA já rodaram, e mantém a
+        # patrulha determinística pela seed em vez do RNG global.
+        self._rng_ia = random.Random(seed ^ 0x1A1A)
         self.notoriedade: float = 0.0
         self.notoriedade_maximo: float = 0.0
         self.horas_na_faixa8: float = 0.0

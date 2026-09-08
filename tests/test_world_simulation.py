@@ -2,6 +2,8 @@
 
 import math
 
+import random
+
 import pytest
 
 from pirates.constants import MUNDO_TAMANHO, MUNDO_ALCANCE_VISAO_FUGA
@@ -134,10 +136,9 @@ class TestAtualizarIaMundo:
         assert navio.heading_alvo == pytest.approx(90.0, abs=1.0)
 
     def test_vento_reduz_velocidade_na_zona_morta(self, monkeypatch):
-        # Trava o inimigo em patrulha sem re-sortear heading_alvo (5% de chance/tick).
-        monkeypatch.setattr("pirates.world.simulation.random.random", lambda: 1.0)
-
         em = EstadoMundo("brigantim")
+        # Trava o inimigo em patrulha sem re-sortear heading_alvo (5% de chance/tick).
+        monkeypatch.setattr(em._rng_ia, "random", lambda: 1.0)
         for n in em.inimigos:
             n.status = "patrulha"
             n.heading = 0.0
@@ -209,3 +210,36 @@ class TestArenaParaMundo:
         wx, wy = arena_para_mundo(ox, oy, dx, dy)
         assert wx == pytest.approx(navio.x)
         assert wy == pytest.approx(navio.y)
+
+
+class TestPatrulhaDeterministica:
+    """A patrulha deve depender da seed, não do RNG global."""
+
+    def _rodar(self, seed, ticks=40):
+        em = EstadoMundo("brigantim", seed=seed)
+        # O spawn de inimigos (tipo, elite, posição) é intencionalmente
+        # aleatório e fora do contrato da seed — normalizamos a frota pra
+        # isolar exatamente o que deve ser determinístico: a patrulha.
+        em.inimigos = [
+            NavioMundo(x=1000.0 + 500 * i, y=2000.0, heading=0.0,
+                       avoidance_mult=2.0, tipo_navio="brigantim", elite=False,
+                       slots_vela=gerar_slots_fabrica("brigantim"))
+            for i in range(3)
+        ]
+        for n in em.inimigos:
+            n.status = "patrulha"
+        for _ in range(ticks):
+            atualizar_ia_mundo(em, 0.5)
+        return [(n.x, n.y, n.heading) for n in em.inimigos]
+
+    def test_mesma_seed_mesma_trajetoria(self):
+        assert self._rodar(1234) == self._rodar(1234)
+
+    def test_mesma_seed_imune_ao_rng_global(self):
+        a = self._rodar(1234)
+        random.seed(999)
+        [random.random() for _ in range(50)]
+        assert self._rodar(1234) == a
+
+    def test_seeds_diferentes_trajetorias_diferentes(self):
+        assert self._rodar(1234) != self._rodar(4321)
