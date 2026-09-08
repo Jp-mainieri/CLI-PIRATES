@@ -48,12 +48,12 @@ def empuxo_lateral_vento(
 def zona_vento(angulo_relativo: float) -> str:
     """Nome da zona (doc08_vento.md seção 2) pro ângulo relativo dado."""
     if angulo_relativo <= 45:
-        return "zona_morta"
+        return "ZM"
     if angulo_relativo <= 90:
-        return "bolina"
+        return "B"
     if angulo_relativo <= 135:
-        return "traves"
-    return "popa"
+        return "T"
+    return "P"
 
 
 def eficiencia_zona(tabela_zonas: dict, angulo_relativo: float) -> float:

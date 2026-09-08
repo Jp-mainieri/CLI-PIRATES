@@ -37,7 +37,7 @@ from .input.hotkeys import processar_hotkey
 from .core.simulation import atualizar_simulacao
 from .ui.renderer import desenhar_tela, desenhar_tela_mundo
 from .saves import (
-    criar_novo_save, salvar, carregar, restaurar_estado,
+    criar_novo_save, salvar, carregar, restaurar_estado, tipo_navio_ativo,
     listar_saves_ativos, listar_historico,
     salvar_resultado_arena, listar_arena_historico,
     melhor_faixa_notoriedade_alcancada, melhor_vitorias_arena,
@@ -343,7 +343,13 @@ def mundo_loop(
         estado, estado_mundo = restaurar_estado(data, config)
         params = NAVIO_TIPOS[estado_mundo.tipo_navio]
     else:
-        tipo_navio = config["tipo_navio"]
+        if slug is not None:
+            # Capitao recem-criado: o tipo escolhido em tela_navio ja foi gravado
+            # no save por criar_novo_save. config["tipo_navio"] e um default fixo
+            # e nunca reflete essa escolha.
+            tipo_navio = tipo_navio_ativo(carregar(slug))
+        else:
+            tipo_navio = config["tipo_navio"]
         params = NAVIO_TIPOS[tipo_navio]
         estado = Estado(
             tipo_navio=tipo_navio,
@@ -1010,9 +1016,12 @@ def main(stdscr) -> None:
 def run() -> None:
     """Ponto de entrada instalável via pyproject.toml [project.scripts]."""
     import sys
+    import os
     signal.signal(signal.SIGINT, _sigint_handler)
     signal.signal(signal.SIGTERM, _sigint_handler)
     try:
+        sys.stdout.write(f'\x1b[8;{52};{128}t')
+        sys.stdout.flush()
         _curses.wrapper(main)
     except (KeyboardInterrupt, SystemExit):
         pass

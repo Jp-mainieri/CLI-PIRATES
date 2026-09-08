@@ -24,12 +24,12 @@ class TestDeltaToroidal:
         assert dy == pytest.approx(200.0)
 
     def test_wrap_x(self):
-        # De 10 → 7990 pelo wrap: dx = -20
-        dx, dy = delta_toroidal(10, 0, 7990, 0)
+        # De 10 → MUNDO_TAMANHO-10 pelo wrap: dx = -20
+        dx, dy = delta_toroidal(10, 0, MUNDO_TAMANHO - 10, 0)
         assert dx == pytest.approx(-20.0)
 
     def test_wrap_y(self):
-        dy_wrap = delta_toroidal(0, 10, 0, 7990)[1]
+        dy_wrap = delta_toroidal(0, 10, 0, MUNDO_TAMANHO - 10)[1]
         assert dy_wrap == pytest.approx(-20.0)
 
     def test_sem_wrap_diagonal(self):

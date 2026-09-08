@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .constants import MUNDO_TAMANHO
+
 if TYPE_CHECKING:
     from .core.state import Estado
     from .world.state import EstadoMundo
@@ -281,8 +283,8 @@ def criar_novo_save(nome: str, tipo_navio: str) -> tuple[str, int]:
             "rastro_ativo": True,
         },
         "capitao": {
-            "x": 4000.0,
-            "y": 4000.0,
+            "x": MUNDO_TAMANHO / 2,
+            "y": MUNDO_TAMANHO / 2,
             "heading": 0.0,
             "notoriedade": 0,
             "notoriedade_maxima": 0.0,
@@ -351,7 +353,7 @@ def carregar(slug: str) -> dict:
     return data
 
 
-def _tipo_navio_ativo(d: dict) -> str:
+def tipo_navio_ativo(d: dict) -> str:
     """Tipo do navio ATIVO da frota (não o tipo original do capitão, que
     não existe mais como campo solto — ver frota[frota_indice_ativo])."""
     frota = d.get("frota", [])
@@ -369,7 +371,7 @@ def listar_saves_ativos() -> list[dict]:
             saves.append({
                 "slug": d.get("slug", p.stem),
                 "nome_capitao": d.get("nome_capitao", p.stem),
-                "tipo_navio": _tipo_navio_ativo(d),
+                "tipo_navio": tipo_navio_ativo(d),
                 "atualizado_em": d.get("atualizado_em", ""),
             })
         except (json.JSONDecodeError, KeyError):

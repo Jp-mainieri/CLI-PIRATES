@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ..constants import MUNDO_TAMANHO
+
 if TYPE_CHECKING:
     from ..core.porao import Porao
 
@@ -30,7 +32,7 @@ class Ilha:
         return self.raio_base * (1.0 + max(self.a1, self.a2, self.a3))
 
 
-def eh_solido_ilha(x: float, y: float, ilha: Ilha, mundo_tamanho: float = 8000.0) -> bool:
+def eh_solido_ilha(x: float, y: float, ilha: Ilha, mundo_tamanho: float = MUNDO_TAMANHO) -> bool:
     """Retorna True se (x, y) está dentro da ilha (usando forma harmônica).
 
     Passa mundo_tamanho=1e9 para desativar o wraparound toroidal (coords de arena).
