@@ -37,16 +37,25 @@ def preco_upgrade_nivel(chave: str, nivel_atual: int) -> float:
 # ---------------------------------------------------------------------------
 
 UPGRADE_NIVEIS_MAX: dict[str, dict[str, int]] = {
-    "chalupa":   {"casco_max": 2, "cooldown": 1, "porao_slot": 1,
+    "chalupa":   {"casco_max": 3, "cooldown": 2, "porao_slot": 1,
                 "tripulante_extra": 1, "velocidade_giro": 1, "alcance_canhao": 1,
                 "capacidade_barril_ouro": 4},
     "brigantim": {"casco_max": 3, "cooldown": 2, "porao_slot": 2,
                 "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2,
                 "capacidade_barril_ouro": 8},
-    "galeao":    {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
+    "galeao":    {"casco_max": 3, "cooldown": 2, "porao_slot": 3,
                 "tripulante_extra": 1, "velocidade_giro": 3, "alcance_canhao": 3,
                 "capacidade_barril_ouro": 16},
 }
+"""Teto de níveis de cada upgrade por tipo de navio.
+
+`casco_max` e `cooldown` são iguais nos três de propósito: eles atuam nos
+mesmos eixos que `resist_casco` e `cooldown_mult` já diferenciam no perfil
+base, então tetos assimétricos (antes 2/3/4 e 1/2/3, crescendo para o
+Galeão) empilhavam na mesma direção e reabriam a dominância do Galeão no
+fim do jogo — 65,5% de vitória contra um elite do mesmo tipo, contra 35,8%
+da Chalupa. Com tetos iguais a diferença cai para 3pp. Progressão específica
+por navio deve vir de um upgrade exclusivo, não de mais níveis do mesmo."""
 
 
 def nivel_max_upgrade(tipo: str, chave: str) -> int:
@@ -230,10 +239,14 @@ def aplicar_upgrade(navio, tipo_navio: str, chave: str, estado=None) -> tuple[bo
 
     # Aplica o efeito do upgrade
     if chave == "casco_max":
-        # +10 HP máx: restaura 10 pontos no casco
+        # "+10 HP máx de casco": como partes[] é sempre 0-100, o ganho é
+        # expresso como resistência (ver Navio.resistencia_casco_mult — um
+        # bônus de +X% HP equivale a dividir o dano recebido por 1+X).
+        # Antes esta chave só curava 10 pontos e não dava ganho permanente.
+        navio.upgrades['resistencia_casco'] = navio.upgrades.get('resistencia_casco', 0.0) + 0.10
         navio.partes['casco'] = min(100.0, navio.partes['casco'] + 10.0)
     elif chave == "cooldown":
-        # Armazena fração de redução; combat.py usa upgrades.get('cooldown', 0)
+        # Fração de redução de recarga; lida em combat.disparar_canhoes_navio.
         navio.upgrades['cooldown'] = navio.upgrades.get('cooldown', 0.0) + 0.1
     elif chave == "porao_slot":
         navio.porao.capacidade += 1
@@ -285,7 +298,7 @@ def comprar_item_topo(navio, chave: str, faixa_notoriedade: int) -> tuple[bool, 
 
     navio.itens_topo[chave] = True
     if chave == "casco_lendario":
-        navio.upgrades['resistencia_casco'] = navio.upgrades.get('resistencia_casco', 0.0) + 0.5
+        navio.upgrades['resistencia_casco'] = navio.upgrades.get('resistencia_casco', 0.0) + 0.25
     elif chave == "alcance_lendario":
         navio.upgrades['alcance_canhao'] = navio.upgrades.get('alcance_canhao', 0.0) + 120.0
     elif chave == "porao_lendario":
