@@ -502,10 +502,12 @@ NAVIO_TIPOS = {
         "num_velas": 1,
         "velocidade_max_base": 8.0,
         "giro_graus_seg": 45.0,
-        "cooldown_mult": 1.4,   # recarga mais lenta = mais fácil de sobreviver
+        "cooldown_mult": 0.55,  # 1 canhao por bordo: pouca gente, recarga rapida
         "erro_mira": 80.0,      # grande margem de erro na IA
         "min_crew_canhao": 1,
         "reparo_mult": 1.5,     # Chalupa repara mais rápido
+        "bomba_mult": 2.4,      # porao raso: 2 tripulantes dao conta da agua
+        "resist_casco": 0.0,    # casco fino, sem resistencia extra
         "porao_capacidade": 6,
     },
     "brigantim": {
@@ -515,10 +517,12 @@ NAVIO_TIPOS = {
         "num_velas": 3,
         "velocidade_max_base": 11.0,
         "giro_graus_seg": 25.0,
-        "cooldown_mult": 1.0,
+        "cooldown_mult": 1.1,
         "erro_mira": 40.0,
         "min_crew_canhao": 1,
         "reparo_mult": 1.0,     # Brigantim — velocidade de reparo média
+        "bomba_mult": 1.3,
+        "resist_casco": 0.15,
         "porao_capacidade": 9,
     },
     "galeao": {
@@ -528,16 +532,27 @@ NAVIO_TIPOS = {
         "num_velas": 7,
         "velocidade_max_base": 14.0,
         "giro_graus_seg": 12.0,
-        "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
+        "cooldown_mult": 1.4,   # 3 canhoes por bordo: recarga lenta por peca
         "erro_mira": 15.0,      # IA mira com precisão
         "min_crew_canhao": 1,
-        "reparo_mult": 0.7,     # Galeão repara mais devagar
+        "reparo_mult": 1.0,
+        "bomba_mult": 0.8,      # casco fundo: bombear e mais trabalhoso
+        "resist_casco": 0.45,   # casco grosso (1100 kg): absorve mais bala
         "porao_capacidade": 14,
     },
 }
 """Parâmetros de cada tipo de navio. O inimigo usa o mesmo perfil que o jogador
 (simetria total), então a dificuldade vem do gerenciamento de recursos, não de
-atributos assimétricos."""
+atributos assimétricos.
+
+`cooldown_mult` compensa a contagem de canhões em vez de amplificá-la: um
+navio com uma peça por bordo recarrega rápido, um com três recarrega devagar
+por peça. Sem isso o Galeão somava 3x mais canhões com 2x menos recarga (6x
+o dano da Chalupa), diferença que nenhum atributo defensivo compensa.
+
+`bomba_mult` e `resist_casco` são os eixos de durabilidade que NÃO podem ser
+reconvertidos em dano remanejando a tripulação — por isso a robustez do
+Galeão mora neles, e não em ter mais tripulantes."""
 
 # ---------------------------------------------------------------------------
 # Economia / Loja

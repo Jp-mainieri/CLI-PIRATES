@@ -132,6 +132,9 @@ class Navio:
         velocidade_max_base: Velocidade máxima sem dano nem velas.
         giro_graus_seg:     Taxa de giro do leme (graus/segundo).
         reparo_mult:        Multiplicador de eficiência de reparo.
+        bomba_mult:         Multiplicador de vazão das bombas por tripulante.
+        resist_casco:       Resistência de casco inerente ao tipo de navio
+                             (soma-se ao upgrade 'resistencia_casco').
         tipo_nome:          Nome do tipo de navio ('Chalupa', etc.).
         num_velas:          Número de velas (cosmético, exibido no HUD).
     """
@@ -149,6 +152,8 @@ class Navio:
         peso_casco: float = 500.0,
         area_casco: float = 16.0,
         slots_vela: list[dict] | None = None,
+        bomba_mult: float = 1.0,
+        resist_casco: float = 0.0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -164,6 +169,8 @@ class Navio:
         self.velocidade_max_base = velocidade_max_base
         self.giro_graus_seg = giro_graus_seg
         self.reparo_mult = reparo_mult
+        self.bomba_mult = bomba_mult
+        self.resist_casco = resist_casco
         self.tipo_nome: str = ""
         self.num_velas: int = 1
         self.moral_atual: float = 100.0
@@ -224,11 +231,13 @@ class Navio:
     def resistencia_casco_mult(self) -> float:
         """Multiplicador aplicado ao dano recebido no casco.
 
-        Um bônus fracionário de "+X% HP casco" (upgrades['resistencia_casco'])
-        é matematicamente equivalente a reduzir o dano recebido por um fator
-        1/(1+X), sem alterar a escala 0-100 de partes['casco'].
+        Um bônus fracionário de "+X% HP casco" é matematicamente equivalente
+        a reduzir o dano recebido por um fator 1/(1+X), sem alterar a escala
+        0-100 de partes['casco']. Soma a resistência inerente ao tipo de navio
+        (`resist_casco`) com a comprada em upgrades.
         """
-        return 1.0 / (1.0 + self.upgrades.get('resistencia_casco', 0.0))
+        return 1.0 / (1.0 + self.resist_casco
+                      + self.upgrades.get('resistencia_casco', 0.0))
 
     def atualizar_movimento(
         self, dt: float,
@@ -316,7 +325,8 @@ class Navio:
             dt:                Delta de tempo em segundos.
         """
         entrada = calcular_entrada_agua(self.partes)
-        saida = tripulantes_bomba * SAIDA_BOMBA_SEG * self.multiplicador_moral()
+        saida = (tripulantes_bomba * SAIDA_BOMBA_SEG * self.bomba_mult
+                 * self.multiplicador_moral())
         self.agua = clamp(self.agua + (entrada - saida) * dt, 0, 100)
         if self.agua >= 100:
             self.afundado = True
