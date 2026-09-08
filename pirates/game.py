@@ -571,6 +571,7 @@ def mundo_loop(
                 estado.inimigo.giro_graus_seg = params_inimigo['giro_graus_seg']
                 estado.inimigo.reparo_mult = params_inimigo['reparo_mult']
                 estado.inimigo.bomba_mult = params_inimigo['bomba_mult']
+                estado.inimigo.cooldown_mult = params_inimigo['cooldown_mult']
                 estado.inimigo.resist_casco = params_inimigo['resist_casco']
                 estado.inimigo.num_velas = params_inimigo['num_velas']
                 estado.inimigo.peso_casco = PESO_CASCO[inimigo_engajado.tipo_navio]

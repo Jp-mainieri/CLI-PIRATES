@@ -81,6 +81,7 @@ def comprar_navio(
         giro_graus_seg=params["giro_graus_seg"],
         reparo_mult=params["reparo_mult"],
         bomba_mult=params["bomba_mult"],
+        cooldown_mult=params["cooldown_mult"],
         resist_casco=params["resist_casco"],
         porao_capacidade=params["porao_capacidade"],
         peso_casco=PESO_CASCO[tipo],

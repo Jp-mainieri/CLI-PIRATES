@@ -212,6 +212,7 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
             giro_graus_seg=p["giro_graus_seg"],
             reparo_mult=p["reparo_mult"],
             bomba_mult=p["bomba_mult"],
+            cooldown_mult=p["cooldown_mult"],
             resist_casco=p["resist_casco"],
             porao_capacidade=p["porao_capacidade"],
             peso_casco=PESO_CASCO[tipo_n],

@@ -230,10 +230,14 @@ def aplicar_upgrade(navio, tipo_navio: str, chave: str, estado=None) -> tuple[bo
 
     # Aplica o efeito do upgrade
     if chave == "casco_max":
-        # +10 HP máx: restaura 10 pontos no casco
+        # "+10 HP máx de casco": como partes[] é sempre 0-100, o ganho é
+        # expresso como resistência (ver Navio.resistencia_casco_mult — um
+        # bônus de +X% HP equivale a dividir o dano recebido por 1+X).
+        # Antes esta chave só curava 10 pontos e não dava ganho permanente.
+        navio.upgrades['resistencia_casco'] = navio.upgrades.get('resistencia_casco', 0.0) + 0.10
         navio.partes['casco'] = min(100.0, navio.partes['casco'] + 10.0)
     elif chave == "cooldown":
-        # Armazena fração de redução; combat.py usa upgrades.get('cooldown', 0)
+        # Fração de redução de recarga; lida em combat.disparar_canhoes_navio.
         navio.upgrades['cooldown'] = navio.upgrades.get('cooldown', 0.0) + 0.1
     elif chave == "porao_slot":
         navio.porao.capacidade += 1

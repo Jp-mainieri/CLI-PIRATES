@@ -133,6 +133,7 @@ class Navio:
         giro_graus_seg:     Taxa de giro do leme (graus/segundo).
         reparo_mult:        Multiplicador de eficiência de reparo.
         bomba_mult:         Multiplicador de vazão das bombas por tripulante.
+        cooldown_mult:      Multiplicador de recarga dos canhões do tipo de navio.
         resist_casco:       Resistência de casco inerente ao tipo de navio
                              (soma-se ao upgrade 'resistencia_casco').
         tipo_nome:          Nome do tipo de navio ('Chalupa', etc.).
@@ -154,6 +155,7 @@ class Navio:
         slots_vela: list[dict] | None = None,
         bomba_mult: float = 1.0,
         resist_casco: float = 0.0,
+        cooldown_mult: float = 1.0,
     ) -> None:
         self.nome = nome
         self.x = x
@@ -171,6 +173,7 @@ class Navio:
         self.reparo_mult = reparo_mult
         self.bomba_mult = bomba_mult
         self.resist_casco = resist_casco
+        self.cooldown_mult = cooldown_mult
         self.tipo_nome: str = ""
         self.num_velas: int = 1
         self.moral_atual: float = 100.0
