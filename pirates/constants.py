@@ -601,7 +601,7 @@ Qualquer upgrade que não apareça usa a taxa padrão de 1.5 (ver
 lojas.preco_upgrade_nivel)."""
 
 PRECO_ITENS_TOPO = {
-    "casco_lendario":  900.0,   # +50% resistência efetiva de casco
+    "casco_lendario":  900.0,   # +25% resistência efetiva de casco
     "alcance_lendario": 700.0,  # +120m alcance (empilha com upgrade normal)
     "porao_lendario":   800.0,  # +3 slots de porão de uma vez
 }

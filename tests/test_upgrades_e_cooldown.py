@@ -40,22 +40,27 @@ class TestCooldownDoTipoDeNavio:
 
 class TestUpgradeCooldown:
     def test_cada_nivel_reduz_dez_porcento(self):
+        from pirates.port.lojas import nivel_max_upgrade
         estado = Estado(tipo_navio="galeao")
         navio = estado.jogador
         _com_ouro(navio)
-        for nivel in range(1, 4):
+        teto = nivel_max_upgrade("galeao", "cooldown")
+        assert teto >= 1
+        for nivel in range(1, teto + 1):
             ok, msg = aplicar_upgrade(navio, "galeao", "cooldown", estado=estado)
             assert ok, msg
             assert navio.upgrades["cooldown"] == pytest.approx(0.1 * nivel)
+        ok, _ = aplicar_upgrade(navio, "galeao", "cooldown", estado=estado)
+        assert ok is False, "deve recusar acima do teto"
 
     def test_reducao_chega_no_cooldown_efetivo(self):
         estado = Estado(tipo_navio="galeao")
         navio = estado.jogador
         base = COOLDOWN_CANHAO * navio.cooldown_mult
-        navio.upgrades["cooldown"] = 0.3
-        efetivo = COOLDOWN_CANHAO * navio.cooldown_mult * (1.0 - 0.3)
+        navio.upgrades["cooldown"] = 0.2
+        efetivo = COOLDOWN_CANHAO * navio.cooldown_mult * (1.0 - 0.2)
         assert efetivo < base
-        assert efetivo == pytest.approx(base * 0.7)
+        assert efetivo == pytest.approx(base * 0.8)
 
 
 class TestUpgradeCascoMax:
