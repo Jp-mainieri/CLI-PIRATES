@@ -44,7 +44,7 @@ UPGRADE_NIVEIS_MAX: dict[str, dict[str, int]] = {
                 "tripulante_extra": 1, "velocidade_giro": 2, "alcance_canhao": 2,
                 "capacidade_barril_ouro": 8},
     "galeao":    {"casco_max": 4, "cooldown": 3, "porao_slot": 3,
-                "tripulante_extra": 2, "velocidade_giro": 3, "alcance_canhao": 3,
+                "tripulante_extra": 1, "velocidade_giro": 3, "alcance_canhao": 3,
                 "capacidade_barril_ouro": 16},
 }
 

@@ -158,11 +158,11 @@ def _linha_rumo(estado, j) -> tuple[str, int, list]:
     texto = (
         f"{prefixo}{seta} "
         f"{direcao_para_heading(j.heading)} "
-        f"{j.heading:5.1f} {f'-> {j.heading_alvo:5.1f}' if j.heading != j.heading_alvo else ''}] ({zona.replace('_', ' ')})"
+        f"{j.heading:5.1f} {f'-> {j.heading_alvo:5.1f}' if j.heading != j.heading_alvo else ''}] ({zona})"
     )
     attr = 0
     if estado.cores_ativo and _curses is not None:
-        if zona == 'zona_morta':
+        if zona == 'ZM':
             attr = _curses.color_pair(COR_VERMELHO)
         elif j.eficiencia_vento_atual >= 1.0:
             attr = _curses.color_pair(COR_VERDE)
@@ -291,7 +291,7 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
 
     # Régua com overlays de cor por setor
     regua = [' '] * largura
-    marcos_ruler = {-180: 'POPA', -90: 'BOMB', 0: 'PROA', 90: 'ESTIB', 180: 'POPA'}
+    marcos_ruler = {-180: 'P', -90: 'B', 0: '^', 90: 'E', 180: 'P'}
     ruler_overlays: list[tuple] = []
     for graus, label in marcos_ruler.items():
         p = clamp(int(round((graus + 180) / 360 * (largura - 1))), 0, largura - 1)
@@ -299,11 +299,11 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
         for i, c in enumerate(label):
             regua[ini + i] = c
         if estado.cores_ativo and _curses is not None:
-            if label == 'BOMB':
+            if label == 'B':
                 ruler_overlays.append((ini, label, _curses.color_pair(COR_VERMELHO)))
-            elif label == 'ESTIB':
+            elif label == 'E':
                 ruler_overlays.append((ini, label, _curses.color_pair(COR_VERDE)))
-            elif label == 'POPA':
+            elif label == 'P':
                 ruler_overlays.append((ini, label, _curses.color_pair(COR_AMARELO)))
     ruler = ''.join(regua)
 
@@ -367,11 +367,18 @@ def build_mapa_linhas(estado) -> list[tuple]:
     """
     jogador, inimigo = estado.jogador, estado.inimigo
     unicode_on = estado.graficos_unicode
-    GRID_W, GRID_H = 13, 20
+    # Celula de 2 chars x 1 linha = 2w x 2w -> quadrada na tela (a linha do
+    # terminal vale ~2 chars de altura). Grade quadrada 19x19 sobre regiao
+    # quadrada => mesma granularidade em metros nos dois eixos.
+    GRID_W, GRID_H = 19, 19
 
-    cx = (jogador.x + inimigo.x) / 2
-    cy = (jogador.y + inimigo.y) / 2
     half_range = estado.zoom_atual or 400
+
+    # Centro ancorado na grade absoluta da arena: o ponto medio entre os navios se
+    # move a cada tick e, sem ancoragem, as ilhas mudariam de forma continuamente.
+    _lado_cel = (2 * half_range) / (GRID_W - 1)
+    cx = round(((jogador.x + inimigo.x) / 2) / _lado_cel) * _lado_cel
+    cy = round(((jogador.y + inimigo.y) / 2) / _lado_cel) * _lado_cel
 
     def to_cell(nx: float, ny: float) -> tuple[int, int]:
         gx = (nx - cx) / (2 * half_range) * (GRID_W - 1) + (GRID_W - 1) / 2
@@ -383,9 +390,9 @@ def build_mapa_linhas(estado) -> list[tuple]:
     def celula(navio, e_jogador: bool) -> str:
         glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
                  else seta_ascii_para_heading(navio.heading))
-        return ('{' + glifo + '}') if e_jogador else ('[' + glifo + ']')
+        return ('{' + glifo) if e_jogador else ('[' + glifo)
 
-    largura_celula = 3
+    largura_celula = 2
     filler = '~' * largura_celula
     grid = [[filler for _ in range(GRID_W)] for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
@@ -398,11 +405,11 @@ def build_mapa_linhas(estado) -> list[tuple]:
         for _ilha in _ilhas_arena:
             for _ri in range(GRID_H):
                 for _ci in range(GRID_W):
-                    _ax = cx + (_ci - (GRID_W - 1) / 2) * (2 * half_range) / (GRID_W - 1)
-                    _ay = cy + ((GRID_H - 1) / 2 - _ri) * (2 * half_range) / (GRID_H - 1)
+                    _ax = cx + (_ci - (GRID_W - 1) / 2) * _lado_cel
+                    _ay = cy + ((GRID_H - 1) / 2 - _ri) * _lado_cel
                     if _esi_mapa(_ax, _ay, _ilha, mundo_tamanho=1e9):
-                        grid[_ri][_ci] = '###'
-                        overlays_por_linha[_ri].append((_ci * largura_celula, '###', _attr_ilha))
+                        grid[_ri][_ci] = '##'
+                        overlays_por_linha[_ri].append((_ci * largura_celula, '##', _attr_ilha))
 
     if inimigo.vivo():
         c, r = to_cell(inimigo.x, inimigo.y)
@@ -603,7 +610,7 @@ def build_velas_linhas(estado) -> list[tuple[str, int]]:
     """Coluna com todos os slots de vela do navio, ao lado do porão
     (doc10_customizacao_vela.md §7.2), terminando com a linha DERIVA."""
     navio = estado.jogador
-    linhas: list[tuple[str, int]] = [("VELAS", 0)]
+    linhas: list[tuple[str, int]] = []
     for i, slot in enumerate(navio.slots_vela):
         marca = ">" if i == navio.slot_vela_selecionado else " "
         linhas.append((f"{marca}{i} {slot['local']:9s} {_barra_vela(slot)}", 0))
@@ -641,11 +648,16 @@ def build_porao_inventario_linhas(navio, cores: bool = True) -> list[tuple[str, 
 # HUD de mundo aberto
 # ---------------------------------------------------------------------------
 
-def _cel_mar(x_mundo: float, y_mundo: float) -> str:
-    """Char de mar determinístico por coordenada absoluta (grão de 100m)."""
-    GRAO = 100
-    xc = int(x_mundo // GRAO)
-    yc = int(y_mundo // GRAO)
+def _cel_mar(xc: int, yc: int) -> str:
+    """Char de mar determinístico para a célula de índice absoluto (*xc*, *yc*).
+
+    Recebe o índice inteiro da célula na grade do mundo, não metros. Derivar o
+    grão de uma coordenada em ponto flutuante fazia a textura piscar: o lado da
+    célula (800/9 = 88,888… m) não é exato em binário, então o mesmo ponto do
+    mundo caía ora de um lado, ora do outro da fronteira do grão conforme a
+    janela do mapa rolava. Com índice inteiro a textura é exatamente estável e
+    continua ancorada no mundo (desliza conforme o navio avança).
+    """
     # Mistura não-linear para evitar listras/clusters do XOR simples
     n = xc * 374761393 + yc * 668265263 + xc * yc * 1013904223
     n = n ^ (n >> 16)
@@ -685,14 +697,28 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     """
     from ..constants import MUNDO_ZOOM_NAV_FIXO
 
-    GRID_W, GRID_H = 13, 20
+    # Celula de 2 chars x 1 linha = 2w x 2w -> quadrada na tela (a linha do
+    # terminal vale ~2 chars de altura). Grade quadrada 19x19 sobre regiao
+    # quadrada => mesma granularidade em metros nos dois eixos.
+    GRID_W, GRID_H = 19, 19
     half_range = MUNDO_ZOOM_NAV_FIXO
-    largura_celula = 3
+    largura_celula = 2
     unicode_on = getattr(estado, 'graficos_unicode', False)
 
     jx = estado_mundo.jogador_x
     jy = estado_mundo.jogador_y
     em_combate = getattr(estado_mundo, 'em_combate', False)
+
+    # Centro da malha ancorado na grade absoluta do mundo. Sem isso os pontos de
+    # amostragem deslizam junto com o navio e o contorno das ilhas (e a textura
+    # do mar) muda de forma a cada tick, mesmo andando menos de uma celula.
+    # Arredondar para o multiplo mais proximo mantem o jogador na celula central.
+    _lado_cel = (2 * half_range) / (GRID_W - 1)
+    _n_cels = round(MUNDO_TAMANHO / _lado_cel)
+    _icx = round(jx / _lado_cel)
+    _icy = round(jy / _lado_cel)
+    cx = (_icx * _lado_cel) % MUNDO_TAMANHO
+    cy = (_icy * _lado_cel) % MUNDO_TAMANHO
 
     # Grid com textura de mar deslizante (coordenada absoluta → char determinístico)
     textura_ativa = getattr(estado, 'textura_mar', True)
@@ -700,14 +726,13 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     for _r in range(GRID_H):
         for _c in range(GRID_W):
             if textura_ativa:
-                _dx = (_c - (GRID_W - 1) / 2) / (GRID_W - 1) * (2 * half_range)
-                _dy = ((GRID_H - 1 - _r) - (GRID_H - 1) / 2) / (GRID_H - 1) * (2 * half_range)
-                _wx = (jx + _dx) % MUNDO_TAMANHO
-                _wy = (jy + _dy) % MUNDO_TAMANHO
-                _c_mar = _cel_mar(_wx, _wy)
-                grid[_r][_c] = f'~{_c_mar}~'
+                # Indice absoluto da celula na grade do mundo (inteiro, estavel).
+                _ix = (_icx + (_c - (GRID_W - 1) // 2)) % _n_cels
+                _iy = (_icy + ((GRID_H - 1) // 2 - _r)) % _n_cels
+                _c_mar = _cel_mar(_ix, _iy)
+                grid[_r][_c] = f'~{_c_mar}'
             else:
-                grid[_r][_c] = '~~~'
+                grid[_r][_c] = '~~'
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
     # Rastro do navio (pontos históricos, index 0=mais antigo, -1=mais recente)
@@ -718,30 +743,30 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             _n = len(_pontos)
             _mid = _n // 2
             for _i, (_px, _py) in enumerate(_pontos):
-                _col, _row = _to_cell_mundo(_px, _py, jx, jy, half_range, GRID_W, GRID_H)
+                _col, _row = _to_cell_mundo(_px, _py, cx, cy, half_range, GRID_W, GRID_H)
                 _attr = (_curses.A_BOLD if _curses else 0) if _i >= _mid else cor_mar(estado)
-                grid[_row][_col] = '~.~'
-                overlays_por_linha[_row].append((_col * largura_celula, '~.~', _attr))
+                grid[_row][_col] = '~.'
+                overlays_por_linha[_row].append((_col * largura_celula, '~.', _attr))
 
     if not em_combate:
         # Portos [P]
         for porto in getattr(estado_mundo, 'portos', []):
             if estado_mundo._distancia_toroidal(jx, jy, porto.x, porto.y) <= half_range:
-                col, row = _to_cell_mundo(porto.x, porto.y, jx, jy, half_range, GRID_W, GRID_H)
-                grid[row][col] = '[P]'
+                col, row = _to_cell_mundo(porto.x, porto.y, cx, cy, half_range, GRID_W, GRID_H)
+                grid[row][col] = '[P'
                 attr = (_curses.color_pair(COR_VERDE)
                     if (estado.cores_ativo and _curses) else 0)
-                overlays_por_linha[row].append((col * largura_celula, '[P]', attr))
+                overlays_por_linha[row].append((col * largura_celula, '[P', attr))
 
         # Destroços do jogador [*]: vermelho = navio próprio afundado
         for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
             if estado_mundo._distancia_toroidal(jx, jy, wx, wy) > half_range:
                 continue
-            col, row = _to_cell_mundo(wx, wy, jx, jy, half_range, GRID_W, GRID_H)
-            grid[row][col] = '[*]'
+            col, row = _to_cell_mundo(wx, wy, cx, cy, half_range, GRID_W, GRID_H)
+            grid[row][col] = '[*'
             attr = (_curses.color_pair(COR_VERMELHO)
                     if (estado.cores_ativo and _curses) else 0)
-            overlays_por_linha[row].append((col * largura_celula, '[*]', attr))
+            overlays_por_linha[row].append((col * largura_celula, '[*', attr))
 
         # Destroços [x]: amarelo=não visitado (loot), ciano=visitado (sem loot)
         for navio in getattr(estado_mundo, 'inimigos', []):
@@ -749,15 +774,15 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
                 continue
             if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > half_range:
                 continue
-            col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
-            grid[row][col] = '[x]'
+            col, row = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
+            grid[row][col] = '[x'
             if navio.loot is not None:
                 attr = (_curses.color_pair(COR_AMARELO)
                         if (estado.cores_ativo and _curses) else 0)
             else:
                 attr = (_curses.color_pair(COR_JOGADOR)
                         if (estado.cores_ativo and _curses) else 0)
-            overlays_por_linha[row].append((col * largura_celula, '[x]', attr))
+            overlays_por_linha[row].append((col * largura_celula, '[x', attr))
 
     # Ilhas — varredura de células (aparece antes dos overlays de navios)
     _attr_ilha_nav = (_curses.color_pair(COR_ILHA) if (getattr(estado, 'cores_ativo', False) and _curses) else 0)
@@ -767,11 +792,11 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             continue
         for _ri in range(GRID_H):
             for _ci in range(GRID_W):
-                _wx = (jx + (_ci - (GRID_W - 1) / 2) * (2 * half_range) / (GRID_W - 1)) % MUNDO_TAMANHO
-                _wy = (jy - (_ri - (GRID_H - 1) / 2) * (2 * half_range) / (GRID_H - 1)) % MUNDO_TAMANHO
+                _wx = (cx + (_ci - (GRID_W - 1) / 2) * _lado_cel) % MUNDO_TAMANHO
+                _wy = (cy - (_ri - (GRID_H - 1) / 2) * _lado_cel) % MUNDO_TAMANHO
                 if _esi_nav(_wx, _wy, _ilha):
-                    grid[_ri][_ci] = '###'
-                    overlays_por_linha[_ri].append((_ci * largura_celula, '###', _attr_ilha_nav))
+                    grid[_ri][_ci] = '##'
+                    overlays_por_linha[_ri].append((_ci * largura_celula, '##', _attr_ilha_nav))
 
     # Inimigos ativos — ícone direcional [glifo]
     for navio in getattr(estado_mundo, 'inimigos', []):
@@ -781,16 +806,16 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             continue
         glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
                  else seta_ascii_para_heading(navio.heading))
-        celula_e = '[' + glifo + ']'
+        celula_e = ('(' + glifo) if navio.status == 'fugindo' else ('[' + glifo)
         attr = cor_navio(estado, e_jogador=False)
-        col, row = _to_cell_mundo(navio.x, navio.y, jx, jy, half_range, GRID_W, GRID_H)
+        col, row = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
         grid[row][col] = celula_e
         overlays_por_linha[row].append((col * largura_celula, celula_e, attr))
 
     # Jogador {glifo} sempre no centro, desenhado por último para sobrepor
     glifo_j = (seta_unicode_para_heading(estado_mundo.jogador_heading) if unicode_on
                else seta_ascii_para_heading(estado_mundo.jogador_heading))
-    celula_j = '{' + glifo_j + '}'
+    celula_j = '{' + glifo_j
     cr, rr = GRID_W // 2, GRID_H // 2
     grid[rr][cr] = celula_j
     overlays_por_linha[rr].append((cr * largura_celula, celula_j, cor_navio(estado, e_jogador=True)))
@@ -900,10 +925,18 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     """
     from ..constants import MUNDO_QUADRANTE_TAMANHO, MUNDO_VISAO_PORTOS, MUNDO_VISAO_INIMIGOS
 
-    # 40×20 células de 1 char: visualmente quadrado (chars ~2× mais altos que largos)
-    GRID_W, GRID_H = 40, 20
+    # Celula de 2 chars x 1 linha = 2w x 2w -> quadrada na tela (a linha do
+    # terminal vale ~2 chars de altura). Grade quadrada 19x19 sobre o quadrante
+    # quadrado => mesma granularidade em metros nos dois eixos.
+    GRID_W, GRID_H = 19, 19
+    largura_celula = 2
+    unicode_on = getattr(estado, 'graficos_unicode', False)
 
-    grid = [['~'] * GRID_W for _ in range(GRID_H)]
+    def _seta(h: float) -> str:
+        return (seta_unicode_para_heading(h) if unicode_on
+                else seta_ascii_para_heading(h))
+
+    grid = [['~~'] * GRID_W for _ in range(GRID_H)]
     overlays_por_linha: dict[int, list] = {r: [] for r in range(GRID_H)}
 
     qi = qj = 0
@@ -934,9 +967,9 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 if cel is None:
                     continue
                 col, row = cel
-                grid[row][col] = 'P'
+                grid[row][col] = 'P='
                 _attr_porto_mw = (_curses.color_pair(COR_VERDE) if (estado.cores_ativo and _curses) else 0)
-                overlays_por_linha[row].append((max(0, col - 1), '[P]', _attr_porto_mw))
+                overlays_por_linha[row].append((col * largura_celula, '[P', _attr_porto_mw))
 
         # Ilhas [#] — sempre visíveis se dentro do quadrante (hazard físico, sem gate de visão)
         _attr_ilha_mw = (_curses.color_pair(COR_ILHA) if (estado.cores_ativo and _curses) else 0)
@@ -945,13 +978,15 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             if cel is None:
                 continue
             col, row = cel
-            grid[row][col] = '#'
-            overlays_por_linha[row].append((max(0, col - 1), '[#]', _attr_ilha_mw))
+            grid[row][col] = '##'
+            overlays_por_linha[row].append((col * largura_celula, '##', _attr_ilha_mw))
 
         # Jogador — sempre visível (está sempre dentro do próprio quadrante)
         col, row = _no_quadrante(jx, jy)
-        grid[row][col] = '@'
-        overlays_por_linha[row].append((col, '@', cor_navio(estado, e_jogador=True)))
+        _cel_j = '{' + _seta(estado_mundo.jogador_heading)
+        grid[row][col] = _cel_j
+        overlays_por_linha[row].append((col * largura_celula, _cel_j,
+                                        cor_navio(estado, e_jogador=True)))
 
         # Inimigos — dentro do quadrante e do alcance de visão do capitão
         for navio in estado_mundo.inimigos:
@@ -962,22 +997,21 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 continue
             col, row = cel
             if navio.status == "afundado":
-                grid[row][col] = 'x'
+                celula_mw = '<x'
                 if navio.loot is not None:
                     attr = (_curses.color_pair(COR_AMARELO)
                             if (estado.cores_ativo and _curses) else 0)
                 else:
                     attr = (_curses.color_pair(COR_JOGADOR)
                             if (estado.cores_ativo and _curses) else 0)
-                overlays_por_linha[row].append((col, 'x', attr))
             elif navio.status == "fugindo":
-                glifo, attr = 'e', cor_navio(estado, e_jogador=False)
-                grid[row][col] = glifo
-                overlays_por_linha[row].append((col, glifo, attr))
+                celula_mw = '(' + _seta(navio.heading)
+                attr = cor_navio(estado, e_jogador=False)
             else:
-                glifo, attr = 'E', cor_navio(estado, e_jogador=False)
-                grid[row][col] = glifo
-                overlays_por_linha[row].append((col, glifo, attr))
+                celula_mw = '[' + _seta(navio.heading)
+                attr = cor_navio(estado, e_jogador=False)
+            grid[row][col] = celula_mw
+            overlays_por_linha[row].append((col * largura_celula, celula_mw, attr))
 
         # Destroços do jogador [*] no mapa mundo — vermelho
         for wx, wy in getattr(estado_mundo, 'destrocos_jogador', []):
@@ -985,30 +1019,36 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
             if cel is None:
                 continue
             col, row = cel
-            grid[row][col] = '*'
+            grid[row][col] = '<*'
             attr = (_curses.color_pair(COR_VERMELHO)
                     if (estado.cores_ativo and _curses) else 0)
-            overlays_por_linha[row].append((max(0, col - 1), '*', attr))
+            overlays_por_linha[row].append((col * largura_celula, '<*', attr))
 
     # W/E nos lados da linha central
     midY = GRID_H // 2
     midX = GRID_W // 2
-    grid[midY][0] = 'W'
-    grid[midY][GRID_W - 1] = 'E'
-    grid[0][midX - 1] = 'N'
-    grid[GRID_H - 1][midX] = 'S'
+    attr = (_curses.color_pair(COR_ILHA)
+            if (estado.cores_ativo and _curses) else 0)
+    overlays_por_linha[midY].append((0, 'W', attr))
+    attr = (_curses.color_pair(COR_ILHA)
+            if (estado.cores_ativo and _curses) else 0)
+    overlays_por_linha[midY].append((GRID_W * largura_celula - 1, 'E', attr))
+    attr = (_curses.color_pair(COR_VERMELHO)
+            if (estado.cores_ativo and _curses) else 0)
+    overlays_por_linha[0].append((midX * largura_celula, 'N', attr))
+    attr = (_curses.color_pair(COR_ILHA)
+            if (estado.cores_ativo and _curses) else 0)
+    overlays_por_linha[GRID_H - 1].append((midX * largura_celula, 'S', attr))
 
     attr_mar = cor_mar(estado)
+    legenda_mapa = "{^ voce  [^ inimigo  (^ fugindo  [P porto  ## ilha"
     if getattr(estado_mundo, 'em_combate', False):
-        titulo_mapa = "=== MAPA MUNDO — COMBATE ==="
+        titulo_mapa = "======= MAPA MUNDO — COMBATE ======="
     else:
-        titulo_mapa = (
-            f"=========== MAPA MUNDO ({qi},{qj}) ==========="
-        )
-        legenda_mapa = ("[ @ voce | E inimigo | P porto | # ilha]"
-        )
-    linhas: list[tuple] = [(titulo_mapa, 0, []), (legenda_mapa, 0, []),('', 0, [])]
+        titulo_mapa = f"========== MAPA MUNDO ({qi},{qj}) =========="
+    linhas: list[tuple] = [(titulo_mapa, 0, [])]
     for i, row in enumerate(grid):
         linhas.append((''.join(row), attr_mar, overlays_por_linha[i]))
+    linhas.append((legenda_mapa, 0, []))
     linhas.append(("[M] fecha", 0, []))
     return linhas

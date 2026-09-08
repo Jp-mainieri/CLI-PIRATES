@@ -353,7 +353,7 @@ def carregar(slug: str) -> dict:
     return data
 
 
-def _tipo_navio_ativo(d: dict) -> str:
+def tipo_navio_ativo(d: dict) -> str:
     """Tipo do navio ATIVO da frota (não o tipo original do capitão, que
     não existe mais como campo solto — ver frota[frota_indice_ativo])."""
     frota = d.get("frota", [])
@@ -371,7 +371,7 @@ def listar_saves_ativos() -> list[dict]:
             saves.append({
                 "slug": d.get("slug", p.stem),
                 "nome_capitao": d.get("nome_capitao", p.stem),
-                "tipo_navio": _tipo_navio_ativo(d),
+                "tipo_navio": tipo_navio_ativo(d),
                 "atualizado_em": d.get("atualizado_em", ""),
             })
         except (json.JSONDecodeError, KeyError):

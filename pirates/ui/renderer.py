@@ -165,7 +165,7 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
         row += 1
     row += 1
 
-    safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)
+    safe_addstr(stdscr, row, 0,"======================= MAPA =======================", _curses.A_UNDERLINE)
     row += 1
     for texto, attr, overlays in build_mapa_linhas(estado):
         safe_addstr(stdscr, row, 0, texto, attr)
@@ -300,7 +300,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
                 safe_addstr(stdscr, row, col, segmento, attr_seg)
             row += 1
     elif em_combate:
-        safe_addstr(stdscr, row, 0, "== MAPA ==", _curses.A_UNDERLINE)
+        safe_addstr(stdscr, row, 0, "=============== MAPA ================", _curses.A_UNDERLINE)
         row += 1
         for texto, attr, overlays in build_mapa_linhas(estado):
             safe_addstr(stdscr, row, 0, texto, attr)
@@ -311,7 +311,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
             safe_addstr(stdscr, row, 0, texto, attr)
             row += 1
     else:
-        safe_addstr(stdscr, row, 0, "== MAPA DE NAVEGACAO ==", _curses.A_UNDERLINE)
+        safe_addstr(stdscr, row, 0, "========= MAPA DE NAVEGAÇÃO ==========", _curses.A_UNDERLINE)
         row += 1
         for texto, attr, overlays in build_mapa_navegacao_linhas(estado_mundo, estado):
             safe_addstr(stdscr, row, 0, texto, attr)

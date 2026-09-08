@@ -523,14 +523,14 @@ NAVIO_TIPOS = {
     },
     "galeao": {
         "navio": "Galeao",
-        "crew_total": 7,
+        "crew_total": 4,
         "canhoes_lado": 3,
         "num_velas": 7,
         "velocidade_max_base": 14.0,
         "giro_graus_seg": 12.0,
         "cooldown_mult": 0.7,   # recarga mais rápida = mais perigoso
         "erro_mira": 15.0,      # IA mira com precisão
-        "min_crew_canhao": 2,
+        "min_crew_canhao": 1,
         "reparo_mult": 0.7,     # Galeão repara mais devagar
         "porao_capacidade": 14,
     },

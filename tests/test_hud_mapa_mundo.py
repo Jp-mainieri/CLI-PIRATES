@@ -48,7 +48,7 @@ class TestQuadrante:
         em.ilhas = []
         em.inimigos = []
         linhas = build_mapa_mundo_linhas(em, _estado())
-        assert "Quadrante (3,3)" in linhas[0][0]
+        assert "(3,3)" in linhas[0][0]   # quadrante correto no titulo
 
 
 class TestVisaoCapitao:
@@ -75,11 +75,11 @@ class TestVisaoCapitao:
         em.jogador_x, em.jogador_y = 100.0, 100.0
         em.portos = []
         em.ilhas = []
-        # offset em y (nao x) pra nao cair na coluna 0/39 usada pelos rotulos W/E
+        # offset em y (nao x) pra nao cair na coluna 0/37 usada pelos rotulos W/E
         em.inimigos = [NavioMundo(x=em.jogador_x, y=em.jogador_y + MUNDO_VISAO_INIMIGOS + 100,
                                    heading=0.0, status="patrulha")]
         linhas = build_mapa_mundo_linhas(em, _estado())
-        assert "E" not in _grid_texto(linhas)
+        assert "[" not in _grid_texto(linhas)
 
     def test_inimigo_dentro_do_alcance_aparece(self):
         em = EstadoMundo("brigantim", seed=1)
@@ -89,7 +89,7 @@ class TestVisaoCapitao:
         em.inimigos = [NavioMundo(x=em.jogador_x + MUNDO_VISAO_INIMIGOS - 100, y=em.jogador_y,
                                    heading=0.0, status="patrulha")]
         linhas = build_mapa_mundo_linhas(em, _estado())
-        assert "E" in _grid_texto(linhas)
+        assert "[" in _grid_texto(linhas)
 
     def test_ilha_sempre_visivel_no_quadrante_sem_gate_de_distancia(self):
         em = EstadoMundo("brigantim", seed=1)
