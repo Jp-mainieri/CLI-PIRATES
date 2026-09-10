@@ -222,8 +222,8 @@ def build_bussola_linhas(estado, largura: int = 50) -> list[tuple]:
         Lista de (texto, atributo_base, overlays).
     """
     jogador = estado.jogador
-    linha = [' '] * largura
-    marcos = {0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW'}
+    linha = ['.'] * largura
+    marcos = {0: 'N', 45: 'N|E', 90: 'E', 135: 'S|E', 180: 'S', 225: 'S|W', 270: 'W', 315: 'N|W',}
     overlays: list[tuple] = []
 
     for graus, label in marcos.items():
@@ -763,7 +763,7 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             if estado_mundo._distancia_toroidal(jx, jy, wx, wy) > half_range:
                 continue
             col, row = _to_cell_mundo(wx, wy, cx, cy, half_range, GRID_W, GRID_H)
-            grid[row][col] = '[*'
+            grid[row][col] = '-*'
             attr = (_curses.color_pair(COR_VERMELHO)
                     if (estado.cores_ativo and _curses) else 0)
             overlays_por_linha[row].append((col * largura_celula, '[*', attr))
@@ -775,14 +775,14 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             if estado_mundo._distancia_toroidal(jx, jy, navio.x, navio.y) > half_range:
                 continue
             col, row = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
-            grid[row][col] = '[x'
+            grid[row][col] = '-x'
             if navio.loot is not None:
                 attr = (_curses.color_pair(COR_AMARELO)
                         if (estado.cores_ativo and _curses) else 0)
             else:
                 attr = (_curses.color_pair(COR_JOGADOR)
                         if (estado.cores_ativo and _curses) else 0)
-            overlays_por_linha[row].append((col * largura_celula, '[x', attr))
+            overlays_por_linha[row].append((col * largura_celula, '-x', attr))
 
     # Ilhas — varredura de células (aparece antes dos overlays de navios)
     _attr_ilha_nav = (_curses.color_pair(COR_ILHA) if (getattr(estado, 'cores_ativo', False) and _curses) else 0)
@@ -907,7 +907,7 @@ def build_vista_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                         if (estado.cores_ativo and _curses) else 0)
             overlays_h = list(linhas[0][2]) + [(inicio, icone, attr)]
             linhas = [(''.join(horizonte_chars), linhas[0][1], overlays_h)] + list(linhas[1:])
-            linhas = list(linhas) + [(f'Porto: "{porto.nome} a {d_porto:.0f}m!"', 0, [])]
+            #linhas = list(linhas) + [(f'Porto: {porto.nome} a {d_porto:.0f}m!', 0, [])]
             break
 
     return linhas
