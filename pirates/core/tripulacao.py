@@ -54,6 +54,22 @@ def descrever_posto(posto: Posto) -> str:
     return "bomba"
 
 
+def descrever_frente(posto: Posto) -> str:
+    """Nome da frente de trabalho de *posto*, não do posto em si.
+
+    Um canhão pertence à bordada do seu bordo, e é a bordada inteira que a
+    realocação automática protege (ver `mesma_tarefa`) — então as mensagens
+    precisam falar em 'canhoes de estibordo', não em 'canhao E2'.
+    """
+    if posto is None:
+        return "conves"
+    if posto[0] == 'canhao':
+        return f"canhoes de {posto[1]}"
+    if posto[0] == 'reparo':
+        return f"reparo de {posto[1]}"
+    return "bomba"
+
+
 def custo_transito(origem: Posto, destino: Posto) -> float:
     """Segundos que um tripulante leva para ir de *origem* até *destino*.
 
@@ -81,6 +97,31 @@ def custo_transito(origem: Posto, destino: Posto) -> float:
         return TRANSITO_REPARO_ENTRE_PARTES
 
     return TRANSITO_TAREFA_DIFERENTE
+
+
+def mesma_tarefa(a: Posto, b: Posto) -> bool:
+    """True se *a* e *b* são a mesma frente de trabalho.
+
+    Canhões contam como a mesma frente quando estão no mesmo bordo — uma
+    bordada é uma tarefa só, servida por vários canhões. Reparo, quando é a
+    mesma parte. A bomba, sempre consigo mesma.
+
+    Serve à realocação automática (`state._liberar_tripulantes`): quem já está
+    na frente de trabalho pedida não pode ser roubado para ela, senão atender
+    ao pedido não a fortalece — só embaralha as mesmas pessoas.
+
+    O convés (None) nunca é a mesma tarefa que nada: tripulante ocioso é
+    sempre elegível.
+    """
+    if a is None or b is None:
+        return False
+    if a[0] != b[0]:
+        return False
+    if a[0] == 'canhao':
+        return a[1] == b[1]      # mesmo bordo
+    if a[0] == 'reparo':
+        return a[1] == b[1]      # mesma parte
+    return True                  # bomba é posto único
 
 
 class Tripulante:

@@ -7,8 +7,8 @@ from pirates.constants import (
     TRANSITO_TAREFA_DIFERENTE, TRANSITO_REPARO_ENTRE_PARTES,
 )
 from pirates.core.tripulacao import (
-    POSTO_BOMBA, Tripulacao, Tripulante, custo_transito, descrever_posto,
-    posto_canhao, posto_reparo, reconciliar,
+    POSTO_BOMBA, Tripulacao, Tripulante, custo_transito, descrever_frente,
+    descrever_posto, mesma_tarefa, posto_canhao, posto_reparo, reconciliar,
 )
 
 E1 = ('canhao', 'estibordo', 1)
@@ -50,6 +50,57 @@ class TestCustoTransito:
     def test_recem_contratado_gratis(self):
         """Quem nunca trabalhou assume o primeiro posto na hora."""
         assert custo_transito(None, B1) == 0.0
+
+
+class TestMesmaTarefa:
+    """Frente de trabalho: o que a realocacao automatica protege."""
+
+    def test_canhoes_do_mesmo_bordo(self):
+        assert mesma_tarefa(E1, E2) is True
+
+    def test_canhoes_de_bordos_diferentes(self):
+        assert mesma_tarefa(E1, B1) is False
+
+    def test_o_proprio_canhao(self):
+        assert mesma_tarefa(E1, E1) is True
+
+    def test_reparo_da_mesma_parte(self):
+        assert mesma_tarefa(REPARO_CASCO, REPARO_CASCO) is True
+
+    def test_reparo_de_partes_diferentes(self):
+        assert mesma_tarefa(REPARO_CASCO, REPARO_VELA) is False
+
+    def test_bomba_consigo_mesma(self):
+        assert mesma_tarefa(POSTO_BOMBA, POSTO_BOMBA) is True
+
+    def test_tarefas_cruzadas(self):
+        assert mesma_tarefa(E1, POSTO_BOMBA) is False
+        assert mesma_tarefa(E1, REPARO_CASCO) is False
+        assert mesma_tarefa(REPARO_CASCO, POSTO_BOMBA) is False
+
+    def test_ocioso_nunca_e_mesma_tarefa(self):
+        """Quem esta no conves e sempre elegivel como doador."""
+        assert mesma_tarefa(None, E1) is False
+        assert mesma_tarefa(E1, None) is False
+        assert mesma_tarefa(None, None) is False
+
+    def test_e_simetrica(self):
+        for a in (E1, E2, B1, REPARO_CASCO, REPARO_VELA, POSTO_BOMBA, None):
+            for b in (E1, E2, B1, REPARO_CASCO, REPARO_VELA, POSTO_BOMBA, None):
+                assert mesma_tarefa(a, b) == mesma_tarefa(b, a)
+
+
+class TestDescreverFrente:
+    def test_canhao_nomeia_o_bordo_nao_o_canhao(self):
+        assert descrever_frente(E2) == "canhoes de estibordo"
+        assert descrever_frente(B1) == "canhoes de bombordo"
+
+    def test_reparo_nomeia_a_parte(self):
+        assert descrever_frente(REPARO_CASCO) == "reparo de casco"
+
+    def test_bomba_e_conves(self):
+        assert descrever_frente(POSTO_BOMBA) == "bomba"
+        assert descrever_frente(None) == "conves"
 
 
 class TestDescreverPosto:

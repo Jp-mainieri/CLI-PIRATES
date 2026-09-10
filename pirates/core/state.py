@@ -20,8 +20,9 @@ from .porao import estoque_inicial_jogador, gerar_porao_inimigo
 from .velas import gerar_slots_fabrica
 from .frota import Frota
 from .tripulacao import (
-    Tripulacao, aplicar_efetivos, desejado_de_contagens, descrever_posto,
-    reconciliar,
+    POSTO_BOMBA, Posto, Tripulacao, aplicar_efetivos, desejado_de_contagens,
+    descrever_frente, descrever_posto, mesma_tarefa, posto_canhao,
+    posto_reparo, reconciliar,
 )
 
 
@@ -331,45 +332,44 @@ def montar_tripulacao(estado: Estado) -> list[tuple[str, str, str]]:
 def _liberar_tripulantes(
     estado: Estado,
     necessario: int,
-    ignorar_canhao=None,
-    ignorar_parte: str | None = None,
+    destino: Posto,
 ) -> int:
     """Libera até *necessario* tripulantes puxando de outras tarefas.
 
     Ordem (quem é retirado primeiro):
-    1. Canhões (retira o mínimo necessário, não o canhão inteiro).
-    2. Reparo (retira parcialmente).
-    A bomba nunca é retirada automaticamente.
+    1. Canhões do bordo oposto (retira o mínimo necessário, não o canhão inteiro).
+    2. Reparo de outras partes (retira parcialmente).
+    3. Bomba — último recurso, e nunca fica zerada enquanto houver água a bordo.
 
-    Como realocar agora custa trânsito (ver pirates/core/tripulacao.py), a
-    escolha de quem sacrificar deixou de ser indiferente: quando o destino é um
-    canhão, tiramos primeiro de canhões do MESMO bordo, cujo trânsito de volta
-    é o mais barato.
+    **Quem já está na mesma frente de trabalho do destino nunca é candidato**
+    (ver `tripulacao.mesma_tarefa`): canhões do mesmo bordo, reparo da mesma
+    parte. Roubar de B1 para guarnecer B2 não fortalece a bordada de bombordo,
+    só embaralha as mesmas pessoas — e ainda cobra trânsito por isso.
+
+    Isso restringe apenas a realocação automática. Mover gente entre canhões do
+    mesmo bordo continua possível de forma explícita ('canhao e1 parar' e
+    depois armar E2), passando pelo convés.
 
     Args:
-        estado:         Estado atual do jogo.
-        necessario:     Quantidade de tripulantes a liberar.
-        ignorar_canhao: Canhão que não deve ser desarmado.
-        ignorar_parte:  Parte de reparo que não deve ser reduzida.
+        estado:     Estado atual do jogo.
+        necessario: Quantidade de tripulantes a liberar.
+        destino:    Posto que vai receber os tripulantes.
 
     Returns:
         Quantidade efetivamente liberada.
     """
     liberado = 0
     movimentos: list[str] = []
+    bloqueados = 0  # gente que só não veio por ser da mesma frente de trabalho
 
-    # Bordo do destino, quando o destino é um canhão: define a ordem de busca.
-    lado_destino = getattr(ignorar_canhao, 'lado', None)
-    if lado_destino == 'estibordo':
-        ordem_lados = ('estibordo', 'bombordo')
-    else:
-        ordem_lados = ('bombordo', 'estibordo')
-
-    for lado in ordem_lados:
+    for lado in ('bombordo', 'estibordo'):
         for c in estado.jogador.canhoes[lado]:
             if liberado >= necessario:
                 break
-            if c is ignorar_canhao or c.tripulantes <= 0:
+            if c.tripulantes <= 0:
+                continue
+            if mesma_tarefa(posto_canhao(c), destino):
+                bloqueados += c.tripulantes
                 continue
             tirar = min(c.tripulantes, necessario - liberado)
             restante = c.tripulantes - tirar
@@ -387,19 +387,40 @@ def _liberar_tripulantes(
         for parte in PARTES:
             if liberado >= necessario:
                 break
-            if parte == ignorar_parte:
-                continue
             n_atual = estado.crew_reparo.get(parte, 0)
             if n_atual <= 0:
                 continue
-            falta = necessario - liberado
-            tirar = min(n_atual, falta)
+            if mesma_tarefa(posto_reparo(parte), destino):
+                bloqueados += n_atual
+                continue
+            tirar = min(n_atual, necessario - liberado)
             estado.crew_reparo[parte] -= tirar
             liberado += tirar
             movimentos.append(f"{tirar} de Reparo {parte}")
 
+    if liberado < necessario and not mesma_tarefa(POSTO_BOMBA, destino):
+        # A bomba é o último a ceder, e mantém pelo menos um homem enquanto
+        # houver água a bordo — ficar sem bombeamento afunda o navio.
+        reserva = 1 if estado.jogador.agua > 0 else 0
+        disponivel = max(0, estado.crew_bomba - reserva)
+        tirar = min(disponivel, necessario - liberado)
+        if tirar > 0:
+            estado.crew_bomba -= tirar
+            liberado += tirar
+            movimentos.append(f"{tirar} da Bomba")
+            if estado.jogador.agua > 0:
+                estado.log.append(
+                    f"Atencao: {tirar} tripulante(s) saiu da bomba com o porao"
+                    f" a {estado.jogador.agua:.0f}% de agua"
+                )
+
     if movimentos:
         estado.log.append(f"Tripulacao realocada: {', '.join(movimentos)}")
+    if liberado < necessario and bloqueados > 0:
+        estado.log.append(
+            f"Tripulantes de {descrever_frente(destino)} nao podem ser"
+            f" realocados para reforcar a propria frente"
+        )
     return liberado
 
 
@@ -407,8 +428,7 @@ def tentar_assumir_tripulacao(
     estado: Estado,
     quantidade_desejada: int,
     atual_no_alvo: int,
-    ignorar_canhao=None,
-    ignorar_parte: str | None = None,
+    destino: Posto,
 ) -> tuple[int, bool]:
     """Tenta alocar *quantidade_desejada* tripulantes, realocando se necessário.
 
@@ -416,8 +436,9 @@ def tentar_assumir_tripulacao(
         estado:             Estado atual do jogo.
         quantidade_desejada: Número total de tripulantes desejado na tarefa.
         atual_no_alvo:      Tripulantes já alocados na tarefa alvo.
-        ignorar_canhao:     Canhão alvo (não deve ser esvaziado).
-        ignorar_parte:      Parte de reparo alvo (não deve ser reduzida).
+        destino:            Posto que vai receber os tripulantes. Define tanto
+                            o alvo quanto quem está fora da lista de doadores
+                            (ver `_liberar_tripulantes`).
 
     Returns:
         Tupla (quantidade_final, cortou) onde *cortou* indica insuficiência.
@@ -426,11 +447,7 @@ def tentar_assumir_tripulacao(
     if quantidade_desejada <= livre:
         return quantidade_desejada, False
     faltam = quantidade_desejada - livre
-    liberado = _liberar_tripulantes(
-        estado, faltam,
-        ignorar_canhao=ignorar_canhao,
-        ignorar_parte=ignorar_parte,
-    )
+    liberado = _liberar_tripulantes(estado, faltam, destino)
     livre_final = livre + liberado
     final = min(quantidade_desejada, livre_final)
     return final, final < quantidade_desejada

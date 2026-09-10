@@ -9,7 +9,8 @@ está selecionado para ajuste rápido via teclas.
 from ..constants import PARTES, HOTKEY_PASSO_MIRA, HOTKEY_PASSO_LEME
 from ..core.utils import clamp
 from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
-from .commands import _definir_trip_canhao, _armar_canhao_com_padrao
+from ..core.tripulacao import POSTO_BOMBA, posto_reparo
+from .commands import _armar_canhao_com_padrao
 
 
 def _ciclar_canhao(estado: Estado, lado: str) -> None:
@@ -44,7 +45,7 @@ def _ajustar_bomba(estado: Estado, delta: int) -> None:
     """Adiciona (+1) ou remove (-1) um tripulante das bombas."""
     if delta > 0:
         atual = estado.crew_bomba
-        final, _ = tentar_assumir_tripulacao(estado, atual + 1, atual)
+        final, _ = tentar_assumir_tripulacao(estado, atual + 1, atual, POSTO_BOMBA)
         estado.crew_bomba = final
         if final <= atual:
             estado.log.append("Nao ha tripulacao disponivel para a bomba")
@@ -63,7 +64,7 @@ def _ajustar_reparo(estado: Estado, delta: int) -> None:
     atual = estado.crew_reparo.get(parte, 0)
     if delta > 0:
         final, _ = tentar_assumir_tripulacao(
-            estado, atual + 1, atual, ignorar_parte=parte
+            estado, atual + 1, atual, posto_reparo(parte)
         )
         estado.crew_reparo[parte] = final
         if final <= atual:

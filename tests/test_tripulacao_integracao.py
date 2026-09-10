@@ -6,9 +6,9 @@ from pirates.constants import (
     TRANSITO_CANHAO_MESMO_BORDO, TRANSITO_CANHAO_BORDO_OPOSTO,
     TRANSITO_TAREFA_DIFERENTE, PARTES, SAIDA_BOMBA_SEG,
 )
-from pirates.ai.enemy import _crewar_canhoes, atualizar_ia_tripulacao
+from pirates.ai.enemy import atualizar_ia_tripulacao
 from pirates.core.simulation import atualizar_simulacao
-from pirates.core.state import Estado, reconciliar_jogador
+from pirates.core.state import Estado
 from pirates.core.tripulacao import (
     POSTO_BOMBA, aplicar_efetivos, efetivos_bomba, efetivos_reparo,
 )
@@ -60,7 +60,8 @@ class TestFluxoDoJogador:
         e.crew_total = 1
         e.tripulacao.redimensionar(["T1"])
         _armar(e, "e1")
-        _armar(e, "e2")
+        processar_comando("canhao e1 parar", e)  # o roubo automático dentro do
+        _armar(e, "e2")                          # mesmo bordo é proibido
         assert e.tripulacao.transito_restante_do_posto(
             ('canhao', 'estibordo', 2)
         ) == TRANSITO_CANHAO_MESMO_BORDO
@@ -170,8 +171,8 @@ class TestEfetivoVsAlocado:
     def _dois_na_bomba_um_em_transito(self, e):
         """Deixa a bomba com 2 alocados dos quais 1 ainda está a caminho.
 
-        Note que a bomba nunca é esvaziada automaticamente por
-        `_liberar_tripulantes`: para tirar alguém dela é preciso pedir.
+        A bomba é o último recurso da realocação automática, então aqui
+        tiramos um dela explicitamente para forçar a situação.
         """
         e.crew_total = 2
         e.tripulacao.redimensionar(["T1", "T2"])
@@ -228,26 +229,157 @@ class TestEfetivoVsAlocado:
 
 
 class TestLiberacaoAutomatica:
-    """Armadilha 7: `_liberar_tripulantes` agora tem preço."""
+    """Quem já está na frente de trabalho pedida nunca é o doador."""
 
-    def test_puxa_do_mesmo_bordo_do_destino(self):
+    def test_nunca_puxa_do_mesmo_bordo(self):
+        """O caso relatado: E1+E2 guarnecidos e 1 em B1; pedir B2 tira de E.
+
+        Roubar de B1 para guarnecer B2 deixaria bombordo exatamente onde
+        estava — o pedido existe justamente para engrossar aquela bordada.
+        """
         e = _estado()
-        e.crew_total = 2
-        e.tripulacao.redimensionar(["T1", "T2"])
         _armar(e, "e1")
-        _armar(e, "b1")
-        for _ in range(40):
-            e.tripulacao.atualizar(0.5)
-        aplicar_efetivos(e.jogador, e.tripulacao)
-
-        # Sem gente livre, armar E2 deve sacrificar E1 (mesmo bordo, 3s),
-        # não B1 do outro lado.
         _armar(e, "e2")
-        assert _canhao(e, "e1").tripulantes == 0
+        _armar(e, "b1")
+        assert e.crew_livre() == 0
+
+        _armar(e, "b2")
+        assert _canhao(e, "b1").tripulantes == 1        # intacto
+        assert _canhao(e, "b2").tripulantes == 1
+        estibordo = [_canhao(e, "e1").tripulantes, _canhao(e, "e2").tripulantes]
+        assert sorted(estibordo) == [0, 1]              # um de E foi levado
+
+    def test_puxa_do_reparo_quando_o_bordo_e_o_proprio(self):
+        """Segundo caso relatado: 1 em B1 e 2 em reparo casco; pedir B2."""
+        e = _estado()
+        _armar(e, "b1")
+        processar_comando("reparar casco 2", e)
+        assert e.crew_livre() == 0
+
+        _armar(e, "b2")
         assert _canhao(e, "b1").tripulantes == 1
+        assert _canhao(e, "b2").tripulantes == 1
+        assert e.crew_reparo["casco"] == 1
+
+    def test_ordem_bordo_oposto_antes_do_reparo(self):
+        e = _estado("galeao")
+        _armar(e, "e1")
+        processar_comando("reparar casco 2", e)
+        processar_comando("bomba 1", e)
+        assert e.crew_livre() == 0
+
+        _armar(e, "b1")
+        assert _canhao(e, "e1").tripulantes == 0   # bordo oposto cede primeiro
+        assert e.crew_reparo["casco"] == 2
+        assert e.crew_bomba == 1
+
+    def test_ordem_reparo_antes_da_bomba(self):
+        e = _estado()
+        processar_comando("reparar casco 2", e)
+        processar_comando("bomba 1", e)
+        assert e.crew_livre() == 0
+
+        _armar(e, "b1")
+        assert e.crew_reparo["casco"] == 1
+        assert e.crew_bomba == 1
+
+    def test_reparo_de_outra_parte_e_doador(self):
+        e = _estado()
+        processar_comando("reparar vela 3", e)
+        assert e.crew_livre() == 0
+        processar_comando("reparar casco 1", e)
+        assert e.crew_reparo["casco"] == 1
+        assert e.crew_reparo["vela"] == 2
+
+    def test_mesma_parte_de_reparo_nao_e_doadora(self):
+        e = _estado()
+        processar_comando("reparar casco 3", e)
+        e.log.clear()
+        processar_comando("reparar casco 3", e)  # pedido que não muda nada
+        assert e.crew_reparo["casco"] == 3
+
+    def test_pedido_falha_quando_so_ha_doador_na_mesma_frente(self):
+        e = _estado()  # brigantim: 3 tripulantes, 2 canhões por bordo
+        processar_comando("canhao e1 2 200", e)
+        processar_comando("canhao e2 1 200", e)
+        assert e.crew_livre() == 0
+
+        e.log.clear()
+        processar_comando("canhao e1 3 200", e)
+        assert _canhao(e, "e1").tripulantes == 2   # alocação inalterada
+        assert _canhao(e, "e2").tripulantes == 1
+        assert any("nao podem ser realocados" in m for m in e.log)
+
+    def test_mover_no_mesmo_bordo_continua_possivel_explicitamente(self):
+        """A regra restringe só o roubo automático, não a ordem direta."""
+        e = _estado()
+        e.crew_total = 1
+        e.tripulacao.redimensionar(["T1"])
+        _armar(e, "e1")
+        processar_comando("canhao e1 parar", e)
+        _armar(e, "e2")
+        assert _canhao(e, "e2").tripulantes == 1
         assert e.tripulacao.transito_restante_do_posto(
             ('canhao', 'estibordo', 2)
         ) == TRANSITO_CANHAO_MESMO_BORDO
+
+
+class TestBombaComoDoadora:
+    """A bomba passou a ceder, mas nunca fica zerada com água a bordo."""
+
+    def test_cede_um_de_cada_vez(self):
+        e = _estado()
+        e.jogador.agua = 0.0
+        processar_comando("bomba 3", e)
+
+        _armar(e, "b1")
+        assert e.crew_bomba == 2
+        _armar(e, "b2")
+        assert e.crew_bomba == 1
+
+    def test_pode_zerar_sem_agua_a_bordo(self):
+        # Dois na bomba e nada mais: os dois canhões pedidos são do mesmo
+        # bordo, então a bomba é a única doadora possível.
+        e = _estado()
+        e.crew_total = 2
+        e.tripulacao.redimensionar(["T1", "T2"])
+        e.jogador.agua = 0.0
+        processar_comando("bomba 2", e)
+
+        _armar(e, "b1")
+        assert e.crew_bomba == 1
+        _armar(e, "b2")
+        assert e.crew_bomba == 0
+        assert _canhao(e, "b2").tripulantes == 1
+
+    def test_nunca_zera_com_agua_a_bordo(self):
+        e = _estado()
+        e.crew_total = 2
+        e.tripulacao.redimensionar(["T1", "T2"])
+        e.jogador.agua = 40.0
+        processar_comando("bomba 2", e)
+
+        _armar(e, "b1")
+        assert e.crew_bomba == 1
+        _armar(e, "b2")
+        assert e.crew_bomba == 1                  # o último homem fica
+        assert _canhao(e, "b2").tripulantes == 0  # e o pedido falhou
+
+    def test_avisa_no_log_ao_tirar_da_bomba_com_agua(self):
+        e = _estado()
+        e.jogador.agua = 40.0
+        processar_comando("bomba 3", e)
+        e.log.clear()
+        _armar(e, "b1")
+        assert any("saiu da bomba" in m for m in e.log)
+
+    def test_bomba_nao_doa_para_si_mesma(self):
+        e = _estado()
+        e.jogador.agua = 0.0
+        processar_comando("bomba 3", e)
+        e.log.clear()
+        processar_comando("bomba 3", e)
+        assert e.crew_bomba == 3
 
     def test_retirada_parcial_nao_esvazia_canhao_inteiro(self):
         e = _estado()

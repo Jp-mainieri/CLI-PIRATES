@@ -8,6 +8,7 @@ as mudanças no estado do jogo. Inclui o sistema de autocompletar por TAB.
 from ..constants import PARTES, COMANDOS, CANHAO_SUBCMDS, ALIASES
 from ..core.ship import resolver_canhao
 from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
+from ..core.tripulacao import POSTO_BOMBA, posto_canhao, posto_reparo
 from ..core.combat import distancia, rumo_para
 
 
@@ -123,12 +124,11 @@ def processar_comando(texto: str, estado: Estado) -> None:
             estado.log.append("Numero de tripulantes nao pode ser negativo")
             return
         atual = estado.crew_reparo[parte]
-        final, cortou = tentar_assumir_tripulacao(estado, n, atual, ignorar_parte=parte)
+        final, cortou = tentar_assumir_tripulacao(estado, n, atual, posto_reparo(parte))
         estado.crew_reparo[parte] = final
         if cortou:
             estado.log.append(
-                f"So consegui {final} de {n} tripulante(s) pedidos para {parte} "
-                f"(bomba nao foi mexida)"
+                f"So consegui {final} de {n} tripulante(s) pedidos para {parte}"
             )
         else:
             estado.log.append(f"{final} tripulante(s) reparando {parte} continuamente")
@@ -143,7 +143,7 @@ def processar_comando(texto: str, estado: Estado) -> None:
             estado.log.append("Numero de tripulantes nao pode ser negativo")
             return
         atual = estado.crew_bomba
-        final, cortou = tentar_assumir_tripulacao(estado, n, atual)
+        final, cortou = tentar_assumir_tripulacao(estado, n, atual, POSTO_BOMBA)
         estado.crew_bomba = final
         if cortou:
             estado.log.append(
@@ -282,7 +282,7 @@ def _definir_trip_canhao(
         return
 
     atual = canhao.tripulantes
-    final, cortou = tentar_assumir_tripulacao(estado, n, atual, ignorar_canhao=canhao)
+    final, cortou = tentar_assumir_tripulacao(estado, n, atual, posto_canhao(canhao))
     if final < estado.min_crew_canhao:
         canhao.tripulantes = 0
         canhao.dist_alvo = None
