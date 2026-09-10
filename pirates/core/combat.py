@@ -183,6 +183,7 @@ def disparar_canhoes_navio(estado, atirador, alvo) -> None:
     for lado in ('bombordo', 'estibordo'):
         for c in atirador.canhoes[lado]:
             if not c.armado():
+                c.proximo_tiro += 0.5
                 continue
             if estado.tempo < c.proximo_tiro:
                 continue
