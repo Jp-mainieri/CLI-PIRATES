@@ -108,10 +108,17 @@ class TestBordadaAlternada:
     def _todos_canhoes(self, e):
         return [c for lado in ('estibordo', 'bombordo') for c in e.inimigo.canhoes[lado]]
 
+    def _guarnecer(self, canhoes):
+        """Um canhao so conta como pronto se tiver tripulacao efetiva."""
+        for c in canhoes:
+            c.tripulantes = 1
+            c.efetivos = 1
+
     def test_estibordo_apresenta_o_costado_de_estibordo(self):
         e = _estado()
         self._em_faixa_de_circulo(e)
         e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(self._todos_canhoes(e))
         for c in self._todos_canhoes(e):
             c.proximo_tiro = 0.0  # todos carregados
         atualizar_ia_movimento(e, 0.5)
@@ -122,6 +129,7 @@ class TestBordadaAlternada:
         e = _estado()
         self._em_faixa_de_circulo(e)
         e.ia_lado_bordada = 'bombordo'
+        self._guarnecer(self._todos_canhoes(e))
         for c in self._todos_canhoes(e):
             c.proximo_tiro = 0.0
         atualizar_ia_movimento(e, 0.5)
@@ -132,6 +140,9 @@ class TestBordadaAlternada:
         e = _estado()
         self._em_faixa_de_circulo(e)
         e.ia_lado_bordada = 'estibordo'
+        # Os dois bordos guarnecidos: so assim trocar de costado faz sentido,
+        # ja que um costado sem gente nao recarrega.
+        self._guarnecer(self._todos_canhoes(e))
         for c in e.inimigo.canhoes['estibordo']:
             c.proximo_tiro = e.tempo + 10.0  # em cooldown
         for c in e.inimigo.canhoes['bombordo']:
@@ -143,6 +154,7 @@ class TestBordadaAlternada:
         e = _estado()
         self._em_faixa_de_circulo(e)
         e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(self._todos_canhoes(e))
         for c in self._todos_canhoes(e):
             c.proximo_tiro = 0.0
         atualizar_ia_movimento(e, 0.5)
@@ -152,8 +164,41 @@ class TestBordadaAlternada:
         e = _estado()
         self._em_faixa_de_circulo(e)
         e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(self._todos_canhoes(e))
         for c in self._todos_canhoes(e):
             c.proximo_tiro = e.tempo + 10.0
+        atualizar_ia_movimento(e, 0.5)
+        assert e.ia_lado_bordada == 'estibordo'
+
+
+    def test_nao_troca_para_bordo_sem_tripulacao(self):
+        """Costado sem gente nao recarrega, entao trocar para la e ilusao."""
+        e = _estado()
+        self._em_faixa_de_circulo(e)
+        e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(e.inimigo.canhoes['estibordo'])
+        for c in e.inimigo.canhoes['estibordo']:
+            c.proximo_tiro = e.tempo + 10.0   # descarregado
+        for c in e.inimigo.canhoes['bombordo']:
+            c.tripulantes = c.efetivos = 0    # ninguem la
+            c.proximo_tiro = 0.0              # "carregado" no papel
+        atualizar_ia_movimento(e, 0.5)
+        assert e.ia_lado_bordada == 'estibordo'
+
+    def test_nao_troca_por_um_tripulante_solto_do_outro_lado(self):
+        """A sobra de tripulacao no bordo oposto nao justifica atravessar."""
+        e = _estado("galeao")
+        self._em_faixa_de_circulo(e)
+        e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(e.inimigo.canhoes['estibordo'])
+        for c in e.inimigo.canhoes['estibordo']:
+            c.proximo_tiro = e.tempo + 10.0
+        for c in e.inimigo.canhoes['bombordo']:
+            c.tripulantes = c.efetivos = 0
+            c.proximo_tiro = e.tempo + 10.0
+        solto = e.inimigo.canhoes['bombordo'][0]
+        solto.tripulantes = solto.efetivos = 1
+        solto.proximo_tiro = 0.0
         atualizar_ia_movimento(e, 0.5)
         assert e.ia_lado_bordada == 'estibordo'
 

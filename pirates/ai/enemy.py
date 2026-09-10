@@ -14,9 +14,11 @@ from ..constants import (
     IA_VENTO_MARGEM_SAIDA_GRAUS, IA_VENTO_CORRECAO_MAX_GRAUS,
     IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
     IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE, IA_ILHA_HISTERESE,
+    IA_REAVALIACAO_CREW_SEG,
 )
 from ..core.utils import clamp
-from ..core.combat import distancia, rumo_para, dentro_do_arco
+from ..core.combat import distancia, rumo_para
+from ..core.state import reconciliar_inimigo
 from ..core.vento import angulo_relativo_vento
 
 
@@ -66,25 +68,43 @@ def _ajustar_heading_vento(
 
 
 def _lado_pronto(estado, lado: str) -> int:
-    """Quantos canhões de *lado* já estão fora do cooldown."""
+    """Quantos canhões de *lado* podem disparar agora.
+
+    Exige tripulação efetiva, não só o cooldown vencido: um canhão sem gente
+    não recarrega (o cooldown fica congelado em
+    combat.disparar_canhoes_navio), então contá-lo como 'pronto' faria a IA
+    ficar trocando de bordo atrás de uma salva que nunca existiu.
+    """
     return sum(
         1 for c in estado.inimigo.canhoes[lado]
-        if estado.tempo >= c.proximo_tiro
+        if c.efetivos >= 1 and estado.tempo >= c.proximo_tiro
     )
 
 
 def _escolher_lado_bordada(estado) -> str:
     """Escolhe qual bordada apresentar ao jogador, com histerese.
 
-    Mantém o lado atual enquanto ele tiver algum canhão carregado; troca
-    para o lado oposto assim que o atual descarrega e o outro tem carga.
-    Isso faz o inimigo virar de bordo entre as salvas em vez de expor a
-    vida inteira o mesmo costado (o que deixava metade dos canhões
-    permanentemente ociosos).
+    Mantém o lado atual enquanto ele tiver algum canhão carregado; troca para
+    o oposto assim que o atual descarrega e o outro tem carga.
+
+    Como 'ter carga' agora exige tripulação (ver `_lado_pronto`), a troca só
+    acontece quando o inimigo tem gente suficiente para guarnecer os dois
+    bordos. Com tripulação curta ele se compromete com um bordo e fica nele —
+    que é o comportamento correto, já que o costado abandonado não recarrega.
+
+    E não basta o outro bordo ter UM canhão pronto: ele precisa render uma
+    bordada pelo menos tão boa quanto a atual. Sem essa exigência, a sobra de
+    tripulação que `_crewar_canhoes` deixa do outro lado bastava para disparar
+    a troca, e a IA passava o combate atravessando o convés de um lado para o
+    outro.
     """
     atual = estado.ia_lado_bordada
     oposto = 'bombordo' if atual == 'estibordo' else 'estibordo'
-    if _lado_pronto(estado, atual) == 0 and _lado_pronto(estado, oposto) > 0:
+    guarnecidos_atual = sum(
+        1 for c in estado.inimigo.canhoes[atual] if c.efetivos >= 1
+    )
+    if (_lado_pronto(estado, atual) == 0
+            and _lado_pronto(estado, oposto) >= max(1, guarnecidos_atual)):
         estado.ia_lado_bordada = oposto
     return estado.ia_lado_bordada
 
@@ -193,30 +213,33 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
 
 
 def _crewar_canhoes(estado, inimigo, restante: int) -> None:
-    """Distribui *restante* tripulantes pelos canhões do inimigo."""
-    jogador = estado.jogador
+    """Distribui *restante* tripulantes pelos canhões do inimigo.
+
+    Decide POR BORDO, não por canhão. A versão anterior ordenava os canhões
+    por quem estava no arco naquele instante, e como o arco muda continuamente
+    enquanto a IA circula, a alocação mudava a cada tick. Com o custo de
+    trânsito (ver pirates/core/tripulacao.py) isso deixaria a tripulação
+    inimiga permanentemente a caminho de algum lugar, sem nunca atirar.
+
+    O bordo prioritário é `estado.ia_lado_bordada`, que já tem histerese
+    própria (só troca quando o costado atual esgota a carga), então a alocação
+    só muda quando a IA muda de ideia de verdade. A sobra vai para o bordo
+    oposto, que assim paga o trânsito adiantado e chega pronto para a bordada
+    seguinte.
+    """
     min_c = estado.inimigo_min_crew_canhao
-    lados_no_arco = [
-        lado for lado in ('estibordo', 'bombordo')
-        if dentro_do_arco(inimigo, jogador, lado)[0]
-    ]
+    lado_principal = estado.ia_lado_bordada
+    lado_oposto = 'bombordo' if lado_principal == 'estibordo' else 'estibordo'
 
-    def prioridade(c):
-        if c.lado in lados_no_arco:
-            return 0
-        if c.dist_alvo is not None:
-            return 1
-        return 2
-
-    canhoes = sorted(
-        [c for lado in ('estibordo', 'bombordo') for c in inimigo.canhoes[lado]],
-        key=prioridade,
+    canhoes = (
+        list(inimigo.canhoes[lado_principal]) + list(inimigo.canhoes[lado_oposto])
     )
     for c in canhoes:
         if restante >= min_c:
-            c.tripulantes = min_c
+            if c.tripulantes != min_c:
+                c.tripulantes = min_c
             restante -= min_c
-        else:
+        elif c.tripulantes != 0:
             c.tripulantes = 0
             c.dist_alvo = None
 
@@ -232,36 +255,50 @@ def atualizar_ia_tripulacao(estado) -> None:
     Em modo fuga: toda tripulação disponível vai para bombas/reparo;
     canhões recebem no máximo um tripulante cada.
 
+    Os alvos de bomba e reparo só são reavaliados a cada
+    IA_REAVALIACAO_CREW_SEG: sem esse throttle, o arredondamento do alvo de
+    bomba oscila entre N e N+1 conforme a água sobe e desce, e cada oscilação
+    custaria trânsito à tripulação (ver pirates/core/tripulacao.py).
+
     Args:
         estado: Estado atual do jogo.
     """
     inimigo = estado.inimigo
     total = estado.inimigo_crew_total
-    min_c = estado.inimigo_min_crew_canhao
 
-    bomba_alvo = 0
-    if inimigo.agua > estado.ia_limiar_agua:
-        faixa = max(1.0, 100 - estado.ia_limiar_agua)
-        gravidade = clamp((inimigo.agua - estado.ia_limiar_agua) / faixa, 0, 1)
-        bomba_alvo = min(total, max(1, round(total * (0.35 + 0.35 * gravidade))))
-    restante = total - bomba_alvo
+    pode_reavaliar = (
+        estado.tempo - estado.ia_crew_reavaliado_em >= IA_REAVALIACAO_CREW_SEG
+    )
 
-    reparo_alvo = 0
-    if inimigo.partes['casco'] < estado.ia_limiar_casco and restante > 0:
-        reparo_alvo = min(restante, max(1, round(total * 0.3)))
-    restante -= reparo_alvo
+    if pode_reavaliar:
+        bomba_alvo = 0
+        if inimigo.agua > estado.ia_limiar_agua:
+            faixa = max(1.0, 100 - estado.ia_limiar_agua)
+            gravidade = clamp((inimigo.agua - estado.ia_limiar_agua) / faixa, 0, 1)
+            bomba_alvo = min(total, max(1, round(total * (0.35 + 0.35 * gravidade))))
 
-    estado.inimigo_crew_bomba = bomba_alvo
-    for p in PARTES:
-        estado.inimigo_crew_reparo[p] = reparo_alvo if p == 'casco' else 0
+        reparo_alvo = 0
+        if inimigo.partes['casco'] < estado.ia_limiar_casco and total - bomba_alvo > 0:
+            reparo_alvo = min(total - bomba_alvo, max(1, round(total * 0.3)))
+
+        if (bomba_alvo != estado.inimigo_crew_bomba
+                or reparo_alvo != estado.inimigo_crew_reparo.get('casco', 0)):
+            estado.inimigo_crew_bomba = bomba_alvo
+            for p in PARTES:
+                estado.inimigo_crew_reparo[p] = reparo_alvo if p == 'casco' else 0
+            estado.ia_crew_reavaliado_em = estado.tempo
+
+    restante = total - estado.inimigo_crew_bomba - sum(estado.inimigo_crew_reparo.values())
 
     if estado.inimigo_em_fuga:
         for c in (c for lado in ('estibordo', 'bombordo') for c in inimigo.canhoes[lado]):
-            c.tripulantes = 0
-            c.dist_alvo = None
-        return
+            if c.tripulantes != 0:
+                c.tripulantes = 0
+                c.dist_alvo = None
+    else:
+        _crewar_canhoes(estado, inimigo, restante)
 
-    _crewar_canhoes(estado, inimigo, restante)
+    reconciliar_inimigo(estado)
 
 
 def atualizar_ia_mira(estado) -> None:
@@ -280,7 +317,9 @@ def atualizar_ia_mira(estado) -> None:
 
     for lado in ('bombordo', 'estibordo'):
         for c in inimigo.canhoes[lado]:
-            if c.tripulantes < estado.inimigo_min_crew_canhao:
+            # Efetivos, não alocados: canhão cuja equipe ainda atravessa o
+            # convés não tem quem mire.
+            if c.efetivos < estado.inimigo_min_crew_canhao:
                 continue
             if c.dist_alvo is None or estado.tempo >= c.proximo_tiro:
                 novo = d_real + random.uniform(-erro, erro)

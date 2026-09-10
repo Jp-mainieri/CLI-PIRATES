@@ -27,6 +27,9 @@ from .constants import (
 )
 from .core.state import Estado, sincronizar_crew_com_navio_ativo
 from .core.ship import criar_canhoes
+from .core.tripulacao import (
+    Tripulacao, aplicar_efetivos, efetivos_bomba, efetivos_reparo,
+)
 from .core.porao import gerar_porao_inimigo, coletar_loot
 from .core.notoriedade import (
     sortear_bonus_elite, pontos_por_afundamento, pontos_perdidos_por_fuga,
@@ -515,10 +518,16 @@ def mundo_loop(
             estado.jogador.heading = estado_mundo.jogador_heading
             estado.jogador.velocidade = estado_mundo.jogador_velocidade
 
+            # Trânsito de tripulação também corre na navegação: os timers são
+            # segundos restantes, não instantes de estado.tempo (que zera a
+            # cada combate e não avança aqui).
+            estado.tripulacao.atualizar(dt)
+            aplicar_efetivos(estado.jogador, estado.tripulacao)
+
             # Reparo, água e moral durante navegação
-            for parte, n in estado.crew_reparo.items():
+            for parte, n in efetivos_reparo(estado.tripulacao).items():
                 estado.jogador.reparar(parte, n, dt)
-            estado.jogador.atualizar_agua(estado.crew_bomba, dt)
+            estado.jogador.atualizar_agua(efetivos_bomba(estado.tripulacao), dt)
             estado.jogador.atualizar_moral(dt)
 
             if estado.jogador.afundado:
@@ -614,6 +623,15 @@ def mundo_loop(
                 # (canhoes_lado varia por tipo de navio).
                 estado.inimigo.canhoes = criar_canhoes(params_inimigo['canhoes_lado'])
 
+                # Tripulação nova a cada engajamento: todos com ultimo_posto
+                # None, então a primeira decisão da IA não paga trânsito. O
+                # roster do JOGADOR não é tocado de propósito — quem já estava
+                # alocado durante a navegação continua trabalhando (os timers
+                # são relativos, logo estado.tempo = 0.0 não os afeta).
+                estado.inimigo_tripulacao = Tripulacao(
+                    [f"I{i+1}" for i in range(estado.inimigo_crew_total)]
+                )
+
                 for lado in ('bombordo', 'estibordo'):
                     for c in estado.jogador.canhoes[lado]:
                         c.proximo_tiro = 0.0
@@ -626,6 +644,7 @@ def mundo_loop(
                 estado.zoom_atual = None
                 estado.zoom_mudou_em = -999.0
                 estado.inimigo_em_fuga = False
+                estado.ia_crew_reavaliado_em = -999.0
                 estado.tempo_fuga_longe = 0.0
                 estado.jogador_tentando_fugir = False
                 estado.tempo_fuga_jogador = 0.0

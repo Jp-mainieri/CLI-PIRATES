@@ -53,3 +53,39 @@ class TestCalcularEntradaAgua:
         variante['mastro'] = 0.0
         variante['vela'] = 0.0
         assert calcular_entrada_agua(base) == pytest.approx(calcular_entrada_agua(variante))
+
+
+class TestCanhaoEmTransito:
+    """O painel de canhões não pode anunciar PRONTO com a equipe a caminho."""
+
+    def _estado_com_transito(self):
+        from pirates.core.state import Estado
+        from pirates.input.commands import processar_comando
+        e = Estado(tipo_navio="brigantim")
+        e.crew_total = 1
+        e.tripulacao.redimensionar(["T1"])
+        e.jogador.heading = 0.0
+        e.inimigo.x, e.inimigo.y = 200.0, 0.0
+        processar_comando("canhao e1 200", e)
+        processar_comando("canhao b1 200", e)
+        return e
+
+    def test_mostra_tempo_de_chegada(self):
+        from pirates.ui.hud import build_canhoes_linhas
+        e = self._estado_com_transito()
+        linhas = [texto for texto, _ in build_canhoes_linhas(e)]
+        b1 = next(t for t in linhas if t.strip().startswith("B1"))
+        assert "trip a caminho" in b1
+        assert "PRONTO" not in b1
+
+    def test_canhao_abandonado_fica_sem_mira(self):
+        from pirates.ui.hud import build_canhoes_linhas
+        e = self._estado_com_transito()
+        linhas = [texto for texto, _ in build_canhoes_linhas(e)]
+        e1 = next(t for t in linhas if t.strip().startswith("E1"))
+        assert "sem mira" in e1
+
+    def test_uma_linha_por_canhao(self):
+        from pirates.ui.hud import build_canhoes_linhas
+        e = self._estado_com_transito()
+        assert len(build_canhoes_linhas(e)) == 2 * e.canhoes_lado

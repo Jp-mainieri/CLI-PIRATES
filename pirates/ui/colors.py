@@ -129,7 +129,13 @@ def cor_tarefa(estado, tarefa: str) -> int:
     """Atributo curses para colorir a tarefa de um tripulante na lista."""
     if not estado.cores_ativo or _curses is None:
         return 0
-    mapa = {"canhao": COR_INIMIGO, "reparo": COR_VERDE, "bomba": COR_JOGADOR}
+    mapa = {
+        "canhao": COR_INIMIGO,
+        "reparo": COR_VERDE,
+        "bomba": COR_JOGADOR,
+        # Amarelo é o vocabulário do projeto para "em andamento".
+        "transito": COR_AMARELO,
+    }
     if tarefa in mapa:
         return _curses.color_pair(mapa[tarefa])
     return 0

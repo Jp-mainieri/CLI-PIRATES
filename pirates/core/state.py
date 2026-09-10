@@ -19,6 +19,10 @@ from .ship import Navio, criar_canhoes
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
 from .velas import gerar_slots_fabrica
 from .frota import Frota
+from .tripulacao import (
+    Tripulacao, aplicar_efetivos, desejado_de_contagens, descrever_posto,
+    reconciliar,
+)
 
 
 class Estado:
@@ -145,6 +149,14 @@ class Estado:
 
         self.crew_reparo: dict[str, int] = {p: 0 for p in PARTES}
         self.crew_bomba: int = 0
+
+        # Roster de indivíduos (ver pirates/core/tripulacao.py). As contagens
+        # acima seguem sendo a alocação; o roster diz quem já chegou ao posto.
+        self.tripulacao: Tripulacao = Tripulacao(self.tripulante_ids)
+        self.inimigo_tripulacao: Tripulacao = Tripulacao(
+            [f"I{i+1}" for i in range(self.inimigo_crew_total)]
+        )
+
         self.tempo: float = 0.0
         self.rodando: bool = True
         self.fim: str | None = None
@@ -173,6 +185,7 @@ class Estado:
         self.ia_lado_bordada: str = random.choice(('estibordo', 'bombordo'))
         self.ia_modo_movimento: str = 'circular'
         self.ia_ilha_evadindo: int | None = None
+        self.ia_crew_reavaliado_em: float = -999.0
         self.ilhas_arena: list = []
         self.em_colisao_ilha_inimigo: bool = False
 
@@ -226,6 +239,53 @@ def sincronizar_crew_com_navio_ativo(estado: Estado, tipo_navio_ativo: str) -> N
         f"{l}{i}" for l in ("E", "B") for i in range(1, canhoes_lado + 1)
     ]
 
+    # Quem permanece mantém posto e trânsito; quem entra é gente contratada
+    # agora, e por isso assume o primeiro posto sem pagar trânsito.
+    estado.tripulacao.redimensionar(estado.tripulante_ids)
+    reconciliar_jogador(estado)
+
+
+def reconciliar_jogador(estado: Estado) -> None:
+    """Casa o roster do jogador com as contagens de alocação.
+
+    Chamar depois de qualquer mudança em `Canhao.tripulantes`, `crew_reparo`
+    ou `crew_bomba`. É idempotente: se nada mudou, ninguém é tocado e nenhum
+    trânsito reinicia.
+
+    Loga cada trânsito que começa agora. É a única mensagem que ensina a regra
+    ao jogador, e só aqui o tempo de chegada é conhecido — quem mexeu nas
+    contagens ainda não sabia de onde viria cada tripulante.
+    """
+    antes = {t.id: t.posto for t in estado.tripulacao.membros}
+
+    reconciliar(
+        estado.tripulacao,
+        desejado_de_contagens(estado.jogador, estado.crew_reparo, estado.crew_bomba),
+    )
+    aplicar_efetivos(estado.jogador, estado.tripulacao)
+
+    partidas: dict[tuple, float] = {}
+    for t in estado.tripulacao.membros:
+        if t.posto != antes.get(t.id) and t.em_transito():
+            chave = (t.posto, t.ultimo_posto)
+            partidas[chave] = max(partidas.get(chave, 0.0), t.transito_restante)
+    for (destino, origem), segundos in partidas.items():
+        estado.log.append(
+            f"Equipe a caminho de {descrever_posto(destino)}"
+            f" (vinha de {descrever_posto(origem)}): {segundos:.0f}s"
+        )
+
+
+def reconciliar_inimigo(estado: Estado) -> None:
+    """Espelho de `reconciliar_jogador` para o navio inimigo."""
+    reconciliar(
+        estado.inimigo_tripulacao,
+        desejado_de_contagens(
+            estado.inimigo, estado.inimigo_crew_reparo, estado.inimigo_crew_bomba
+        ),
+    )
+    aplicar_efetivos(estado.inimigo, estado.inimigo_tripulacao)
+
 
 # ---------------------------------------------------------------------------
 # Roster de tripulação
@@ -234,43 +294,32 @@ def sincronizar_crew_com_navio_ativo(estado: Estado, tipo_navio_ativo: str) -> N
 def montar_tripulacao(estado: Estado) -> list[tuple[str, str, str]]:
     """Constrói a lista de tripulantes com sua tarefa atual.
 
+    Lê o roster de indivíduos (`estado.tripulacao`), e não as contagens: assim
+    cada ID fica preso ao seu tripulante, em vez de pular de posto sempre que
+    outro é realocado.
+
     Args:
         estado: Estado atual do jogo.
 
     Returns:
-        Lista de tuplas (id_tripulante, tarefa, detalhe).
+        Lista de tuplas (id_tripulante, tarefa, detalhe). A tarefa é uma de
+        'canhao', 'reparo', 'bomba', 'transito' ou 'ocioso'.
     """
-    ids = estado.tripulante_ids
     roster: list[tuple[str, str, str]] = []
-    i = 0
 
-    for lado in ('estibordo', 'bombordo'):
-        for c in estado.jogador.canhoes[lado]:
-            for _ in range(c.tripulantes):
-                if i >= len(ids):
-                    break
-                detalhe = f"canhao {c.label}"
-                #if c.dist_alvo is not None:
-                #    detalhe += f" (mira {c.dist_alvo:.0f}m)"
-                roster.append((ids[i], "canhao", detalhe))
-                i += 1
-
-    for parte in PARTES:
-        for _ in range(estado.crew_reparo.get(parte, 0)):
-            if i >= len(ids):
-                break
-            roster.append((ids[i], "reparo", parte))
-            i += 1
-
-    for _ in range(estado.crew_bomba):
-        if i >= len(ids):
-            break
-        roster.append((ids[i], "bomba", "porao"))
-        i += 1
-
-    while i < len(ids):
-        roster.append((ids[i], "ocioso", "conves"))
-        i += 1
+    for t in estado.tripulacao.membros:
+        if t.posto is None:
+            roster.append((t.id, "ocioso", "conves"))
+        elif t.em_transito():
+            destino = descrever_posto(t.posto)
+            roster.append((t.id, "transito", f"-> {destino} ({t.transito_restante:.1f}s)"))
+        elif t.posto[0] == 'canhao':
+            label = f"{'E' if t.posto[1] == 'estibordo' else 'B'}{t.posto[2]}"
+            roster.append((t.id, "canhao", f"canhao {label}"))
+        elif t.posto[0] == 'reparo':
+            roster.append((t.id, "reparo", t.posto[1]))
+        else:
+            roster.append((t.id, "bomba", "porao"))
 
     return roster
 
@@ -288,9 +337,14 @@ def _liberar_tripulantes(
     """Libera até *necessario* tripulantes puxando de outras tarefas.
 
     Ordem (quem é retirado primeiro):
-    1. Canhões (libera o canhão inteiro).
+    1. Canhões (retira o mínimo necessário, não o canhão inteiro).
     2. Reparo (retira parcialmente).
     A bomba nunca é retirada automaticamente.
+
+    Como realocar agora custa trânsito (ver pirates/core/tripulacao.py), a
+    escolha de quem sacrificar deixou de ser indiferente: quando o destino é um
+    canhão, tiramos primeiro de canhões do MESMO bordo, cujo trânsito de volta
+    é o mais barato.
 
     Args:
         estado:         Estado atual do jogo.
@@ -304,17 +358,28 @@ def _liberar_tripulantes(
     liberado = 0
     movimentos: list[str] = []
 
-    for lado in ('bombordo', 'estibordo'):
+    # Bordo do destino, quando o destino é um canhão: define a ordem de busca.
+    lado_destino = getattr(ignorar_canhao, 'lado', None)
+    if lado_destino == 'estibordo':
+        ordem_lados = ('estibordo', 'bombordo')
+    else:
+        ordem_lados = ('bombordo', 'estibordo')
+
+    for lado in ordem_lados:
         for c in estado.jogador.canhoes[lado]:
             if liberado >= necessario:
                 break
             if c is ignorar_canhao or c.tripulantes <= 0:
                 continue
-            qtd = c.tripulantes
-            movimentos.append(f"{qtd} de Canhao {c.label}")
-            c.tripulantes = 0
-            c.dist_alvo = None
-            liberado += qtd
+            tirar = min(c.tripulantes, necessario - liberado)
+            restante = c.tripulantes - tirar
+            if restante < estado.min_crew_canhao:
+                # Sobra abaixo do mínimo não opera o canhão: leva todos.
+                tirar = c.tripulantes
+                c.dist_alvo = None
+            movimentos.append(f"{tirar} de Canhao {c.label}")
+            c.tripulantes -= tirar
+            liberado += tirar
         if liberado >= necessario:
             break
 

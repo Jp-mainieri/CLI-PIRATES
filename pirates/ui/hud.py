@@ -196,7 +196,17 @@ def build_canhoes_linhas(estado) -> list[tuple[str, int]]:
 
             bar_str = f"[{barra(pct_cd)}]"
 
-            if c.dist_alvo is None:
+            if c.tripulantes > 0 and c.efetivos == 0:
+                # Equipe alocada mas ainda atravessando o convés: nem atira nem
+                # recarrega. Sem esta linha o canhão anunciaria PRONTO mentindo,
+                # e a espera de até 10s pareceria bug.
+                chegada = estado.tripulacao.transito_restante_do_posto(
+                    ('canhao', lado, c.indice)
+                )
+                info = f"trip a caminho {chegada:.1f}s"
+                bar_str = f"[{barra(pct_cd)}]"
+                attr = cor_cooldown(estado, pronto=False)
+            elif c.dist_alvo is None:
                 info = "sem mira"
                 attr = 0
             elif pronto:
@@ -538,6 +548,11 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
             linhas.append((f"  reparo {p}: {n}", 0))
     total_canhoes = sum(c.tripulantes for lado in i.canhoes.values() for c in lado)
     linhas.append((f"  canhoes (total trip.): {total_canhoes}", 0))
+    # IA presa em trânsito permanente não quebra teste nenhum: só faz o inimigo
+    # parar de atirar. Esta linha é como se flagra isso numa batalha longa.
+    linhas.append((
+        f"  em transito: {len(estado.inimigo_tripulacao.em_transito())}", 0,
+    ))
 
     for lado in ('estibordo', 'bombordo'):
         for c in i.canhoes[lado]:
@@ -548,7 +563,8 @@ def build_adm_linhas(estado) -> list[tuple[str, int]]:
             else:
                 status = "PRONTO"
             linhas.append((
-                f"  {c.label}: trip={c.tripulantes} mira={c.mira_atual:5.0f}m"
+                f"  {c.label}: trip={c.tripulantes}/{c.efetivos}"
+                f" mira={c.mira_atual:5.0f}m"
                 f" dist_alvo={c.dist_alvo} armado={c.armado()} [{status}]",
                 0,
             ))

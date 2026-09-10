@@ -7,6 +7,7 @@ e verifica as condições de vitória/derrota a cada tick.
 
 from .combat import disparar_canhoes_navio, escolher_zoom, distancia
 from .state import Estado
+from .tripulacao import aplicar_efetivos, efetivos_bomba, efetivos_reparo
 from ..ai.enemy import (
     atualizar_ia_movimento, atualizar_ia_tripulacao, atualizar_ia_mira,
     atualizar_estado_fuga,
@@ -44,18 +45,26 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
     jogador = estado.jogador
     inimigo = estado.inimigo
 
-    for parte, n in estado.crew_reparo.items():
+    # Trânsito primeiro, efetivos depois: quem vence o timer neste tick já
+    # trabalha neste tick.
+    estado.tripulacao.atualizar(dt)
+    aplicar_efetivos(jogador, estado.tripulacao)
+    estado.inimigo_tripulacao.atualizar(dt)
+    aplicar_efetivos(inimigo, estado.inimigo_tripulacao)
+
+    # Reparo e bomba usam os EFETIVOS: quem ainda está a caminho não trabalha.
+    for parte, n in efetivos_reparo(estado.tripulacao).items():
         jogador.reparar(parte, n, dt)
-    jogador.atualizar_agua(estado.crew_bomba, dt)
+    jogador.atualizar_agua(efetivos_bomba(estado.tripulacao), dt)
     jogador.atualizar_moral(dt)
 
     if not inimigo.afundado:
         atualizar_ia_movimento(estado, dt)
         atualizar_ia_tripulacao(estado)
         atualizar_ia_mira(estado)
-        for parte, n in estado.inimigo_crew_reparo.items():
+        for parte, n in efetivos_reparo(estado.inimigo_tripulacao).items():
             inimigo.reparar(parte, n, dt)
-        inimigo.atualizar_agua(estado.inimigo_crew_bomba, dt)
+        inimigo.atualizar_agua(efetivos_bomba(estado.inimigo_tripulacao), dt)
         inimigo.atualizar_moral(dt)
         atualizar_estado_fuga(estado)
 

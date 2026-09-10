@@ -202,6 +202,39 @@ COOLDOWN_CANHAO = 12.0
 """Tempo base de recarga de um canhão, em segundos."""
 
 # ---------------------------------------------------------------------------
+# Tripulação — trânsito entre postos
+# ---------------------------------------------------------------------------
+# Um tripulante realocado não começa a trabalhar de imediato: ele atravessa o
+# convés primeiro. Sem isso o jogador rodava um único tripulante entre todos os
+# canhões (cada um recarregava de graça) e girava o navio trocando de bordo sem
+# custo nenhum. O custo é sempre medido a partir do ÚLTIMO POSTO ONDE O
+# TRIPULANTE EFETIVAMENTE TRABALHOU, nunca do estado 'ocioso' — senão parar no
+# convés viraria lavagem de custo.
+
+TRANSITO_CANHAO_MESMO_BORDO = 3.0
+"""Segundos para mudar entre canhões do mesmo bordo. Placeholder – não calibrado."""
+
+TRANSITO_TAREFA_DIFERENTE = 6.0
+"""Segundos para mudar de tipo de tarefa (canhão↔bomba, canhão↔reparo,
+bomba↔reparo). Placeholder – não calibrado."""
+
+TRANSITO_CANHAO_BORDO_OPOSTO = 10.0
+"""Segundos para atravessar o navio e assumir um canhão do bordo oposto. É a
+constante que decide se girar o navio para usar o outro bordo compensa: com
+COOLDOWN_CANHAO = 12.0, custa quase uma salva inteira. Placeholder – não
+calibrado."""
+
+TRANSITO_REPARO_ENTRE_PARTES = 0.0
+"""Segundos para um tripulante de reparo trocar de parte (casco→vela, etc.).
+Zero deixa o ciclo de reparo (tecla E) como micro grátis; 2-3s é o primeiro
+valor a testar se isso incomodar. Placeholder – não calibrado."""
+
+IA_REAVALIACAO_CREW_SEG = 2.0
+"""Intervalo mínimo entre reavaliações de bomba/reparo da IA. Sem esse throttle
+o alvo oscila entre N e N+1 conforme a água sobe e desce, e cada oscilação
+custaria trânsito à tripulação inimiga. Placeholder – não calibrado."""
+
+# ---------------------------------------------------------------------------
 # Moral
 # ---------------------------------------------------------------------------
 

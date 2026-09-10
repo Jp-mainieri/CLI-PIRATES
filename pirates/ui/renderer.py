@@ -44,6 +44,18 @@ ADM_X = 128
 Terminal precisa de ~150+ colunas; caso contrário safe_addstr trunca silenciosamente."""
 
 
+def _titulo_tripulacao(estado) -> str:
+    """Cabeçalho do painel de tripulação, com o total em trânsito quando houver.
+
+    É o sinal agregado que o jogador olha antes de decidir virar o navio: com
+    gente atravessando o convés, os canhões do bordo novo ainda não respondem.
+    """
+    em_transito = len(estado.tripulacao.em_transito())
+    if em_transito:
+        return f"TRIPULACAO: (em transito: {em_transito})"
+    return "TRIPULACAO:"
+
+
 def safe_addstr(stdscr, y: int, x: int, text: str, attr: int = 0) -> None:
     """Escreve texto em curses ignorando silenciosamente erros de borda.
 
@@ -117,7 +129,7 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     esquerda = build_navio_diagrama(estado)
     canhoes_linhas = build_canhoes_linhas(estado)
     roster = montar_tripulacao(estado)
-    direita = canhoes_linhas + [("", 0), ("TRIPULACAO:", 0)] + [
+    direita = canhoes_linhas + [("", 0), (_titulo_tripulacao(estado), 0)] + [
         (
             f"{SIMB_TRIPULANTE} {tid:4s} {(tarefa + ': ' + detalhe) if detalhe else tarefa}",
             cor_tarefa(estado, tarefa),
@@ -247,7 +259,7 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
     esquerda = build_navio_diagrama(estado)
     canhoes_linhas = build_canhoes_linhas(estado)
     roster = montar_tripulacao(estado)
-    direita = canhoes_linhas + [("", 0), ("TRIPULACAO:", 0)] + [
+    direita = canhoes_linhas + [("", 0), (_titulo_tripulacao(estado), 0)] + [
         (
             f"{SIMB_TRIPULANTE} {tid:4s} {(tarefa + ': ' + detalhe) if detalhe else tarefa}",
             cor_tarefa(estado, tarefa),

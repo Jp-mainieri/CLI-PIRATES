@@ -7,7 +7,7 @@ as mudanças no estado do jogo. Inclui o sistema de autocompletar por TAB.
 
 from ..constants import PARTES, COMANDOS, CANHAO_SUBCMDS, ALIASES
 from ..core.ship import resolver_canhao
-from ..core.state import Estado, tentar_assumir_tripulacao
+from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
 from ..core.combat import distancia, rumo_para
 
 
@@ -253,6 +253,12 @@ def processar_comando(texto: str, estado: Estado) -> None:
 
     else:
         estado.log.append("Comando nao reconhecido. Digite 'ajuda'.")
+
+    # Ponto único de saída: qualquer comando que tenha mexido nas contagens de
+    # tripulação é casado aqui com o roster de indivíduos. Incondicional de
+    # propósito — é idempotente e barato, e assim nenhum comando novo pode
+    # esquecer de reconciliar.
+    reconciliar_jogador(estado)
 
 
 def _definir_trip_canhao(

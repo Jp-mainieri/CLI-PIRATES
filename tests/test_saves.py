@@ -420,3 +420,32 @@ class TestMelhorVitoriasArena:
         salvar_resultado_arena("A", "chalupa", 5, "derrota", 100)
         salvar_resultado_arena("B", "chalupa", 12, "derrota", 200)
         assert melhor_vitorias_arena() == 12
+
+
+# ── roster de tripulação ──────────────────────────────────────────────────────
+
+def test_save_sem_alocacao_carrega_com_roster_ocioso():
+    """Saves nunca gravaram alocação de tripulação: o roster nasce no convés.
+
+    Isso é o que torna a retrocompatibilidade automática — nenhum save antigo
+    precisa de migração, e VERSAO_SAVE não muda por causa do trânsito.
+    """
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Mary", "galeao")
+    estado = _estado_fake("galeao")
+    salvar(estado, _estado_mundo_fake("galeao", seed), slug)
+
+    data = carregar(slug)
+    assert "tripulacao" not in data.get("capitao", {})
+
+    config = {"hotkeys": True, "cores": True, "unicode": True,
+              "textura_mar": True, "rastro": True}
+    e, _em = restaurar_estado(data, config)
+
+    assert len(e.tripulacao.membros) == e.crew_total
+    assert all(t.posto is None for t in e.tripulacao.membros)
+    assert all(t.ultimo_posto is None for t in e.tripulacao.membros)
+
+
+def test_versao_save_nao_muda_com_o_transito():
+    assert VERSAO_SAVE == 2

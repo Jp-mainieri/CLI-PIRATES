@@ -8,7 +8,7 @@ está selecionado para ajuste rápido via teclas.
 
 from ..constants import PARTES, HOTKEY_PASSO_MIRA, HOTKEY_PASSO_LEME
 from ..core.utils import clamp
-from ..core.state import Estado, tentar_assumir_tripulacao
+from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
 from .commands import _definir_trip_canhao, _armar_canhao_com_padrao
 
 
@@ -129,6 +129,18 @@ def _descrever_foco(estado: Estado) -> str:
 
 
 def processar_hotkey(ch: int, estado: Estado) -> bool:
+    """Processa uma hotkey e casa o roster de tripulação com o resultado.
+
+    Wrapper fino sobre `_processar_hotkey`: como o dispatcher tem dezenas de
+    pontos de saída, a reconciliação fica aqui, num lugar só, para que nenhuma
+    hotkey nova possa esquecer dela. É idempotente e barata.
+    """
+    resultado = _processar_hotkey(ch, estado)
+    reconciliar_jogador(estado)
+    return resultado
+
+
+def _processar_hotkey(ch: int, estado: Estado) -> bool:
     """Processa uma tecla pressionada como hotkey de jogo.
 
     Mapeamento (maiúsculas e minúsculas equivalentes):

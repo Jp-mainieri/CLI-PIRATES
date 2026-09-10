@@ -34,7 +34,11 @@ class Canhao:
     Attributes:
         lado:        'estibordo' ou 'bombordo'.
         indice:      Posição 1-based na fileira do lado (E1, E2, …).
-        tripulantes: Quantos tripulantes estão operando este canhão.
+        tripulantes: Quantos tripulantes estão ALOCADOS a este canhão. Inclui
+                     quem ainda está atravessando o convés para chegar aqui.
+        efetivos:    Quantos já estão de fato ao canhão, trabalhando (ver
+                     pirates/core/tripulacao.py). É sempre ≤ tripulantes;
+                     a diferença é a equipe em trânsito.
         dist_alvo:   Distância estimada do alvo em metros, ou None se
                      o canhão não está mirando.
         mira_atual:  Última distância configurada (mantida ao parar,
@@ -47,6 +51,7 @@ class Canhao:
         self.lado = lado
         self.indice = indice
         self.tripulantes: int = 0
+        self.efetivos: int = 0
         self.dist_alvo: float | None = None
         self.mira_atual: float = 300.0
         self.proximo_tiro: float = 0.0
@@ -58,8 +63,17 @@ class Canhao:
         return f"{'E' if self.lado == 'estibordo' else 'B'}{self.indice}"
 
     def armado(self) -> bool:
-        """Retorna True se o canhão tem tripulação e alvo definido."""
-        return self.tripulantes >= 1 and self.dist_alvo is not None
+        """Retorna True se o canhão tem tripulação EFETIVA e alvo definido.
+
+        Olha `efetivos`, não `tripulantes`: um canhão cuja equipe ainda está a
+        caminho não atira e não recarrega (ver o congelamento de recarga em
+        combat.disparar_canhoes_navio).
+
+        Nota: assume mínimo de 1 tripulante por canhão, que é o valor de
+        `min_crew_canhao` em todos os tipos de navio hoje. Se algum tipo subir
+        esse mínimo, esta checagem precisa passar a compará-lo.
+        """
+        return self.efetivos >= 1 and self.dist_alvo is not None
 
 
 def calcular_entrada_agua(partes: dict) -> float:

@@ -20,6 +20,7 @@ class TestCanhao:
     def test_armado_com_tudo(self):
         c = Canhao('estibordo', 1)
         c.tripulantes = 1
+        c.efetivos = 1
         c.dist_alvo = 300.0
         assert c.armado() is True
 
@@ -31,6 +32,15 @@ class TestCanhao:
     def test_nao_armado_sem_alvo(self):
         c = Canhao('estibordo', 1)
         c.tripulantes = 2
+        c.efetivos = 2
+        assert c.armado() is False
+
+    def test_nao_armado_com_equipe_em_transito(self):
+        """Alocado mas ainda atravessando o convés: nao atira nem recarrega."""
+        c = Canhao('estibordo', 1)
+        c.tripulantes = 1
+        c.efetivos = 0
+        c.dist_alvo = 300.0
         assert c.armado() is False
 
 
