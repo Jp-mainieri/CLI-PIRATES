@@ -48,7 +48,7 @@ POLL_MS = 100
 # Física / balanceamento
 # ---------------------------------------------------------------------------
 
-GIRO_GRAUS_SEG_PADRAO = 9.0
+GIRO_GRAUS_SEG_PADRAO = 5.0
 """Taxa de giro padrão do leme, em graus por segundo."""
 
 ACEL_VEL_SEG = 3.0
@@ -211,14 +211,14 @@ COOLDOWN_CANHAO = 12.0
 # TRIPULANTE EFETIVAMENTE TRABALHOU, nunca do estado 'ocioso' — senão parar no
 # convés viraria lavagem de custo.
 
-TRANSITO_CANHAO_MESMO_BORDO = 3.0
+TRANSITO_CANHAO_MESMO_BORDO = 6.0
 """Segundos para mudar entre canhões do mesmo bordo. Placeholder – não calibrado."""
 
-TRANSITO_TAREFA_DIFERENTE = 6.0
+TRANSITO_TAREFA_DIFERENTE = 3.0
 """Segundos para mudar de tipo de tarefa (canhão↔bomba, canhão↔reparo,
 bomba↔reparo). Placeholder – não calibrado."""
 
-TRANSITO_CANHAO_BORDO_OPOSTO = 10.0
+TRANSITO_CANHAO_BORDO_OPOSTO = 8.0
 """Segundos para atravessar o navio e assumir um canhão do bordo oposto. É a
 constante que decide se girar o navio para usar o outro bordo compensa: com
 COOLDOWN_CANHAO = 12.0, custa quase uma salva inteira. Placeholder – não
@@ -322,7 +322,7 @@ apenas o quadrante onde o jogador está, não o mundo inteiro."""
 MUNDO_NUM_INIMIGOS = 32
 """Quantos navios inimigos existem simultaneamente espalhados pelo mundo."""
 
-MUNDO_ESPACAMENTO_MIN = 4000.0
+MUNDO_ESPACAMENTO_MIN = 2000.0
 """Distância mínima entre navios inimigos entre si e do jogador ao sortear
 novas posições de spawn."""
 
@@ -340,7 +340,7 @@ do jogador."""
 MUNDO_VISAO_PORTOS = 5000.0
 """Alcance de detecção do capitão para portos no mapa-mundo."""
 
-MUNDO_VISAO_INIMIGOS = 3600.0
+MUNDO_VISAO_INIMIGOS = 3500.0
 """Alcance de detecção do capitão para navios inimigos no mapa-mundo."""
 
 MUNDO_TICK = 0.5
@@ -667,10 +667,10 @@ TITULO_ARTE = [
 ]
 
 ARTE_VITORIA = [
-    "         _|_         ^v^            ",
-    "        )___)                   ^v^     ",
-    "       )_____)        |[ =⍿U⍿== }    ",
-    "    ([__I*I*I*_/)    /         ",
+    "         _|_  * \\   /   ^v^            ",
+    "        )___) - - . - -              ^v^     ",
+    "       )_____)  . \\    *    ",
+    "    ([__I*I*I*_/)             ",
     "  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", 
     "       O NAVIO INIMIGO AFUNDOU!",
 ]
