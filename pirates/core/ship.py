@@ -213,6 +213,16 @@ class Navio:
         """Velocidade máxima como ponto de equilíbrio entre empuxo da vela
         (soma dos slots) e arrasto do casco (doc08_vento.md §6) — sem teto
         artificial. Zero se ancorado."""
+        return self.velocidade_maxima_com_eficiencia(self.eficiencia_vento_atual)
+
+    def velocidade_maxima_com_eficiencia(self, eficiencia_vento: float) -> float:
+        """Mesmo cálculo de `velocidade_maxima`, mas com a eficiência de
+        vento passada como parâmetro em vez de `self.eficiencia_vento_atual`.
+
+        Existe pra permitir perguntar "que velocidade eu teria num ângulo
+        relativo de vento hipotético" sem mexer no heading real do navio —
+        usado pela IA pra comparar pontos de vela ao decidir rumo de fuga
+        (ver pirates/ai/enemy.py)."""
         fator_dano = (self.partes['vela'] / 100) * (self.partes['mastro'] / 100)
 
         if self.ancorado:
@@ -221,7 +231,7 @@ class Navio:
         empuxo = (
             self.velocidade_max_base
             * (1.0 + bonus_fixo_vela_bruto(self.slots_vela))
-            * self.eficiencia_vento_atual
+            * eficiencia_vento
             * self.fator_intensidade_vento_atual
             * (1.0 + self.upgrades.get('velocidade_giro', 0.0))
         )

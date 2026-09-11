@@ -10,7 +10,10 @@ from pirates.world.entities import Ilha
 from pirates.constants import (
     IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE,
 )
-from pirates.ai.enemy import _tempo_giro_bordada
+from pirates.ai.enemy import (
+    _tempo_giro_bordada, _escolher_rumo_fuga, _heading_no_angulo_vento_mais_proximo,
+)
+from pirates.core.vento import angulo_relativo_vento
 
 
 def _estado(tipo="brigantim"):
@@ -288,6 +291,82 @@ class TestManobraMantemOArco:
         atualizar_ia_movimento(e, 0.5)
         rel = abs((e.inimigo.heading_alvo - 180.0 + 180) % 360 - 180)
         assert math.cos(math.radians(rel)) > 0.0   # rumo se aproxima
+
+
+class TestFugaEscolheRumoPeloVento:
+    """A fuga deve escolher bolina ou popa pela vantagem de velocidade real
+    sobre o perseguidor, não sempre "a favor do vento"."""
+
+    def _preparar(self, e, slots_inimigo, slots_jogador):
+        e.jogador.x, e.jogador.y = 0.0, 0.0
+        e.inimigo.x, e.inimigo.y = 0.0, 200.0  # inimigo ao norte do jogador
+        e.vento_direcao = 0.0
+        e.inimigo.slots_vela = slots_inimigo
+        e.jogador.slots_vela = slots_jogador
+
+    def _slot(self, tipo, nivel=2):
+        return [{"local": "principal", "tipo": tipo, "nivel": nivel}]
+
+    def test_prefere_bolina_quando_e_o_ponto_forte_do_fugitivo(self):
+        """Ex.: chalupa (latina, forte em bolina) fugindo de galeão (quadrada,
+        forte em popa) — deve fugir contra o vento, não a favor."""
+        e = _estado()
+        self._preparar(e, self._slot("latina"), self._slot("quadrada"))
+        heading = _escolher_rumo_fuga(e)
+        ang = angulo_relativo_vento(heading, e.vento_direcao)
+        assert ang < 90.0   # bolina, não popa
+
+    def test_prefere_popa_quando_e_o_ponto_forte_do_fugitivo(self):
+        """O inverso do caso acima: quem tem a vela de popa forte foge a
+        favor do vento."""
+        e = _estado()
+        self._preparar(e, self._slot("quadrada"), self._slot("latina"))
+        heading = _escolher_rumo_fuga(e)
+        ang = angulo_relativo_vento(heading, e.vento_direcao)
+        assert ang > 90.0   # popa, não bolina
+
+    def test_empate_desempata_para_popa(self):
+        """Mesmo tipo de vela nos dois lados: a razão de vantagem é 1.0 nos
+        dois pontos, e o desempate favorece popa (soma o empuxo constante
+        do vento)."""
+        e = _estado()
+        self._preparar(e, self._slot("latina"), self._slot("latina"))
+        heading = _escolher_rumo_fuga(e)
+        ang = angulo_relativo_vento(heading, e.vento_direcao)
+        assert ang > 90.0
+
+    def test_heading_escolhido_ainda_afasta_do_perseguidor(self):
+        """Dos dois headings possíveis pro ângulo de vento escolhido, fica
+        com o que mais se aproxima do rumo direto de fuga (oposto ao
+        perseguidor), não o espelhado."""
+        import math
+        e = _estado()
+        self._preparar(e, self._slot("latina"), self._slot("quadrada"))
+        heading = _escolher_rumo_fuga(e)
+        # Inimigo ao norte do jogador: fugir é seguir mais para o norte (rumo 0).
+        rel = abs((heading - 0.0 + 180) % 360 - 180)
+        assert math.cos(math.radians(rel)) > 0.0
+
+    def test_atualizar_ia_movimento_usa_o_rumo_de_fuga_escolhido(self):
+        e = _estado()
+        self._preparar(e, self._slot("latina"), self._slot("quadrada"))
+        e.inimigo_em_fuga = True
+        e.ilhas_arena = []
+        esperado = _escolher_rumo_fuga(e)
+        atualizar_ia_movimento(e, 0.5)
+        assert abs((e.inimigo.heading_alvo - esperado + 180) % 360 - 180) < 0.1
+
+
+class TestHeadingNoAnguloVentoMaisProximo:
+    def test_escolhe_o_lado_mais_proximo_da_referencia(self):
+        # Vento vindo do norte (0°); ângulo relativo de 90° dá dois
+        # candidatos: 90° (leste) e 270° (oeste). Referência a leste.
+        h = _heading_no_angulo_vento_mais_proximo(0.0, 90.0, 100.0)
+        assert h == 90.0
+
+    def test_escolhe_o_outro_lado_quando_mais_proximo(self):
+        h = _heading_no_angulo_vento_mais_proximo(0.0, 90.0, 260.0)
+        assert h == 270.0
 
 
 class TestGestaoDeVelas:

@@ -16,11 +16,13 @@ from ..constants import (
     IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE, IA_ILHA_HISTERESE,
     IA_REAVALIACAO_CREW_SEG, IA_MARGEM_ARCO_GRAUS, IA_DIST_PERSEGUICAO_MULT,
     ARCO_TIRO_CENTRO, ARCO_TIRO_MIN, ARCO_TIRO_MAX,
+    VENTO_ZONAS_ANGULO_MEIO,
 )
 from ..core.utils import clamp
 from ..core.combat import distancia, rumo_para
 from ..core.state import reconciliar_inimigo
 from ..core.vento import angulo_relativo_vento
+from ..core.velas import eficiencia_vento_bruta
 
 
 def atualizar_estado_fuga(estado) -> None:
@@ -40,6 +42,72 @@ def atualizar_estado_fuga(estado) -> None:
         estado.inimigo_em_fuga = False
         estado.tempo_fuga_longe = 0.0
         estado.log.append("O navio inimigo recupera a moral e volta a lutar!")
+
+
+def _heading_no_angulo_vento_mais_proximo(
+    vento_direcao: float, angulo_relativo: float, referencia: float,
+) -> float:
+    """Dos dois headings que produzem *angulo_relativo* de vento (um pra cada
+    lado da direção do vento), devolve o mais próximo de *referencia*.
+
+    Um ângulo relativo de vento não determina um heading único — ele é
+    simétrico em torno do eixo do vento. Entre os dois, ficamos com o que
+    mantém o navio mais alinhado com *referencia* (o rumo direto de fuga),
+    senão o navio ganharia velocidade mas poderia acabar indo de encontro a
+    quem está perseguindo em vez de se afastar.
+    """
+    candidato_mais = (vento_direcao + angulo_relativo) % 360
+    candidato_menos = (vento_direcao - angulo_relativo) % 360
+    diff_mais = abs((candidato_mais - referencia + 180) % 360 - 180)
+    diff_menos = abs((candidato_menos - referencia + 180) % 360 - 180)
+    return candidato_mais if diff_mais <= diff_menos else candidato_menos
+
+
+def _escolher_rumo_fuga(estado) -> float:
+    """Escolhe o heading de fuga comparando bolina (contra o vento) e popa
+    (a favor do vento): o inimigo foge pelo ponto de vela onde tem a maior
+    vantagem de velocidade sobre o jogador — não sempre "direto a favor do
+    vento", que favorece incondicionalmente quem já tem vela quadrada/de
+    popa (o galeão) mesmo fugindo de um alvo mais lento nesse ponto.
+
+    Compara velocidade máxima HIPOTÉTICA nos dois pontos (sem alterar o
+    heading real de nenhum navio — ver `Navio.velocidade_maxima_com_eficiencia`),
+    supondo que o perseguidor dá caça pelo mesmo ângulo relativo de vento
+    (a forma mais eficiente de perseguir é manter-se diretamente atrás).
+
+    Em empate (mesmo tipo de navio nos dois lados: a razão é 1.0 nos dois
+    pontos), prefere popa — a favor do vento sempre soma o empuxo constante
+    do vento (`empuxo_constante_vento`, que empurra o navio mesmo parado),
+    então entre pontos de vela equivalentes a favor do vento nunca é pior.
+    """
+    inimigo = estado.inimigo
+    jogador = estado.jogador
+    r = rumo_para(inimigo, jogador)
+    referencia = (r + 180) % 360
+
+    melhor_vantagem = -1.0
+    melhor_heading = referencia
+    for zona in ('bolina', 'popa'):
+        angulo = VENTO_ZONAS_ANGULO_MEIO[zona]
+        ef_inimigo = eficiencia_vento_bruta(inimigo.slots_vela, angulo)
+        ef_jogador = eficiencia_vento_bruta(jogador.slots_vela, angulo)
+        v_inimigo = inimigo.velocidade_maxima_com_eficiencia(ef_inimigo)
+        v_jogador = jogador.velocidade_maxima_com_eficiencia(ef_jogador)
+        if v_jogador > 0:
+            vantagem = v_inimigo / v_jogador
+        else:
+            vantagem = math.inf if v_inimigo > 0 else 0.0
+
+        # Empate: fica com o candidato já escolhido se for popa (desempate
+        # a favor do vento), senão troca.
+        empate = abs(vantagem - melhor_vantagem) < 1e-9
+        if vantagem > melhor_vantagem or (empate and zona == 'popa'):
+            melhor_vantagem = vantagem
+            melhor_heading = _heading_no_angulo_vento_mais_proximo(
+                estado.vento_direcao, angulo, referencia,
+            )
+
+    return melhor_heading
 
 
 def _ajustar_heading_vento(
@@ -196,8 +264,9 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     voltar a ter linha de tiro: a velocidade de giro atual gasta mais que uma
     recarga inteira nisso.
 
-    Comportamento em fuga: foge na direção oposta ao jogador a todo vapor
-    (velas cheias), desviando de ilhas no caminho.
+    Comportamento em fuga: velas cheias, desviando de ilhas no caminho, no
+    heading escolhido por `_escolher_rumo_fuga` — bolina ou popa, o que der
+    mais vantagem de velocidade sobre o jogador (não sempre popa).
 
     Args:
         estado: Estado atual do jogo.
@@ -211,7 +280,7 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
     r = rumo_para(inimigo, jogador)
 
     if estado.inimigo_em_fuga:
-        inimigo.heading_alvo = (r + 180) % 360
+        inimigo.heading_alvo = _escolher_rumo_fuga(estado)
         _ajustar_velas(inimigo, 2)
         correcao_max = IA_VENTO_CORRECAO_MAX_FUGA_GRAUS
     else:
