@@ -28,17 +28,22 @@ def _ciclar_canhao(estado: Estado, lado: str) -> None:
 
 
 def _ajustar_mira(estado: Estado, delta: float) -> None:
-    """Incrementa ou decrementa a mira do canhão em foco."""
-    if not (estado.foco and estado.foco[0] == "canhao"):
-        estado.log.append("Selecione um canhao primeiro (tecla j ou l)")
-        return
-    _, lado, idx = estado.foco
-    c = estado.jogador.canhoes[lado][idx]
-    novo = clamp(c.mira_atual + delta, 50, 900)
-    c.mira_atual = novo
-    if c.dist_alvo is not None:
-        c.dist_alvo = novo
-    estado.log.append(f"Canhao {c.label} mira: {novo:.0f}m")
+    """Incrementa ou decrementa a mira de TODOS os canhões do jogador.
+
+    Não depende de foco: I/K ajustam a frota inteira de uma vez, foco de
+    canhão (J/L) serve só para outras hotkeys (ex.: armar/desarmar).
+    """
+    algum = False
+    for lado in estado.jogador.canhoes:
+        for c in estado.jogador.canhoes[lado]:
+            algum = True
+            novo = clamp(c.mira_atual + delta, 50, 900)
+            c.mira_atual = novo
+            if c.dist_alvo is not None:
+                c.dist_alvo = novo
+    if algum:
+        sinal = "+" if delta >= 0 else "-"
+        estado.log.append(f"Mira de todos os canhoes: {sinal}{abs(delta):.0f}m")
 
 
 def _ajustar_bomba(estado: Estado, delta: int) -> None:
