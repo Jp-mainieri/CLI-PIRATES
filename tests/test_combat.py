@@ -94,7 +94,7 @@ class TestDentroDoArco:
         assert ok is False
 
     def test_alvo_na_proa_nao_e_estibordo(self):
-        # Alvo direto à frente (0° relativo) não está no arco estibordo (20-160°)
+        # Alvo direto à frente (0° relativo) não está no arco de estibordo
         atirador = _navio(0, 0, heading=0)
         alvo = _navio(0, 200)  # à frente (norte)
         ok, _ = dentro_do_arco(atirador, alvo, 'estibordo')

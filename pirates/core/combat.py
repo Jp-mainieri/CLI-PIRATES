@@ -12,6 +12,7 @@ from ..constants import (
     COOLDOWN_CANHAO,
     ZOOM_NIVEIS, ZOOM_HISTERESE,
     NAVIO_TIPOS,
+    ARCO_TIRO_CENTRO, ARCO_TIRO_SEMI_ABERTURA, ARCO_TIRO_MIN, ARCO_TIRO_MAX,
 )
 from .utils import clamp
 
@@ -49,20 +50,25 @@ def rumo_para(a, b) -> float:
 
 
 def eficiencia_angular(atirador, alvo, lado: str) -> float:
-    """Retorna 0.0 (borda do arco) a 1.0 (bordada perfeita a 90°/270°)."""
+    """Retorna 0.0 (borda do arco) a 1.0 (bordada perfeita a 90°/270°).
+
+    A escala é a meia-abertura do arco (ARCO_TIRO_SEMI_ABERTURA), não um
+    número fixo: se ela ficar dessincronizada de `dentro_do_arco`, a borda do
+    arco deixa de valer 0 e o bônus angular vira um degrau.
+    """
     r = rumo_para(atirador, alvo)
     rel = (r - atirador.heading) % 360
-    centro = 90.0 if lado == 'estibordo' else 270.0
+    centro = ARCO_TIRO_CENTRO if lado == 'estibordo' else 360.0 - ARCO_TIRO_CENTRO
     offset = min(abs(rel - centro), 360 - abs(rel - centro))
-    return max(0.0, 1.0 - offset / 70.0)
+    return max(0.0, 1.0 - offset / ARCO_TIRO_SEMI_ABERTURA)
 
 
 def dentro_do_arco(atirador, alvo, lado: str) -> tuple[bool, float]:
     """Verifica se *alvo* está dentro do arco de tiro de *lado* de *atirador*.
 
-    Arcos:
-    - Estibordo: ângulo relativo 20° a 160°.
-    - Bombordo:  ângulo relativo 200° a 340°.
+    Arcos (derivados de ARCO_TIRO_CENTRO/ARCO_TIRO_SEMI_ABERTURA):
+    - Estibordo: ângulo relativo ARCO_TIRO_MIN a ARCO_TIRO_MAX.
+    - Bombordo:  o espelho, 360-ARCO_TIRO_MAX a 360-ARCO_TIRO_MIN.
 
     Args:
         atirador: Navio que vai atirar.
@@ -78,9 +84,9 @@ def dentro_do_arco(atirador, alvo, lado: str) -> tuple[bool, float]:
     r = rumo_para(atirador, alvo)
     rel = (r - atirador.heading) % 360
     if lado == 'estibordo':
-        ok = 20 <= rel <= 160
+        ok = ARCO_TIRO_MIN <= rel <= ARCO_TIRO_MAX
     else:
-        ok = 200 <= rel <= 340
+        ok = 360.0 - ARCO_TIRO_MAX <= rel <= 360.0 - ARCO_TIRO_MIN
     return ok, d
 
 

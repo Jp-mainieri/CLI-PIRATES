@@ -202,6 +202,28 @@ COOLDOWN_CANHAO = 12.0
 """Tempo base de recarga de um canhão, em segundos."""
 
 # ---------------------------------------------------------------------------
+# Arco de tiro
+# ---------------------------------------------------------------------------
+# O arco é simétrico em torno do través (90° para estibordo, 270° para
+# bombordo). Tudo que depende dele — `dentro_do_arco`, `eficiencia_angular`,
+# os marcadores '|' da vista em primeira pessoa e os ângulos de manobra da IA
+# — deriva daqui, pra que estreitar/alargar o arco seja uma mudança só.
+
+ARCO_TIRO_CENTRO = 90.0
+"""Ângulo relativo (graus) do centro do arco de estibordo; bombordo é 360-este."""
+
+ARCO_TIRO_SEMI_ABERTURA = 30.0
+"""Meia-abertura do arco em graus. Com 30, estibordo atira entre 60° e 120°.
+Quanto menor, mais o combate depende de manter o través apontado no alvo — e
+mais caro fica cada grau de giro (ver GIRO_GRAUS_SEG_PADRAO)."""
+
+ARCO_TIRO_MIN = ARCO_TIRO_CENTRO - ARCO_TIRO_SEMI_ABERTURA
+"""Limite dianteiro do arco de estibordo, em ângulo relativo."""
+
+ARCO_TIRO_MAX = ARCO_TIRO_CENTRO + ARCO_TIRO_SEMI_ABERTURA
+"""Limite traseiro do arco de estibordo, em ângulo relativo."""
+
+# ---------------------------------------------------------------------------
 # Tripulação — trânsito entre postos
 # ---------------------------------------------------------------------------
 # Um tripulante realocado não começa a trabalhar de imediato: ele atravessa o

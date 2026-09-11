@@ -18,6 +18,7 @@ from ..constants import (
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
     COR_MAR, COR_INIMIGO,
     DERIVA_LIMIAR_DIRECAO, DERIVA_LIMIAR_REFERENCIA, GLYPH_VELA,
+    ARCO_TIRO_MIN, ARCO_TIRO_MAX,
 )
 from ..core.utils import (
     barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading,
@@ -317,11 +318,11 @@ def build_vista_linhas(estado, inimigo_vista=None, jogador_vista=None) -> list[t
                 ruler_overlays.append((ini, label, _curses.color_pair(COR_AMARELO)))
     ruler = ''.join(regua)
 
-    # Horizonte base: marcadores | nos limites do arco dos canhões (só combate)
-    # Estibordo: rel +20° a +160°; Bombordo: rel -160° a -20°
+    # Horizonte base: marcadores | nos limites do arco dos canhões (só combate).
+    # Estibordo: rel +ARCO_TIRO_MIN a +ARCO_TIRO_MAX; bombordo é o espelho.
     horiz_base = list('~' * largura)
     if modo_combate:
-        for deg in (-160, -20, 20, 160):
+        for deg in (-ARCO_TIRO_MAX, -ARCO_TIRO_MIN, ARCO_TIRO_MIN, ARCO_TIRO_MAX):
             p = clamp(int(round((deg + 180) / 360 * (largura - 1))), 0, largura - 1)
             horiz_base[p] = '|'
     horiz_str = ''.join(horiz_base)
