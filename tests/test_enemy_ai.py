@@ -10,6 +10,7 @@ from pirates.world.entities import Ilha
 from pirates.constants import (
     IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE,
 )
+from pirates.ai.enemy import _tempo_giro_bordada
 
 
 def _estado(tipo="brigantim"):
@@ -201,6 +202,92 @@ class TestBordadaAlternada:
         solto.proximo_tiro = 0.0
         atualizar_ia_movimento(e, 0.5)
         assert e.ia_lado_bordada == 'estibordo'
+
+    def test_nao_troca_se_o_giro_custa_mais_que_a_recarga(self):
+        """Virar 180° deixa os dois bordos sem linha de tiro no caminho."""
+        e = _estado()
+        self._em_faixa_de_circulo(e)
+        e.ia_lado_bordada = 'estibordo'
+        self._guarnecer(self._todos_canhoes(e))
+        espera = _tempo_giro_bordada(e) / 2.0
+        for c in e.inimigo.canhoes['estibordo']:
+            c.proximo_tiro = e.tempo + espera   # recarrega antes do giro acabar
+        for c in e.inimigo.canhoes['bombordo']:
+            c.proximo_tiro = 0.0
+        atualizar_ia_movimento(e, 0.5)
+        assert e.ia_lado_bordada == 'estibordo'
+
+
+class TestManobraMantemOArco:
+    """Aproximar e afastar não podem custar a linha de tiro.
+
+    Com o arco estreito, apontar a proa (ou a popa) no jogador para manobrar
+    tira o alvo do arco e obriga a IA a girar de volta antes de atirar.
+    """
+
+    def _preparar(self, e, dist, lado):
+        e.jogador.x, e.jogador.y = 0.0, 0.0
+        e.inimigo.x, e.inimigo.y = 0.0, dist
+        e.vento_direcao = 0.0   # todos os rumos abaixo ficam fora da zona morta
+        e.ilhas_arena = []
+        e.inimigo_em_fuga = False
+        e.tempo = 100.0
+        e.ia_lado_bordada = lado
+        for c in (c for l in ('estibordo', 'bombordo') for c in e.inimigo.canhoes[l]):
+            c.tripulantes = c.efetivos = 1
+            c.proximo_tiro = 0.0
+
+    @pytest.mark.parametrize("lado", ['estibordo', 'bombordo'])
+    def test_aproximando_dentro_do_alcance_mantem_o_alvo_no_arco(self, lado):
+        e = _estado()
+        dist = min(
+            IA_DIST_APROXIMAR + 20.0,
+            e.inimigo.alcance_canhao_efetivo() - 1.0,
+        )
+        self._preparar(e, dist, lado)
+        atualizar_ia_movimento(e, 0.5)
+        e.inimigo.heading = e.inimigo.heading_alvo
+        assert e.ia_modo_movimento == 'aproximar'
+        assert dentro_do_arco(e.inimigo, e.jogador, lado)[0]
+
+    @pytest.mark.parametrize("lado", ['estibordo', 'bombordo'])
+    def test_afastando_mantem_o_alvo_no_arco(self, lado):
+        e = _estado()
+        self._preparar(e, IA_DIST_AFASTAR - 20.0, lado)
+        atualizar_ia_movimento(e, 0.5)
+        e.inimigo.heading = e.inimigo.heading_alvo
+        assert e.ia_modo_movimento == 'afastar'
+        assert dentro_do_arco(e.inimigo, e.jogador, lado)[0]
+
+    def test_fora_de_alcance_persegue_em_rumo_direto(self):
+        """Sem tiro possível não há bordada a preservar: fecha pelo curto."""
+        e = _estado()
+        self._preparar(e, e.inimigo.alcance_canhao_efetivo() + 200.0, 'estibordo')
+        atualizar_ia_movimento(e, 0.5)
+        # Inimigo ao norte do jogador: rumo direto é 180°.
+        assert abs(e.inimigo.heading_alvo - 180.0) < 1.0
+
+    def test_afastando_abre_distancia_de_verdade(self):
+        """A diagonal ainda precisa ter componente de afastamento."""
+        import math
+        e = _estado()
+        self._preparar(e, IA_DIST_AFASTAR - 20.0, 'estibordo')
+        atualizar_ia_movimento(e, 0.5)
+        rumo_ao_jogador = 180.0
+        rel = abs((e.inimigo.heading_alvo - rumo_ao_jogador + 180) % 360 - 180)
+        assert math.cos(math.radians(rel)) < 0.0   # rumo se afasta do jogador
+
+    def test_aproximando_fecha_distancia_de_verdade(self):
+        import math
+        e = _estado()
+        dist = min(
+            IA_DIST_APROXIMAR + 20.0,
+            e.inimigo.alcance_canhao_efetivo() - 1.0,
+        )
+        self._preparar(e, dist, 'estibordo')
+        atualizar_ia_movimento(e, 0.5)
+        rel = abs((e.inimigo.heading_alvo - 180.0 + 180) % 360 - 180)
+        assert math.cos(math.radians(rel)) > 0.0   # rumo se aproxima
 
 
 class TestGestaoDeVelas:

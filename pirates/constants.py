@@ -126,6 +126,17 @@ aproximar/afastar. Sem ela o navio parado em cima de um dos limiares
 troca de modo a cada tick e nunca completa a manobra. Placeholder – não
 calibrado."""
 
+IA_MARGEM_ARCO_GRAUS = 5.0
+"""Margem (graus) que a IA mantém das bordas do arco ao manobrar aproximando
+ou afastando. Sem ela o inimigo navega exatamente em cima do limite do arco e
+qualquer oscilação de rumo (vento, deriva, giro discreto por tick) tira o
+jogador do arco. Placeholder – não calibrado."""
+
+IA_DIST_PERSEGUICAO_MULT = 1.0
+"""Múltiplo do alcance efetivo do canhão acima do qual a IA desiste de manter
+o través apontado e persegue em rumo direto. Fora de alcance não há bordada a
+preservar, então vale fechar a distância pelo caminho mais curto."""
+
 IA_ILHA_HISTERESE = 1.25
 """Multiplicador aplicado ao raio de evasão enquanto a IA já está
 evadindo uma ilha: ela só considera a ilha livre depois de se afastar

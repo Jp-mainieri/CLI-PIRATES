@@ -14,7 +14,8 @@ from ..constants import (
     IA_VENTO_MARGEM_SAIDA_GRAUS, IA_VENTO_CORRECAO_MAX_GRAUS,
     IA_VENTO_CORRECAO_MAX_FUGA_GRAUS,
     IA_DIST_APROXIMAR, IA_DIST_AFASTAR, IA_DIST_HISTERESE, IA_ILHA_HISTERESE,
-    IA_REAVALIACAO_CREW_SEG,
+    IA_REAVALIACAO_CREW_SEG, IA_MARGEM_ARCO_GRAUS, IA_DIST_PERSEGUICAO_MULT,
+    ARCO_TIRO_CENTRO, ARCO_TIRO_MIN, ARCO_TIRO_MAX,
 )
 from ..core.utils import clamp
 from ..core.combat import distancia, rumo_para
@@ -81,6 +82,31 @@ def _lado_pronto(estado, lado: str) -> int:
     )
 
 
+def _espera_lado(estado, lado: str) -> float:
+    """Segundos até o primeiro canhão guarnecido de *lado* poder disparar.
+
+    Retorna ``inf`` se não há ninguém naquele costado — canhão sem gente não
+    recarrega, então a espera é indefinida.
+    """
+    esperas = [
+        max(0.0, c.proximo_tiro - estado.tempo)
+        for c in estado.inimigo.canhoes[lado]
+        if c.efetivos >= 1
+    ]
+    return min(esperas) if esperas else math.inf
+
+
+def _tempo_giro_bordada(estado) -> float:
+    """Segundos para trocar o costado apresentado ao jogador.
+
+    Apresentar o través oposto é um giro de 180°, e durante quase todo ele o
+    jogador fica fora dos dois arcos (a proa e a popa varrem o alvo). Com
+    GIRO_GRAUS_SEG_PADRAO baixo essa manobra custa várias salvas.
+    """
+    taxa = max(estado.inimigo.taxa_giro(), 0.01)
+    return 2.0 * ARCO_TIRO_CENTRO / taxa
+
+
 def _escolher_lado_bordada(estado) -> str:
     """Escolhe qual bordada apresentar ao jogador, com histerese.
 
@@ -97,6 +123,12 @@ def _escolher_lado_bordada(estado) -> str:
     tripulação que `_crewar_canhoes` deixa do outro lado bastava para disparar
     a troca, e a IA passava o combate atravessando o convés de um lado para o
     outro.
+
+    Por último, a troca só compensa se esperar a recarga do costado atual for
+    mais lento do que o giro de 180° (`_tempo_giro_bordada`). Com o arco de
+    tiro estreito e o leme lento, virar o navio custa mais do que uma recarga
+    na maioria dos casos — e o navio passa esse tempo todo sem poder atirar de
+    nenhum bordo.
     """
     atual = estado.ia_lado_bordada
     oposto = 'bombordo' if atual == 'estibordo' else 'estibordo'
@@ -104,7 +136,8 @@ def _escolher_lado_bordada(estado) -> str:
         1 for c in estado.inimigo.canhoes[atual] if c.efetivos >= 1
     )
     if (_lado_pronto(estado, atual) == 0
-            and _lado_pronto(estado, oposto) >= max(1, guarnecidos_atual)):
+            and _lado_pronto(estado, oposto) >= max(1, guarnecidos_atual)
+            and _espera_lado(estado, atual) > _tempo_giro_bordada(estado)):
         estado.ia_lado_bordada = oposto
     return estado.ia_lado_bordada
 
@@ -146,12 +179,22 @@ def _ajustar_velas(navio, nivel: int) -> None:
 def atualizar_ia_movimento(estado, dt: float) -> None:
     """Atualiza o heading alvo e o nível de vela do navio inimigo.
 
-    Comportamento normal:
-    - Longe (>280m): aproxima em velocidade máxima (velas cheias).
-    - Perto (<150m): afasta para manter distância de combate (velas cheias).
-    - Faixa ideal (150-280m): circula lateralmente apresentando ao jogador
-      a bordada carregada (ver `_escolher_lado_bordada`), com velas a meio
-      pau para manter a plataforma de tiro estável.
+    Comportamento normal, sempre em torno do costado escolhido por
+    `_escolher_lado_bordada`:
+    - Fora de alcance de canhão: persegue em rumo direto, velas cheias. Não há
+      bordada a preservar quando nenhum tiro alcança.
+    - Longe (>280m) mas dentro de alcance: aproxima em diagonal, mantendo o
+      jogador na borda dianteira do arco (ARCO_TIRO_MIN + margem). Fecha
+      distância mais devagar que o rumo direto, mas atirando o tempo todo.
+    - Perto (<150m): afasta pela borda traseira do arco (ARCO_TIRO_MAX -
+      margem), abrindo distância sem largar a bordada.
+    - Faixa ideal (150-280m): circula com o jogador no través (ARCO_TIRO_CENTRO),
+      onde `eficiencia_angular` é máxima, com velas a meio pau.
+
+    Apontar a proa/popa no jogador para aproximar ou afastar — o que a versão
+    anterior fazia — custava, com o arco estreitado, um giro de 60° só para
+    voltar a ter linha de tiro: a velocidade de giro atual gasta mais que uma
+    recarga inteira nisso.
 
     Comportamento em fuga: foge na direção oposta ao jogador a todo vapor
     (velas cheias), desviando de ilhas no caminho.
@@ -171,22 +214,30 @@ def atualizar_ia_movimento(estado, dt: float) -> None:
         inimigo.heading_alvo = (r + 180) % 360
         _ajustar_velas(inimigo, 2)
         correcao_max = IA_VENTO_CORRECAO_MAX_FUGA_GRAUS
-    elif _escolher_modo_movimento(estado, d) == 'aproximar':
-        inimigo.heading_alvo = r
-        _ajustar_velas(inimigo, 2)
-        correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
-    elif estado.ia_modo_movimento == 'afastar':
-        inimigo.heading_alvo = (r + 180) % 360
-        _ajustar_velas(inimigo, 2)
-        correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
     else:
-        # Faixa de bordada: circula apresentando o costado que ainda tem carga.
-        # Estibordo é o centro do arco em rel=90 (combat.eficiencia_angular),
-        # logo o heading precisa ser r-90; bombordo é r+90.
-        lado = _escolher_lado_bordada(estado)
-        offset = -90 if lado == 'estibordo' else 90
-        inimigo.heading_alvo = (r + offset) % 360
-        _ajustar_velas(inimigo, 1)
+        modo = _escolher_modo_movimento(estado, d)
+        fora_de_alcance = (
+            d > inimigo.alcance_canhao_efetivo() * IA_DIST_PERSEGUICAO_MULT
+        )
+        if modo == 'aproximar' and fora_de_alcance:
+            inimigo.heading_alvo = r
+            _ajustar_velas(inimigo, 2)
+        else:
+            # O ângulo relativo em que a IA quer manter o jogador. O heading
+            # correspondente é r - angulo para estibordo (o arco de estibordo
+            # fica à direita da proa) e r + angulo para bombordo.
+            if modo == 'aproximar':
+                angulo = ARCO_TIRO_MIN + IA_MARGEM_ARCO_GRAUS
+            elif modo == 'afastar':
+                angulo = ARCO_TIRO_MAX - IA_MARGEM_ARCO_GRAUS
+            else:
+                angulo = ARCO_TIRO_CENTRO
+            lado = _escolher_lado_bordada(estado)
+            sinal = -1.0 if lado == 'estibordo' else 1.0
+            inimigo.heading_alvo = (r + sinal * angulo) % 360
+            # Velas cheias para vencer a distância; meio pau na faixa de
+            # bordada, onde a plataforma de tiro estável vale mais.
+            _ajustar_velas(inimigo, 1 if modo == 'circular' else 2)
         correcao_max = IA_VENTO_CORRECAO_MAX_GRAUS
 
     inimigo.heading_alvo = _ajustar_heading_vento(
