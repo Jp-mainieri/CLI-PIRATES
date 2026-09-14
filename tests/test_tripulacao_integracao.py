@@ -201,7 +201,7 @@ class TestEfetivoVsAlocado:
         atualizar_simulacao(e, 1.0)
         removido = antes - e.jogador.agua
         # 1 efetivo, não 2 (casco intacto ⇒ entrada de água desprezível).
-        assert removido == pytest.approx(SAIDA_BOMBA_SEG, abs=0.3)
+        assert removido == pytest.approx(SAIDA_BOMBA_SEG * e.jogador.bomba_mult, abs=0.3)
 
     def test_reparo_so_conta_quem_chegou(self):
         e = _estado()
