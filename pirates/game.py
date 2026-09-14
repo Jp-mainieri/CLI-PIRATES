@@ -848,6 +848,8 @@ def _processar_cmd_mundo(
             estado.log.append(f"Atracando em {porto_proximo.nome}...")
             _parar_jogador_mundo(estado, estado_mundo)
             porto_loop(stdscr, estado, estado_mundo, porto_idx)
+            # Zarpar sempre recolhe a ancora (inclusive se o navio ativo foi trocado).
+            estado.jogador.ancorado = False
             if slug:
                 salvar(estado, estado_mundo, slug)
             estado_mundo.rastro_jogador.clear()
