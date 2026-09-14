@@ -593,7 +593,7 @@ def _loja_upgrades(stdscr, navio, tipo_navio: str, estado) -> None:
     CHAVES = ["casco_max", "cooldown", "porao_slot", "tripulante_extra",
               "velocidade_giro", "alcance_canhao", "capacidade_barril_ouro"]
     LABELS = {
-        "casco_max":              "+10 HP max de casco",
+        "casco_max":              "+10% resistencia de casco",
         "cooldown":               "-10% cooldown de canhao",
         "porao_slot":             "+1 slot de porao",
         "tripulante_extra":       "+1 tripulante extra",
@@ -696,7 +696,7 @@ def _loja_itens_topo(stdscr, navio, estado_mundo, estado) -> None:
     """
     CHAVES = ["casco_lendario", "alcance_lendario", "porao_lendario"]
     LABELS = {
-        "casco_lendario":   "Casco Reforcado Lendario (+50% resistencia)",
+        "casco_lendario":   "Casco Reforcado Lendario (+25% resistencia)",
         "alcance_lendario": "Luneta Lendaria (+120m alcance)",
         "porao_lendario":   "Porao Lendario (+3 slots)",
     }

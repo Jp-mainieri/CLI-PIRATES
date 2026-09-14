@@ -11,7 +11,6 @@ import random
 from ..constants import (
     COOLDOWN_CANHAO,
     ZOOM_NIVEIS, ZOOM_HISTERESE,
-    NAVIO_TIPOS,
 )
 from .utils import clamp
 
@@ -170,13 +169,15 @@ def disparar_canhoes_navio(estado, atirador, alvo) -> None:
         alvo:     Navio alvo.
     """
     e_jogador = atirador is estado.jogador
-    if e_jogador:
-        cooldown_mult_base = 1.0
-    else:
-        cooldown_mult_base = (
-            NAVIO_TIPOS[estado.inimigo_tipo_navio]["cooldown_mult"]
-            * (1.0 - estado.inimigo_cooldown_bonus)
-        )
+    # O multiplicador de recarga vem do proprio navio (definido pelo tipo em
+    # NAVIO_TIPOS), entao vale igualmente para jogador, inimigo e navios da
+    # frota. Antes o jogador usava 1.0 fixo e o cooldown_mult do tipo dele era
+    # simplesmente ignorado.
+    cooldown_mult_base = atirador.cooldown_mult
+    if not e_jogador:
+        cooldown_mult_base *= (1.0 - estado.inimigo_cooldown_bonus)
+    # Upgrade de recarga comprado no porto: cada nivel corta 10%.
+    cooldown_mult_base *= max(0.1, 1.0 - atirador.upgrades.get('cooldown', 0.0))
     mult_moral = max(atirador.multiplicador_moral(), 0.05)
     cooldown_mult = cooldown_mult_base / mult_moral
 

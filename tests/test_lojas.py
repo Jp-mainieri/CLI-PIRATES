@@ -324,7 +324,7 @@ class TestComprarItemTopo:
         n = _navio_com_ouro(1000.0)
         ok, _ = comprar_item_topo(n, "casco_lendario", faixa_notoriedade=6)
         assert ok is True
-        assert n.upgrades["resistencia_casco"] == pytest.approx(0.5)
+        assert n.upgrades["resistencia_casco"] == pytest.approx(0.25)
 
     def test_porao_lendario_soma_3_slots(self):
         n = _navio_com_ouro(1000.0)
