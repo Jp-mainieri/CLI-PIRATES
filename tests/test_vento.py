@@ -35,16 +35,16 @@ class TestAnguloRelativoVento:
 
 class TestZonaVento:
     def test_limite_zona_morta(self):
-        assert zona_vento(44.9) == "zona_morta"
-        assert zona_vento(45.1) == "bolina"
+        assert zona_vento(44.9) == "ZM"
+        assert zona_vento(45.1) == "B"
 
     def test_limite_bolina(self):
-        assert zona_vento(89.9) == "bolina"
-        assert zona_vento(90.1) == "traves"
+        assert zona_vento(89.9) == "B"
+        assert zona_vento(90.1) == "T"
 
     def test_limite_traves(self):
-        assert zona_vento(134.9) == "traves"
-        assert zona_vento(135.1) == "popa"
+        assert zona_vento(134.9) == "T"
+        assert zona_vento(135.1) == "P"
 
 
 class TestEficienciaZona:

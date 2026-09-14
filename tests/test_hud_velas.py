@@ -9,42 +9,37 @@ def _estado(tipo="brigantim"):
 
 
 class TestBuildVelasLinhas:
-    def test_uma_linha_por_slot_mais_cabecalho_e_deriva(self):
+    def test_uma_linha_por_slot_mais_linha_em_branco(self):
         e = _estado("brigantim")
         linhas = build_velas_linhas(e)
         n_slots = len(e.jogador.slots_vela)
-        # cabecalho "VELAS" + N slots + linha em branco + linha DERIVA
-        assert len(linhas) == 1 + n_slots + 2
+        # N slots + linha em branco final (sem cabecalho nem linha DERIVA)
+        assert len(linhas) == n_slots + 1
 
     def test_marca_slot_selecionado(self):
         e = _estado("brigantim")
         e.jogador.slot_vela_selecionado = 1
         linhas = build_velas_linhas(e)
-        texto_slot1 = linhas[1 + 1][0]  # cabecalho + slot 0 -> slot 1
+        texto_slot1 = linhas[1][0]
         assert texto_slot1.startswith(">")
 
     def test_slot_nao_selecionado_sem_marca(self):
         e = _estado("brigantim")
         e.jogador.slot_vela_selecionado = 1
         linhas = build_velas_linhas(e)
-        texto_slot0 = linhas[1][0]
+        texto_slot0 = linhas[0][0]
         assert texto_slot0.startswith(" ")
 
     def test_slot_vazio_mostra_barra_fixa(self):
         e = _estado("brigantim")
         idx = next(i for i, s in enumerate(e.jogador.slots_vela) if s["local"].startswith("aux"))
         linhas = build_velas_linhas(e)
-        assert "----" in linhas[1 + idx][0]
+        assert "----" in linhas[idx][0]
 
-    def test_ultima_linha_e_deriva(self):
+    def test_ultima_linha_em_branco(self):
         e = _estado("brigantim")
         linhas = build_velas_linhas(e)
-        assert linhas[-1][0].startswith("DERIVA")
-
-    def test_linha_em_branco_antes_da_deriva(self):
-        e = _estado("brigantim")
-        linhas = build_velas_linhas(e)
-        assert linhas[-2][0] == ""
+        assert linhas[-1][0] == ""
 
 
 class TestBarraVela:
