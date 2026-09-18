@@ -221,6 +221,11 @@ Convenções do repositório:
 - Mudança de equilíbrio merece número: diga o que você mediu, e o que **não** mediu
 - Comentário explica decisão, não mecânica óbvia
 
+## Documentação
+
+- [docs/BALANCEAMENTO.md](docs/BALANCEAMENTO.md) — como o equilíbrio está montado, como medir uma
+  mudança antes de fazê-la, o que já foi medido e o que está aberto.
+
 ## Licença
 
 MIT — veja [LICENSE](LICENSE).
