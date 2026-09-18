@@ -449,3 +449,46 @@ def test_save_sem_alocacao_carrega_com_roster_ocioso():
 
 def test_versao_save_nao_muda_com_o_transito():
     assert VERSAO_SAVE == 2
+
+
+# ── Zoom do mapa de navegação ─────────────────────────────────────────────────
+
+def _config_padrao():
+    return {"hotkeys": True, "cores": True, "unicode": True,
+            "textura_mar": True, "rastro": True}
+
+
+def test_roundtrip_zoom_nav(pastas_tmp):
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Bonny", "brigantim")
+    estado = _estado_fake("brigantim")
+    estado.zoom_nav = 1600
+    salvar(estado, _estado_mundo_fake("brigantim", seed), slug)
+
+    e, _em = restaurar_estado(carregar(slug), _config_padrao())
+    assert e.zoom_nav == 1600
+
+
+def test_restaurar_save_antigo_sem_zoom_nav_usa_o_padrao(pastas_tmp):
+    """Saves gravados antes do zoom manual não têm a chave em preferencias."""
+    from pirates.constants import MUNDO_ZOOM_NAV_PADRAO
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Rackham", "brigantim")
+    salvar(_estado_fake("brigantim"), _estado_mundo_fake("brigantim", seed), slug)
+
+    data = carregar(slug)
+    del data["preferencias"]["zoom_nav"]
+    e, _em = restaurar_estado(data, _config_padrao())
+    assert e.zoom_nav == MUNDO_ZOOM_NAV_PADRAO
+
+
+def test_restaurar_zoom_nav_invalido_cai_no_padrao(pastas_tmp):
+    from pirates.constants import MUNDO_ZOOM_NAV_PADRAO
+    from pirates.saves import restaurar_estado
+    slug, seed = criar_novo_save("Vane", "brigantim")
+    salvar(_estado_fake("brigantim"), _estado_mundo_fake("brigantim", seed), slug)
+
+    data = carregar(slug)
+    data["preferencias"]["zoom_nav"] = 7777
+    e, _em = restaurar_estado(data, _config_padrao())
+    assert e.zoom_nav == MUNDO_ZOOM_NAV_PADRAO

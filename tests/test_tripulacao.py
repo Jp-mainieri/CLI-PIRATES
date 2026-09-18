@@ -52,6 +52,58 @@ class TestCustoTransito:
         assert custo_transito(None, B1) == 0.0
 
 
+# Um posto de cada forma que custo_transito distingue: dois canhoes do mesmo
+# bordo, um do bordo oposto, duas partes de reparo e a bomba.
+_POSTOS = {
+    'canhao E1': E1,
+    'canhao E2': E2,
+    'canhao B1': B1,
+    'reparo casco': REPARO_CASCO,
+    'reparo vela': REPARO_VELA,
+    'bomba': POSTO_BOMBA,
+}
+
+
+class TestDesigualdadeTriangular:
+    """O custo de trânsito precisa se comportar como distância.
+
+    Se um desvio for mais barato que o caminho direto, o jogador troca de bordo
+    passando pelo reparo e ganha tempo parando no meio do caminho. Foi o que
+    acontecia com TRANSITO_TAREFA_DIFERENTE em 3.0: ir de um canhão ao canhão do
+    bordo oposto custava 8.0s direto e 6.0s via qualquer posto de outra tarefa.
+    """
+
+    def test_nenhum_desvio_e_mais_barato_que_o_caminho_direto(self):
+        for nome_a, a in _POSTOS.items():
+            for nome_c, c in _POSTOS.items():
+                if a == c:
+                    continue
+                direto = custo_transito(a, c)
+                for nome_b, b in _POSTOS.items():
+                    if b == a or b == c:
+                        continue
+                    via = custo_transito(a, b) + custo_transito(b, c)
+                    assert via >= direto, (
+                        f"desvio mais barato que o caminho direto: "
+                        f"{nome_a} -> {nome_c} custa {direto}s direto, mas só "
+                        f"{via}s passando por {nome_b}. Ajuste as constantes de "
+                        f"TRANSITO_* para que nenhum atalho compense."
+                    )
+
+    def test_trocar_de_bordo_nao_fica_barato_passando_por_outra_tarefa(self):
+        """O caso concreto: a ponte que o jogador encontrou."""
+        direto = custo_transito(E1, B1)
+        for ponte in (REPARO_CASCO, REPARO_VELA, POSTO_BOMBA):
+            via = custo_transito(E1, ponte) + custo_transito(ponte, B1)
+            assert via >= direto
+
+    def test_constantes_respeitam_o_limite_que_torna_o_desvio_inutil(self):
+        """Forma fechada do invariante, para falhar já na calibração."""
+        teto = 2 * TRANSITO_TAREFA_DIFERENTE
+        assert TRANSITO_CANHAO_MESMO_BORDO <= teto
+        assert TRANSITO_CANHAO_BORDO_OPOSTO <= teto
+
+
 class TestMesmaTarefa:
     """Frente de trabalho: o que a realocacao automatica protege."""
 

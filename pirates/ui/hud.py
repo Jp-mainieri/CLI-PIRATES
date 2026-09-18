@@ -15,6 +15,7 @@ except ImportError:
 
 from ..constants import (
     COOLDOWN_CANHAO, PARTES, SAIDA_BOMBA_SEG, TEMPO_FUGA_ESCAPE_SEG,
+    ALCANCE_FUGA_ESCAPE,
     MUNDO_TAMANHO, COR_VERDE, COR_AMARELO, COR_VERMELHO, COR_JOGADOR, COR_ILHA,
     COR_MAR, COR_INIMIGO,
     DERIVA_LIMIAR_DIRECAO, DERIVA_LIMIAR_REFERENCIA, GLYPH_VELA,
@@ -464,6 +465,45 @@ def build_vigia_linhas(estado) -> list[tuple]:
     return [(f'Vigia: "a {estimativa:.0f}m!"', 0, [])]
 
 
+def build_fuga_linhas(estado) -> list[tuple]:
+    """Progresso da tentativa de fuga do jogador (comando 'fugir').
+
+    Só rende linha enquanto a tentativa está de pé — fora dela devolve []
+    e nada no HUD se desloca, igual a `build_vigia_linhas`.
+
+    Mostra barra, timer e a distância atual contra ALCANCE_FUGA_ESCAPE, porque
+    sem isso o jogador não tem como saber se o timer está correndo, quanto falta
+    andar, nem por que o progresso zerou.
+
+    Returns:
+        Lista de (texto, atributo_base, overlays) com no máximo uma linha.
+    """
+    if not getattr(estado, 'jogador_tentando_fugir', False):
+        return []
+    if estado.jogador.afundado or estado.inimigo.afundado:
+        return []
+
+    # O inimigo fugir suspende a contagem do jogador (ver core/simulation.py):
+    # sem dizer isso o timer parece travado sem motivo.
+    if getattr(estado, 'inimigo_em_fuga', False):
+        return [("FUGA: suspensa - o inimigo esta fugindo de voce", _cor_pair(estado, COR_AMARELO), [])]
+
+    tempo = estado.tempo_fuga_jogador
+    d = distancia(estado.jogador, estado.inimigo)
+    pct = clamp(tempo / TEMPO_FUGA_ESCAPE_SEG * 100, 0, 100)
+    texto = (
+        f"FUGA: [{barra(pct, 10)}] {tempo:4.1f}s/{TEMPO_FUGA_ESCAPE_SEG:.0f}s   "
+        f"{d:.0f}m/{ALCANCE_FUGA_ESCAPE:.0f}m  "
+    )
+    if d > ALCANCE_FUGA_ESCAPE:
+        texto += "MANTENHA!"
+        cor = COR_VERDE
+    else:
+        texto += f"faltam {ALCANCE_FUGA_ESCAPE - d:.0f}m"
+        cor = COR_AMARELO
+    return [(texto, _cor_pair(estado, cor), [])]
+
+
 def build_vigia_mundo_linhas(estado_mundo) -> list[tuple]:
     """Estimativa de distância ao inimigo mais próximo (modo mundo). Snap a 25m."""
     jx, jy = estado_mundo.jogador_x, estado_mundo.jogador_y
@@ -707,18 +747,19 @@ def _to_cell_mundo(nx: float, ny: float, cx: float, cy: float, half_range: float
 def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     """Mapa de navegação centrado no jogador. Dimensões equivalentes ao mapa-mundo (39×20).
 
-    Zoom fixo MUNDO_ZOOM_NAV_FIXO=800m. Ícones direcionais {↑}/{↓} para jogador,
+    Zoom manual via estado.zoom_nav (hotkeys +/-), começando em
+    MUNDO_ZOOM_NAV_PADRAO=800m. Ícones direcionais {↑}/{↓} para jogador,
     [↑]/[↓] para inimigos — mesmo padrão do mini-mapa de combate.
     Fora de combate: portos ( P ) e destroços ( x ) dentro do raio.
     Em combate: apenas inimigos (porto some, igual ao mapa-mundo).
     """
-    from ..constants import MUNDO_ZOOM_NAV_FIXO
+    from ..constants import MUNDO_ZOOM_NAV_PADRAO
 
     # Celula de 2 chars x 1 linha = 2w x 2w -> quadrada na tela (a linha do
     # terminal vale ~2 chars de altura). Grade quadrada 19x19 sobre regiao
     # quadrada => mesma granularidade em metros nos dois eixos.
     GRID_W, GRID_H = 19, 19
-    half_range = MUNDO_ZOOM_NAV_FIXO
+    half_range = getattr(estado, 'zoom_nav', MUNDO_ZOOM_NAV_PADRAO)
     largura_celula = 2
     unicode_on = getattr(estado, 'graficos_unicode', False)
 
@@ -841,7 +882,16 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
     linhas: list[tuple] = []
     for i, row_data in enumerate(grid):
         linhas.append((''.join(row_data), attr_mar, overlays_por_linha[i]))
-    linhas.append((f"ZOOM: ~{half_range}m", 0, []))
+
+    # Mesmo destaque temporario do minimapa de combate: o jogador precisa ver
+    # que o +/- surtiu efeito, ja que a grade so muda de escala, nao de forma.
+    zoom_recente = (estado.tempo - getattr(estado, 'zoom_nav_mudou_em', -999.0)) < 2.0
+    attr_zoom = 0
+    if _curses is not None and zoom_recente:
+        attr_zoom = _curses.A_BOLD | _curses.A_REVERSE
+        if estado.cores_ativo:
+            attr_zoom |= _curses.color_pair(COR_AMARELO)
+    linhas.append((f"ZOOM: ~{half_range}m", attr_zoom, []))
     return linhas
 
 

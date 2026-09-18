@@ -14,6 +14,7 @@ from ..constants import (
     FUGA_ENTRADA_MIN, FUGA_ENTRADA_MAX, FUGA_SAIDA_MIN, FUGA_SAIDA_MAX,
     VENTO_INTENSIDADE_MIN, VENTO_INTENSIDADE_MAX,
     VENTO_RESORTEIO_MIN_SEG, VENTO_RESORTEIO_MAX_SEG,
+    MUNDO_ZOOM_NAV_PADRAO,
 )
 from .ship import Navio, criar_canhoes
 from .porao import estoque_inicial_jogador, gerar_porao_inimigo
@@ -72,8 +73,10 @@ class Estado:
         cores_ativo:       Cores curses estão ligadas.
         graficos_unicode:  Setas Unicode no mapa estão ligadas.
         foco:              Seleção atual para hotkeys (canhão ou parte de reparo).
-        zoom_atual:        Nível de zoom atual do minimapa.
-        zoom_mudou_em:     Timestamp da última mudança de zoom.
+        zoom_atual:        Nível de zoom atual do minimapa de combate (automático).
+        zoom_mudou_em:     Timestamp da última mudança de zoom de combate.
+        zoom_nav:          Nível de zoom do mapa de navegação (manual, hotkeys +/-).
+        zoom_nav_mudou_em: Timestamp da última mudança de zoom de navegação.
     """
 
     def __init__(
@@ -181,6 +184,8 @@ class Estado:
         self.foco = None
         self.zoom_atual: int | None = None
         self.zoom_mudou_em: float = -999.0
+        self.zoom_nav: int = MUNDO_ZOOM_NAV_PADRAO
+        self.zoom_nav_mudou_em: float = -999.0
         self.modo_adm: bool = False
         self.frota: Frota = Frota()
         self.frota.adicionar(

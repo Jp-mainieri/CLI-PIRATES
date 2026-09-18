@@ -108,8 +108,12 @@ class TestInstalarOuTrocarAux:
         assert slots[idx]["nivel"] == 2
 
     def test_troca_slot_ja_ocupado(self):
+        # Ocupa o slot primeiro em vez de depender de algum navio sair de
+        # fabrica com auxiliar preenchido — hoje nenhum sai, e isso e' equilibrio,
+        # nao contrato desta funcao.
         slots = gerar_slots_fabrica("galeao")
-        idx = next(i for i, s in enumerate(slots) if s["tipo"] == "topo_quadrada")
+        idx = next(i for i, s in enumerate(slots) if s["local"].startswith("aux"))
+        instalar_ou_trocar_aux(slots, idx, "topo_quadrada")
         instalar_ou_trocar_aux(slots, idx, "vela_de_asa")
         assert slots[idx]["tipo"] == "vela_de_asa"
         assert slots[idx]["nivel"] == 2
