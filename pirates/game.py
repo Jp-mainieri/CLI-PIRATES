@@ -236,7 +236,8 @@ def jogo_loop(
             elif (estado_mundo is not None and buffer_entrada == ""
                   and ch in (ord('M'), ord('m'))):
                 estado_mundo.mapa_mundo_visivel = not estado_mundo.mapa_mundo_visivel
-            elif estado.hotkeys_ativo and buffer_entrada == "" and processar_hotkey(ch, estado):
+            elif (estado.hotkeys_ativo and buffer_entrada == ""
+                  and processar_hotkey(ch, estado, estado_mundo)):
                 pass
             elif 32 <= ch <= 126:
                 buffer_entrada += chr(ch)
@@ -441,7 +442,8 @@ def mundo_loop(
                                        "indice": 0, "ativo": True})
                 if tab_estado["candidatos"]:
                     buffer_entrada = tab_estado["prefixo"] + tab_estado["candidatos"][tab_estado["indice"]]
-            elif estado.hotkeys_ativo and buffer_entrada == "" and processar_hotkey(ch, estado):
+            elif (estado.hotkeys_ativo and buffer_entrada == ""
+                  and processar_hotkey(ch, estado, estado_mundo)):
                 # Sync leme do estado.jogador para estado_mundo
                 estado_mundo.jogador_heading_alvo = estado.jogador.heading_alvo
             elif 32 <= ch <= 126:

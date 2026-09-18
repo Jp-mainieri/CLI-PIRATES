@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .constants import MUNDO_TAMANHO
+from .constants import MUNDO_TAMANHO, ZOOM_NIVEIS
 
 if TYPE_CHECKING:
     from .core.state import Estado
@@ -147,6 +147,7 @@ def estado_para_dict(
             "graficos_unicode": estado.graficos_unicode,
             "textura_mar": estado.textura_mar,
             "rastro_ativo": estado.rastro_ativo,
+            "zoom_nav": estado.zoom_nav,
         },
         "capitao": {
             "x": estado_mundo.jogador_x,
@@ -199,6 +200,11 @@ def restaurar_estado(data: dict, config: dict) -> tuple["Estado", "EstadoMundo"]
         textura_mar=prefs.get("textura_mar", config.get("textura_mar", True)),
         rastro_ativo=prefs.get("rastro_ativo", config.get("rastro", True)),
     )
+    # Saves anteriores ao zoom manual não têm a chave: Estado() já entrou com
+    # MUNDO_ZOOM_NAV_PADRAO, então basta não sobrescrever com lixo.
+    _zoom_nav = prefs.get("zoom_nav")
+    if _zoom_nav in ZOOM_NIVEIS:
+        estado.zoom_nav = _zoom_nav
 
     heading = data["capitao"]["heading"]
 

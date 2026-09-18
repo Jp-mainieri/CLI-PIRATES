@@ -362,9 +362,10 @@ novas posições de spawn."""
 MUNDO_GATILHO_COMBATE = 750.0
 """Distância que aciona a transição automática pro loop de combate."""
 
-MUNDO_ZOOM_NAV_FIXO = 800
-"""Zoom fixo do MAPA DE NAVEGAÇÃO quando não há combate ativo (deve ser
-um dos valores em ZOOM_NIVEIS)."""
+MUNDO_ZOOM_NAV_PADRAO = 800
+"""Zoom inicial do MAPA DE NAVEGAÇÃO quando não há combate ativo (deve ser
+um dos valores em ZOOM_NIVEIS). O jogador ajusta com as hotkeys +/- e o
+valor corrente vive em estado.zoom_nav."""
 
 MUNDO_ALCANCE_VISAO_FUGA = 900.0
 """Distância dentro da qual um navio em modo fuga no mundo foge ativamente
@@ -833,6 +834,7 @@ COMO_JOGAR_TEXTO = [
     "  espaco  atirar/parar | reparo ++",
     "  u / h   bombas ++ / --",
     "  e / r   circula partes de reparo / reparo --",
+    "  + / -   aproxima / afasta o mapa de navegacao (so fora de combate)",
     "",
     "Pressione qualquer tecla para voltar ao menu.",
 ]

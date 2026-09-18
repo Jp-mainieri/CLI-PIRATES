@@ -6,7 +6,10 @@ em Ajustes. O sistema de "foco" mantém qual canhão ou parte de reparo
 está selecionado para ajuste rápido via teclas.
 """
 
-from ..constants import PARTES, HOTKEY_PASSO_MIRA, HOTKEY_PASSO_LEME
+from ..constants import (
+    PARTES, HOTKEY_PASSO_MIRA, HOTKEY_PASSO_LEME,
+    ZOOM_NIVEIS, MUNDO_ZOOM_NAV_PADRAO,
+)
 from ..core.utils import clamp
 from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
 from ..core.tripulacao import POSTO_BOMBA, posto_reparo
@@ -80,6 +83,34 @@ def _ajustar_reparo(estado: Estado, delta: int) -> None:
     estado.log.append(f"Reparo {parte}: {estado.crew_reparo[parte]} tripulante(s)")
 
 
+def _ajustar_zoom_nav(estado: Estado, passo: int) -> bool:
+    """Move o zoom do mapa de navegação *passo* níveis em ZOOM_NIVEIS.
+
+    passo = -1 aproxima (menos metros de alcance), +1 afasta. Fora dos
+    extremos da lista a tecla é reconhecida mas não muda nada, só avisa.
+
+    Returns:
+        True se o nível de zoom mudou de fato.
+    """
+    atual = getattr(estado, 'zoom_nav', MUNDO_ZOOM_NAV_PADRAO)
+    # Um zoom_nav restaurado de save antigo pode não estar na lista; o nível
+    # mais próximo evita ValueError e devolve o jogador à escala canônica.
+    if atual in ZOOM_NIVEIS:
+        idx = ZOOM_NIVEIS.index(atual)
+    else:
+        idx = min(range(len(ZOOM_NIVEIS)), key=lambda i: abs(ZOOM_NIVEIS[i] - atual))
+    novo_idx = idx + passo
+    if not (0 <= novo_idx < len(ZOOM_NIVEIS)):
+        limite = "maxima" if passo < 0 else "minima"
+        estado.log.append(f"Mapa ja esta na aproximacao {limite} (~{atual}m)")
+        return False
+    estado.zoom_nav = ZOOM_NIVEIS[novo_idx]
+    estado.zoom_nav_mudou_em = estado.tempo
+    direcao = "aproximado" if passo < 0 else "afastado"
+    estado.log.append(f"Mapa {direcao}: zoom ~{estado.zoom_nav}m")
+    return True
+
+
 def _ciclar_reparo(estado: Estado) -> None:
     """Avança o foco para a próxima parte de reparo (circular)."""
     if estado.foco and estado.foco[0] == "reparo":
@@ -134,23 +165,28 @@ def _descrever_foco(estado: Estado) -> str:
     return "?"
 
 
-def processar_hotkey(ch: int, estado: Estado) -> bool:
+def processar_hotkey(ch: int, estado: Estado, estado_mundo=None) -> bool:
     """Processa uma hotkey e casa o roster de tripulação com o resultado.
 
     Wrapper fino sobre `_processar_hotkey`: como o dispatcher tem dezenas de
     pontos de saída, a reconciliação fica aqui, num lugar só, para que nenhuma
     hotkey nova possa esquecer dela. É idempotente e barata.
+
+    Args:
+        estado_mundo: Estado do mundo aberto, quando houver. Só as hotkeys de
+            zoom do mapa de navegação o consultam — ver `_processar_hotkey`.
     """
-    resultado = _processar_hotkey(ch, estado)
+    resultado = _processar_hotkey(ch, estado, estado_mundo)
     reconciliar_jogador(estado)
     return resultado
 
 
-def _processar_hotkey(ch: int, estado: Estado) -> bool:
+def _processar_hotkey(ch: int, estado: Estado, estado_mundo=None) -> bool:
     """Processa uma tecla pressionada como hotkey de jogo.
 
     Mapeamento (maiúsculas e minúsculas equivalentes):
         ESPAÇO  – alterna o item em foco
+        + / -   – zoom do mapa de navegação (só fora de combate)
         A / D   – leme ±HOTKEY_PASSO_LEME graus
         Q       – cicla o slot de vela selecionado
         W / S   – nível ++ / -- do slot de vela selecionado
@@ -163,6 +199,7 @@ def _processar_hotkey(ch: int, estado: Estado) -> bool:
     Args:
         ch:     Código de tecla retornado por curses.getch().
         estado: Estado atual do jogo.
+        estado_mundo: Estado do mundo aberto (None em combate de arena avulso).
 
     Returns:
         True se a tecla foi reconhecida e processada.
@@ -171,6 +208,15 @@ def _processar_hotkey(ch: int, estado: Estado) -> bool:
 
     if ch == ord(' '):
         _alternar_foco(estado)
+        return True
+
+    # +/- antes do filtro isalpha abaixo, que barraria os dois. Só valem quando
+    # o mapa de navegação está na tela: em combate o minimapa usa zoom
+    # automático e mexer em zoom_nav ali não teria efeito visível.
+    if ch in (ord('+'), ord('-')):
+        if estado_mundo is None or getattr(estado_mundo, 'em_combate', False):
+            return False
+        _ajustar_zoom_nav(estado, -1 if ch == ord('+') else +1)
         return True
 
     if not (32 <= ch <= 126):
