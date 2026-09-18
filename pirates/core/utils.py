@@ -93,3 +93,26 @@ def nivel_cor(valor: float, pior_se_alto: bool = False) -> str:
     if v > 25:
         return 'amarelo'
     return 'vermelho'
+
+SIMBOLO_TIPO_NAVIO = {
+    "chalupa": "*",
+    "brigantim": ":",
+    "galeao": "%",
+}
+"""Caractere de bordo esquerdo da célula de mapa, por tipo de navio inimigo.
+Dá ao jogador o porte do inimigo sem precisar entrar em combate."""
+
+SIMBOLO_TIPO_DESCONHECIDO = "["
+"""Fallback do marcador de inimigo, igual ao símbolo genérico usado antes de
+existir marcação por tipo. Um tipo não mapeado precisa parecer desconhecido em
+vez de se passar por um dos tipos reais."""
+
+
+def tipo_navio_mapa(tipo_navio: str) -> str:
+    """Símbolo de mapa para *tipo_navio*.
+
+    Aceita tanto a chave canônica de NAVIO_TIPOS ('brigantim') quanto o nome de
+    exibição ('Brigantim'): `Navio` guarda o segundo em `tipo_nome` e
+    `NavioMundo` guarda o primeiro em `tipo_navio` — os dois chegam aqui.
+    """
+    return SIMBOLO_TIPO_NAVIO.get((tipo_navio or "").lower(), SIMBOLO_TIPO_DESCONHECIDO)

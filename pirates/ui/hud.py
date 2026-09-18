@@ -23,7 +23,7 @@ from ..constants import (
 )
 from ..core.utils import (
     barra, clamp, seta_unicode_para_heading, seta_ascii_para_heading,
-    direcao_para_heading,
+    direcao_para_heading, tipo_navio_mapa,
 )
 from ..core.combat import distancia, rumo_para
 from ..core.state import montar_tripulacao
@@ -402,6 +402,9 @@ def build_mapa_linhas(estado) -> list[tuple]:
     def celula(navio, e_jogador: bool) -> str:
         glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
                  else seta_ascii_para_heading(navio.heading))
+        # Marcador generico de proposito: o porte do inimigo serve pra decidir
+        # SE vale engajar, e em combate essa decisao ja foi tomada. Marcacao por
+        # tipo fica nos mapas de navegacao (ver tipo_navio_mapa).
         return ('{' + glifo) if e_jogador else ('[' + glifo)
 
     largura_celula = 2
@@ -864,7 +867,7 @@ def build_mapa_navegacao_linhas(estado_mundo, estado) -> list[tuple]:
             continue
         glifo = (seta_unicode_para_heading(navio.heading) if unicode_on
                  else seta_ascii_para_heading(navio.heading))
-        celula_e = ('(' + glifo) if navio.status == 'fugindo' else ('[' + glifo)
+        celula_e = ('(' + glifo) if navio.status == 'fugindo' else (tipo_navio_mapa(navio.tipo_navio) + glifo)
         attr = cor_navio(estado, e_jogador=False)
         col, row = _to_cell_mundo(navio.x, navio.y, cx, cy, half_range, GRID_W, GRID_H)
         grid[row][col] = celula_e
@@ -1075,7 +1078,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
                 celula_mw = '(' + _seta(navio.heading)
                 attr = cor_navio(estado, e_jogador=False)
             else:
-                celula_mw = '[' + _seta(navio.heading)
+                celula_mw = tipo_navio_mapa(navio.tipo_navio) + _seta(navio.heading)
                 attr = cor_navio(estado, e_jogador=False)
             grid[row][col] = celula_mw
             overlays_por_linha[row].append((col * largura_celula, celula_mw, attr))
@@ -1108,7 +1111,7 @@ def build_mapa_mundo_linhas(estado_mundo, estado) -> list[tuple]:
     overlays_por_linha[GRID_H - 1].append((midX * largura_celula, 'S', attr))
 
     attr_mar = cor_mar(estado)
-    legenda_mapa = "{^ voce  [^ inimigo  (^ fugindo  [P porto  ## ilha"
+    legenda_mapa = "{^ voce  *^ chalupa  :^ brigantim  %^ galeao  (^ fugindo  [P porto  ## ilha"
     if getattr(estado_mundo, 'em_combate', False):
         titulo_mapa = "======= MAPA MUNDO — COMBATE ======="
     else:
