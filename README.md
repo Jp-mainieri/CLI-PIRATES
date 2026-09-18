@@ -223,6 +223,8 @@ Convenções do repositório:
 
 ## Documentação
 
+- [docs/COMO_JOGAR.md](docs/COMO_JOGAR.md) — guia dos instrumentos: cada painel do HUD, cada símbolo,
+  e como ler tudo junto para decidir.
 - [docs/BALANCEAMENTO.md](docs/BALANCEAMENTO.md) — como o equilíbrio está montado, como medir uma
   mudança antes de fazê-la, o que já foi medido e o que está aberto.
 
