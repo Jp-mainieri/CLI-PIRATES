@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from pirates.constants import (
     ZOOM_NIVEIS, MUNDO_ZOOM_NAV_PADRAO, MUNDO_VISAO_INIMIGOS, MUNDO_VISAO_PORTOS,
 )
@@ -13,6 +15,10 @@ from pirates.world.state import EstadoMundo
 
 MAIS = ord('+')
 MENOS = ord('-')
+
+# Cada direção tem duas teclas: a mesma tecla física com e sem SHIFT.
+TECLAS_APROXIMA = [ord('+'), ord('=')]
+TECLAS_AFASTA = [ord('-'), ord('_')]
 
 
 def _estado():
@@ -103,6 +109,27 @@ class TestHotkeys:
         e = _estado()
         assert processar_hotkey(MAIS, e, None) is False
         assert e.zoom_nav == MUNDO_ZOOM_NAV_PADRAO
+
+    @pytest.mark.parametrize("tecla", TECLAS_APROXIMA)
+    def test_todas_as_teclas_de_aproximar_funcionam(self, tecla):
+        """'+' e '=' sao a mesma tecla fisica; ambas precisam valer."""
+        e, em = _estado(), _mundo()
+        assert processar_hotkey(tecla, e, em) is True
+        assert e.zoom_nav == 400
+
+    @pytest.mark.parametrize("tecla", TECLAS_AFASTA)
+    def test_todas_as_teclas_de_afastar_funcionam(self, tecla):
+        """'-' e '_' sao a mesma tecla fisica; ambas precisam valer."""
+        e, em = _estado(), _mundo()
+        assert processar_hotkey(tecla, e, em) is True
+        assert e.zoom_nav == 1600
+
+    def test_nenhuma_tecla_de_zoom_aparece_nas_duas_direcoes(self):
+        """Uma tecla listada nos dois grupos mudaria de sentido silenciosamente."""
+        from pirates.input.hotkeys import ZOOM_APROXIMA, ZOOM_AFASTA
+        assert not set(ZOOM_APROXIMA) & set(ZOOM_AFASTA)
+        assert len(set(ZOOM_APROXIMA)) == len(ZOOM_APROXIMA)
+        assert len(set(ZOOM_AFASTA)) == len(ZOOM_AFASTA)
 
     def test_nao_rouba_teclas_de_outras_hotkeys(self):
         e, em = _estado(), _mundo()

@@ -15,6 +15,13 @@ from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
 from ..core.tripulacao import POSTO_BOMBA, posto_reparo
 from .commands import _armar_canhao_com_padrao
 
+# Cada direção de zoom aceita a tecla com e sem SHIFT, porque no teclado é a
+# mesma tecla física. Duas tuplas em vez de uma lista só: com uma lista o
+# desempate vira um `or` de comparações, onde já escapou um `ord('+')` repetido
+# no lugar de `ord('=')` e a tecla '=' ficou inerte sem ninguém notar.
+ZOOM_APROXIMA = (ord('+'), ord('='))
+ZOOM_AFASTA = (ord('-'), ord('_'))
+
 
 def _ciclar_canhao(estado: Estado, lado: str) -> None:
     """Seleciona o próximo canhão do *lado* como foco das hotkeys."""
@@ -186,7 +193,7 @@ def _processar_hotkey(ch: int, estado: Estado, estado_mundo=None) -> bool:
 
     Mapeamento (maiúsculas e minúsculas equivalentes):
         ESPAÇO  – alterna o item em foco
-        + / -   – zoom do mapa de navegação (só fora de combate)
+        + = / - _ – zoom do mapa de navegação (só fora de combate)
         A / D   – leme ±HOTKEY_PASSO_LEME graus
         Q       – cicla o slot de vela selecionado
         W / S   – nível ++ / -- do slot de vela selecionado
@@ -213,10 +220,10 @@ def _processar_hotkey(ch: int, estado: Estado, estado_mundo=None) -> bool:
     # +/- antes do filtro isalpha abaixo, que barraria os dois. Só valem quando
     # o mapa de navegação está na tela: em combate o minimapa usa zoom
     # automático e mexer em zoom_nav ali não teria efeito visível.
-    if ch in (ord('+'), ord('-')):
+    if ch in ZOOM_APROXIMA or ch in ZOOM_AFASTA:
         if estado_mundo is None or getattr(estado_mundo, 'em_combate', False):
             return False
-        _ajustar_zoom_nav(estado, -1 if ch == ord('+') else +1)
+        _ajustar_zoom_nav(estado, -1 if ch in ZOOM_APROXIMA else +1)
         return True
 
     if not (32 <= ch <= 126):

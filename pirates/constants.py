@@ -867,7 +867,7 @@ COMO_JOGAR_TEXTO = [
     "  espaco  atirar/parar | reparo ++",
     "  u / h   bombas ++ / --",
     "  e / r   circula partes de reparo / reparo --",
-    "  + / -   aproxima / afasta o mapa de navegacao (so fora de combate)",
+    "  + = / - _  aproxima / afasta o mapa de navegacao (so fora de combate)",
     "",
     "Pressione qualquer tecla para voltar ao menu.",
 ]
