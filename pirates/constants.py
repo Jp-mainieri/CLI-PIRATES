@@ -819,6 +819,7 @@ COMO_JOGAR_TEXTO = [
     "",
     "MUNDO ABERTO",
     "  M              alterna mapa de navegacao / mapa mundo (quadrante 8km)",
+    "                 inimigo navegando: *=chalupa :=brigantim %=galeao (=fugindo",
     "  V              abre o inventario do porao",
     "  ESC            volta ao menu",
     "  mapa / radar   mesmo que M / leitura do inimigo mais proximo",

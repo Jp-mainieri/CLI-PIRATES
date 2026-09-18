@@ -185,16 +185,23 @@ Rosa dos ventos deslizante, centrada no seu rumo. A segunda linha aparece quando
 
 ### MAPA
 
-Em combate é o **minimapa de arena**, com zoom automático pela distância ao inimigo. Fora de combate é o **mapa de navegação**, com zoom manual (`+`/`=` aproxima, `-`/`_` afasta).
+Em combate é o **minimapa de arena**, com zoom automático pela distância ao inimigo, e o inimigo aparece como `[` genérico. Fora de combate é o **mapa de navegação**, com zoom manual (`+`/`=` aproxima, `-`/`_` afasta), e aí os inimigos vêm marcados por tipo:
 
 ```
-{^  você          [P  porto
-[^  inimigo       ##  ilha
+{^  você                  [P  porto
+*^  chalupa inimiga       ##  ilha
+:^  brigantim inimigo     -x  destroço com loot
+%^  galeão inimigo        -*  seu naufrágio
 (^  inimigo fugindo
--x  destroço com loot     -*  seu naufrágio
 ```
 
-A seta dentro do símbolo é o **rumo** daquele navio — dá para ver se o inimigo está vindo na sua direção antes de ele chegar.
+Dois caracteres, duas informações. **O primeiro é o porte** — `*` chalupa, `:` brigantim, `%` galeão — então dá para saber o que vem vindo sem entrar em combate. Um `%` no horizonte é hora de decidir se vale a briga.
+
+É por isso que a marcação existe só aqui: dentro do combate a decisão de engajar já foi tomada, e o tipo do inimigo já aparece no resto do HUD.
+
+**O segundo é o rumo** daquele navio, então dá para ver se ele está vindo na sua direção antes de chegar.
+
+Inimigo em fuga aparece como `(` em vez do símbolo de tipo: saber que ele está correndo vale mais do que saber o porte.
 
 Tecla `M` alterna para o **mapa-mundo**, que mostra o quadrante de 8 km inteiro com as coordenadas no título (`MAPA MUNDO (2,3)`).
 

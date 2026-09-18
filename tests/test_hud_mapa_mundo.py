@@ -7,6 +7,7 @@ import pytest
 from pirates.constants import (
     MUNDO_QUADRANTE_TAMANHO, MUNDO_VISAO_PORTOS, MUNDO_VISAO_INIMIGOS, MUNDO_TAMANHO,
 )
+from pirates.core.utils import tipo_navio_mapa
 from pirates.ui.hud import build_mapa_mundo_linhas
 from pirates.world.entities import Porto, NavioMundo
 from pirates.world.state import EstadoMundo
@@ -79,7 +80,7 @@ class TestVisaoCapitao:
         em.inimigos = [NavioMundo(x=em.jogador_x, y=em.jogador_y + MUNDO_VISAO_INIMIGOS + 100,
                                    heading=0.0, status="patrulha")]
         linhas = build_mapa_mundo_linhas(em, _estado())
-        assert "[" not in _grid_texto(linhas)
+        assert tipo_navio_mapa(em.inimigos[0].tipo_navio) not in _grid_texto(linhas)
 
     def test_inimigo_dentro_do_alcance_aparece(self):
         em = EstadoMundo("brigantim", seed=1)
@@ -89,7 +90,8 @@ class TestVisaoCapitao:
         em.inimigos = [NavioMundo(x=em.jogador_x + MUNDO_VISAO_INIMIGOS - 100, y=em.jogador_y,
                                    heading=0.0, status="patrulha")]
         linhas = build_mapa_mundo_linhas(em, _estado())
-        assert "[" in _grid_texto(linhas)
+        # O marcador e' por tipo de navio, nao um '[' generico.
+        assert tipo_navio_mapa(em.inimigos[0].tipo_navio) in _grid_texto(linhas)
 
     def test_ilha_sempre_visivel_no_quadrante_sem_gate_de_distancia(self):
         em = EstadoMundo("brigantim", seed=1)
