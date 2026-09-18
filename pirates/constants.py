@@ -244,18 +244,29 @@ ARCO_TIRO_MAX = ARCO_TIRO_CENTRO + ARCO_TIRO_SEMI_ABERTURA
 # TRIPULANTE EFETIVAMENTE TRABALHOU, nunca do estado 'ocioso' — senão parar no
 # convés viraria lavagem de custo.
 
-TRANSITO_CANHAO_MESMO_BORDO = 6.0
-"""Segundos para mudar entre canhões do mesmo bordo. Placeholder – não calibrado."""
+# AS TRÊS CONSTANTES ABAIXO NÃO SÃO INDEPENDENTES.
+# Custo de trânsito precisa se comportar como distância: nenhum desvio pode ser
+# mais barato que o caminho direto, senão o jogador troca de bordo passando pelo
+# reparo e ganha tempo parando no meio do caminho. Isso exige
+#     MESMO_BORDO   <= 2 × TAREFA_DIFERENTE
+#     BORDO_OPOSTO  <= 2 × TAREFA_DIFERENTE
+# Com TAREFA_DIFERENTE = 4.0, os valores 6.0 e 8.0 ficam exatamente no limite.
+# Já foi violado uma vez (TAREFA_DIFERENTE era 3.0, e o bordo oposto saía por
+# 3+3=6s em vez de 8s). Travado por TestDesigualdadeTriangular em
+# tests/test_tripulacao.py — mexeu num destes números, rode aquele teste.
 
-TRANSITO_TAREFA_DIFERENTE = 3.0
+TRANSITO_CANHAO_MESMO_BORDO = 6.0
+"""Segundos para mudar entre canhões do mesmo bordo."""
+
+TRANSITO_TAREFA_DIFERENTE = 4.0
 """Segundos para mudar de tipo de tarefa (canhão↔bomba, canhão↔reparo,
-bomba↔reparo). Placeholder – não calibrado."""
+bomba↔reparo). É o teto dos desvios: metade deste valor multiplicada por dois
+precisa cobrir o trânsito direto mais caro (ver bloco acima)."""
 
 TRANSITO_CANHAO_BORDO_OPOSTO = 8.0
 """Segundos para atravessar o navio e assumir um canhão do bordo oposto. É a
 constante que decide se girar o navio para usar o outro bordo compensa: com
-COOLDOWN_CANHAO = 12.0, custa quase uma salva inteira. Placeholder – não
-calibrado."""
+COOLDOWN_CANHAO = 12.0, custa quase uma salva inteira."""
 
 TRANSITO_REPARO_ENTRE_PARTES = 0.0
 """Segundos para um tripulante de reparo trocar de parte (casco→vela, etc.).
