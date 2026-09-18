@@ -798,7 +798,7 @@ COMO_JOGAR_TEXTO = [
     "",
     "NAVIOS   Chalupa (dificuldade 1): 2 trip, 1 canhao/lado, 6 slots porao",
     "         Brigantim (dificuldade 2): 3 trip, 2 canhoes/lado, 9 slots",
-    "         Galeao (dificuldade 3): 7 trip, 3 canhoes/lado, 14 slots",
+    "         Galeao (dificuldade 3): 4 trip, 3 canhoes/lado, 14 slots",
     "",
     "VENTO E VELAS",
     "  Vale em combate, arena e navegacao no mundo aberto. Direcao e",
