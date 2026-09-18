@@ -499,13 +499,13 @@ COR_ILHA = 7      # amarelo (terra/areia)
 
 TIPOS_VELA = {
     "quadrada": {
-        "eficiencia_vento": {"zona_morta": 0.15, "bolina": 0.40, "traves": 0.75, "popa": 1.00},
+        "eficiencia_vento": {"zona_morta": 0.00, "bolina": 0.15, "traves": 0.75, "popa": 1.00},
         "bonus_fixo": 0.40,
         "bonus_curva": 0.0,
         "auxiliar": False,
     },
     "latina": {
-        "eficiencia_vento": {"zona_morta": 0.85, "bolina": 1.00, "traves": 0.90, "popa": 0.70},
+        "eficiencia_vento": {"zona_morta": 1.30, "bolina": 1.45, "traves": 0.90, "popa": 0.70},
         "bonus_fixo": 0.20,
         "bonus_curva": 0.10,
         "auxiliar": False,
@@ -523,7 +523,7 @@ TIPOS_VELA = {
         "auxiliar": False,
     },
     "topo_quadrada": {
-        "eficiencia_vento": {"zona_morta": 0.05, "bolina": 0.15, "traves": 0.40, "popa": 1.25},
+        "eficiencia_vento": {"zona_morta": 0.00, "bolina": 0.00, "traves": 0.40, "popa": 1.25},
         "bonus_fixo": 0.15,
         "bonus_curva": 0.0,
         "auxiliar": True,
@@ -537,7 +537,14 @@ TIPOS_VELA = {
 }
 """Parâmetros por tipo de vela. 'estai' nunca conta na soma de velocidade
 (eficiencia_vento, bonus_fixo) — só entra na soma de bonus_curva, onde
-quer que o slot esteja."""
+quer que o slot esteja.
+
+Aparelho redondo (quadrada, topo_quadrada) vale ~zero da bolina pra dentro;
+aparelho de proa-e-popa (latina, carangueja) é quem aponta. Isso é o que dá
+a cada tipo de navio uma faixa de vento própria: as somas de
+eficiencia_vento_bruta não têm teto (ver pirates/core/velas.py), então sem um
+contraste forte por zona o navio com mais velas venceria em TODOS os ângulos
+— inclusive contra o vento, onde suas velas quadradas deveriam ser inúteis."""
 
 GLYPH_VELA = {
     "latina": ("/", "|"),
@@ -560,7 +567,7 @@ LOADOUT_VELA_FABRICA = {
     ],
     "brigantim": [
         {"local": "proa",       "tipo": "estai",     "nivel": 1},
-        {"local": "principal",  "tipo": "quadrada",  "nivel": 1},
+        {"local": "principal",  "tipo": "carangueja","nivel": 1},
         {"local": "popa",       "tipo": "carangueja","nivel": 1},
         {"local": "aux-1",      "tipo": None,        "nivel": 0},
         {"local": "aux-2",      "tipo": None,        "nivel": 0},
@@ -571,14 +578,20 @@ LOADOUT_VELA_FABRICA = {
         {"local": "principal-2",  "tipo": "quadrada",      "nivel": 1},
         {"local": "principal-3",  "tipo": "quadrada",      "nivel": 1},
         {"local": "popa",         "tipo": "carangueja",    "nivel": 1},
-        {"local": "aux-1",        "tipo": "topo_quadrada", "nivel": 1},
-        {"local": "aux-2",        "tipo": "topo_quadrada", "nivel": 1},
+        {"local": "aux-1",        "tipo": None,            "nivel": 0},   # vazio
+        {"local": "aux-2",        "tipo": None,            "nivel": 0},   # vazio
         {"local": "aux-3",        "tipo": None,            "nivel": 0},  # vazio
     ],
 }
 """Loadout inicial de slots de vela por tipo de navio. tipo: None = slot
 auxiliar existente mas vazio. Nenhum slot pode ser criado além desta
-lista — o loadout de fábrica é o teto de quantos slots um navio tem."""
+lista — o loadout de fábrica é o teto de quantos slots um navio tem.
+
+Todo slot auxiliar nasce vazio, de propósito: é o espaço de customização do
+jogador, e o galeão (que tem 3) não deve chegar com ele pré-gasto. Isso também
+vale como equilíbrio — NPC nunca compra vela (world/state.py usa
+gerar_slots_fabrica direto), então vela auxiliar de fábrica seria poder
+permanente e gratuito para todo inimigo daquele tipo."""
 
 # ---------------------------------------------------------------------------
 # Tipos de navio / dificuldade
