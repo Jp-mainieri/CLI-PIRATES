@@ -26,6 +26,7 @@ from .hud import (
     build_mapa_mundo_linhas,
     build_vigia_linhas,
     build_vigia_mundo_linhas,
+    build_fuga_linhas,
     build_porao_linhas,
     build_velas_linhas,
 )
@@ -187,6 +188,9 @@ def desenhar_tela(stdscr, estado, buffer_entrada: str) -> None:
     for texto, attr, overlays in build_vigia_linhas(estado):
         safe_addstr(stdscr, row, 0, texto, attr)
         row += 1
+    for texto, attr, overlays in build_fuga_linhas(estado):
+        safe_addstr(stdscr, row, 0, texto, attr)
+        row += 1
 
     log_lines = list(estado.log)[-4:]
     base = max_y - (2 + len(log_lines) + 2)
@@ -320,6 +324,9 @@ def desenhar_tela_mundo(stdscr, estado, estado_mundo, buffer_entrada: str) -> No
                 safe_addstr(stdscr, row, col, segmento, attr_seg)
             row += 1
         for texto, attr, overlays in build_vigia_linhas(estado):
+            safe_addstr(stdscr, row, 0, texto, attr)
+            row += 1
+        for texto, attr, overlays in build_fuga_linhas(estado):
             safe_addstr(stdscr, row, 0, texto, attr)
             row += 1
     else:

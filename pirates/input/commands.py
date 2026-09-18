@@ -5,7 +5,10 @@ Interpreta o que o jogador digita no prompt, valida os argumentos e aplica
 as mudanças no estado do jogo. Inclui o sistema de autocompletar por TAB.
 """
 
-from ..constants import PARTES, COMANDOS, CANHAO_SUBCMDS, ALIASES
+from ..constants import (
+    PARTES, COMANDOS, CANHAO_SUBCMDS, ALIASES,
+    ALCANCE_FUGA_ESCAPE, TEMPO_FUGA_ESCAPE_SEG,
+)
 from ..core.ship import resolver_canhao
 from ..core.state import Estado, tentar_assumir_tripulacao, reconciliar_jogador
 from ..core.tripulacao import POSTO_BOMBA, posto_canhao, posto_reparo
@@ -248,7 +251,8 @@ def processar_comando(texto: str, estado: Estado) -> None:
             estado.jogador_tentando_fugir = True
             estado.tempo_fuga_jogador = 0.0
             estado.log.append(
-                "Voce tenta fugir! Afaste-se a mais de 900m por 15s (custa notoriedade)."
+                f"Voce tenta fugir! Afaste-se a mais de {ALCANCE_FUGA_ESCAPE:.0f}m "
+                f"por {TEMPO_FUGA_ESCAPE_SEG:.0f}s (custa notoriedade)."
             )
 
     else:

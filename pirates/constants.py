@@ -334,11 +334,19 @@ FUGA_SAIDA_MIN = 35.0
 FUGA_SAIDA_MAX = 70.0
 """Limiar máximo de moral para o inimigo sair do modo fuga."""
 
-ALCANCE_FUGA_ESCAPE = 900.0
-"""Distância (unidades) que o inimigo precisa manter para o timer de fuga avançar."""
+ALCANCE_FUGA_ESCAPE = 800.0
+"""Distância (unidades) que o fugitivo precisa manter para o timer de fuga avançar.
+Vale para os dois lados: inimigo em modo fuga e jogador que usou o comando 'fugir'.
+
+Por que 800 e não mais: o combate começa a MUNDO_GATILHO_COMBATE (750m) e a IA tem
+um atrator em alcance_canhao_efetivo() (550m) — acima disso ela persegue em linha
+reta, abaixo troca pra bordada e para de fechar. O ciclo resultante faz a distância
+oscilar com pico de ~790-850m em confronto de velocidade parelha. Um limiar de 900m
+ficava acima desse pico e tornava a fuga impossível sem antes danificar as velas do
+perseguidor."""
 
 TEMPO_FUGA_ESCAPE_SEG = 15.0
-"""Segundos que o inimigo precisa ficar além de ALCANCE_FUGA_ESCAPE para escapar."""
+"""Segundos que o fugitivo precisa ficar além de ALCANCE_FUGA_ESCAPE para escapar."""
 
 # ---------------------------------------------------------------------------
 # Mundo aberto (esqueleto mínimo)
@@ -817,7 +825,8 @@ COMO_JOGAR_TEXTO = [
     "  canhao <id> <dist>       aloca e mira           alias: c",
     "  canhao <id> parar        para e libera crew",
     "  radar                    distancia/rumo exatos do inimigo",
-    "  fugir                    tenta escapar (fica a 900m+ por 15s) alias: f",
+    f"  fugir                    tenta escapar (fica a {ALCANCE_FUGA_ESCAPE:.0f}m+ "
+    f"por {TEMPO_FUGA_ESCAPE_SEG:.0f}s) alias: f",
     "                           inimigo nao pode estar fugindo; custa notoriedade",
     "  ENTER vazio              repete o ultimo comando",
     "",

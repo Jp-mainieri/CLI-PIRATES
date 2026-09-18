@@ -123,6 +123,13 @@ def atualizar_simulacao(estado: Estado, dt: float) -> None:
                     estado.fim = "fuga_jogador"
                     estado.rodando = False
             else:
+                # Aviso so na transicao: o reset roda a cada tick abaixo do
+                # limiar e logar sempre encheria o log de linhas repetidas.
+                if estado.tempo_fuga_jogador > 0.0:
+                    estado.log.append(
+                        f"Fuga interrompida! Inimigo voltou a menos de "
+                        f"{ALCANCE_FUGA_ESCAPE:.0f}m."
+                    )
                 estado.tempo_fuga_jogador = 0.0
 
     if jogador.afundado and estado.fim is None:
