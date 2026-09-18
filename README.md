@@ -210,23 +210,20 @@ Boa parte deles trava **invariantes de equilíbrio**, não só comportamento —
 
 ## Contribuindo
 
-1. Faça um fork e crie uma branch (`git checkout -b feat/nova-mecanica`)
-2. Rode `python3 -m pytest tests/ -q` antes e depois
-3. Abra um Pull Request descrevendo **o que mudou e por quê**
+Fork, branch, testes passando, PR dizendo o que mudou e por quê.
 
-Convenções do repositório:
-
-- Branches por escopo: `feat/`, `fix/`, `balance/`, `mod/`
-- Mensagens de commit no imperativo, com o *porquê* no corpo — não só o *o quê*
-- Mudança de equilíbrio merece número: diga o que você mediu, e o que **não** mediu
-- Comentário explica decisão, não mecânica óbvia
+O detalhe está em [CONTRIBUTING.md](CONTRIBUTING.md) — em especial a parte sobre
+**mudanças de equilíbrio**, que neste projeto exigem número medido, não estimativa.
 
 ## Documentação
 
 - [docs/COMO_JOGAR.md](docs/COMO_JOGAR.md) — guia dos instrumentos: cada painel do HUD, cada símbolo,
   e como ler tudo junto para decidir.
+- [docs/ARQUITETURA.md](docs/ARQUITETURA.md) — como o código funciona: os dois loops, arena vs mundo,
+  o contrato da UI, e onde mexer para cada tipo de mudança.
 - [docs/BALANCEAMENTO.md](docs/BALANCEAMENTO.md) — como o equilíbrio está montado, como medir uma
   mudança antes de fazê-la, o que já foi medido e o que está aberto.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — fluxo, convenções e como propor mudança de equilíbrio.
 
 ## Licença
 
